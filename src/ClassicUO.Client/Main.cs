@@ -394,6 +394,11 @@ namespace ClassicUO
 
                         break;
 
+                    case "touch": // phone-style controls: joystick, action buttons, tap-to-click
+                        Touch.TouchInput.Enabled = true;
+
+                        break;
+
                     case "skiploginscreen":
                         CUOEnviroment.SkipLoginScreen = true;
 

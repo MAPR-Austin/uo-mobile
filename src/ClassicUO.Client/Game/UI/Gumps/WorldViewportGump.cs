@@ -234,8 +234,9 @@ namespace ClassicUO.Game.UI.Gumps
         {
             newSize.X = (int)(newSize.X / Client.Game.DpiScale);
             newSize.Y = (int)(newSize.Y / Client.Game.DpiScale);
-            int targetWidth = 640;
-            int targetHeight = 480;
+            // Phones in landscape are shorter than the desktop minimum (e.g. 844x390 points).
+            int targetWidth = Touch.TouchInput.Enabled ? 320 : 640;
+            int targetHeight = Touch.TouchInput.Enabled ? 240 : 480;
             if (newSize.X < targetWidth)
             {
                 newSize.X = targetWidth;

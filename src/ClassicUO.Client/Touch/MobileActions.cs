@@ -1,0 +1,235 @@
+// SPDX-License-Identifier: BSD-2-Clause
+
+using System;
+using ClassicUO.Configuration;
+using ClassicUO.Game;
+using ClassicUO.Game.GameObjects;
+using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Utility;
+
+namespace ClassicUO.Touch
+{
+    /// <summary>
+    /// Executes on-screen button actions. Everything that has a ClassicUO macro
+    /// equivalent is run as a one-off macro, so targeting, casting and attacking
+    /// behave exactly like the desktop client's hotkeys.
+    ///
+    /// Action ids:
+    ///   attack_nearest   select nearest hostile + attack it (fast melee "target closest")
+    ///   target_nearest / target_next / target_prev   hostile selection (sets last target)
+    ///   attack_last      attack the last target
+    ///   last_target / target_self   answer an open target cursor
+    ///   cancel_target    cancel an open target cursor
+    ///   healthbar_target pull a health bar for the selected target
+    ///   war_peace, all_names, bandage_self, bandage_target, last_spell, last_object
+    ///   spell:Name       cast (cursor stays up for a tap)
+    ///   spell_lt:Name    cast, wait for cursor, target last target
+    ///   spell_self:Name  cast, wait for cursor, target self
+    ///   open:Backpack|Paperdoll|Skills|Journal|Status|MageSpellbook|WorldMap ...
+    ///   skill:Name       use a skill (Hiding, Meditation, ...)
+    ///   say:text
+    ///   macro:Name       run a user macro from the macro editor
+    ///   layout_next, edit_layout, macro_editor   HUD control
+    /// </summary>
+    internal static class MobileActions
+    {
+        public static void Run(World world, string action)
+        {
+            if (world == null || !world.InGame || string.IsNullOrEmpty(action))
+            {
+                return;
+            }
+
+            string arg = null;
+            int colon = action.IndexOf(':');
+
+            if (colon >= 0)
+            {
+                arg = action.Substring(colon + 1);
+                action = action.Substring(0, colon);
+            }
+
+            switch (action)
+            {
+                case "attack_nearest":
+                    Macro(world, O(MacroType.SelectNearest, MacroSubType.Hostile), O(MacroType.AttackSelectedTarget));
+
+                    break;
+
+                case "target_nearest":
+                    Macro(world, O(MacroType.SelectNearest, MacroSubType.Hostile));
+
+                    break;
+
+                case "target_next":
+                    Macro(world, O(MacroType.SelectNext, MacroSubType.Hostile));
+
+                    break;
+
+                case "target_prev":
+                    Macro(world, O(MacroType.SelectPrevious, MacroSubType.Hostile));
+
+                    break;
+
+                case "attack_last": Macro(world, O(MacroType.AttackLast)); break;
+                case "last_target": Macro(world, O(MacroType.LastTarget)); break;
+                case "target_self": Macro(world, O(MacroType.TargetSelf)); break;
+                case "war_peace": Macro(world, O(MacroType.WarPeace)); break;
+                case "all_names": Macro(world, O(MacroType.AllNames)); break;
+                case "bandage_self": Macro(world, O(MacroType.BandageSelf)); break;
+                case "bandage_target": Macro(world, O(MacroType.BandageTarget)); break;
+                case "last_spell": Macro(world, O(MacroType.LastSpell)); break;
+                case "last_object": Macro(world, O(MacroType.LastObject)); break;
+
+                case "cancel_target":
+                    if (world.TargetManager.IsTargeting)
+                    {
+                        world.TargetManager.CancelTarget();
+                    }
+
+                    break;
+
+                case "healthbar_target":
+                    OpenHealthBar(world, world.TargetManager.SelectedTarget != 0 ? world.TargetManager.SelectedTarget : world.TargetManager.LastTargetInfo.Serial);
+
+                    break;
+
+                case "spell":
+                    if (TryParse(arg, out MacroSubType spell))
+                    {
+                        Macro(world, O(MacroType.CastSpell, spell));
+                    }
+
+                    break;
+
+                case "spell_lt":
+                    if (TryParse(arg, out spell))
+                    {
+                        Macro(world, O(MacroType.CastSpell, spell), O(MacroType.WaitForTarget), O(MacroType.LastTarget));
+                    }
+
+                    break;
+
+                case "spell_self":
+                    if (TryParse(arg, out spell))
+                    {
+                        Macro(world, O(MacroType.CastSpell, spell), O(MacroType.WaitForTarget), O(MacroType.TargetSelf));
+                    }
+
+                    break;
+
+                case "open":
+                    if (TryParse(arg, out MacroSubType gump))
+                    {
+                        Macro(world, O(MacroType.Open, gump));
+                    }
+
+                    break;
+
+                case "skill":
+                    if (TryParse(arg, out MacroSubType skill))
+                    {
+                        Macro(world, O(MacroType.UseSkill, skill));
+                    }
+
+                    break;
+
+                case "say":
+                    Macro(world, new MacroObjectString(MacroType.Say, MacroSubType.MSC_NONE, arg ?? ""));
+
+                    break;
+
+                case "macro":
+                    Game.Managers.Macro user = world.Macros.FindMacro(arg ?? "");
+
+                    if (user != null && user.Items is MacroObject first)
+                    {
+                        Execute(world, first);
+                    }
+                    else
+                    {
+                        GameActions.Print(world, $"No macro named '{arg}'.");
+                    }
+
+                    break;
+
+                case "macro_editor":
+                    GameActions.OpenSettings(world, 4);
+
+                    break;
+
+                case "layout_next":
+                    TouchInput.NextLayout();
+
+                    break;
+
+                case "edit_layout":
+                    TouchInput.ToggleEditMode();
+
+                    break;
+
+                default:
+                    GameActions.Print(world, $"Unknown button action '{action}'.");
+
+                    break;
+            }
+        }
+
+        public static void OpenHealthBar(World world, uint serial)
+        {
+            if (!SerialHelper.IsMobile(serial))
+            {
+                return;
+            }
+
+            if (!world.Mobiles.TryGetValue(serial, out Mobile mobile) || mobile == null || UIManager.GetGump<BaseHealthBarGump>(serial) != null)
+            {
+                return;
+            }
+
+            BaseHealthBarGump bar = ProfileManager.CurrentProfile.CustomBarsToggled
+                ? new HealthBarGumpCustom(world, mobile)
+                : new HealthBarGump(world, mobile);
+
+            // Stack pulled bars down the left edge, under the status area.
+            int count = 0;
+
+            foreach (var c in UIManager.Gumps)
+            {
+                if (c is BaseHealthBarGump && !c.IsDisposed)
+                {
+                    count++;
+                }
+            }
+
+            bar.X = 8;
+            bar.Y = 90 + count * 50;
+            UIManager.Add(bar);
+        }
+
+        private static bool TryParse(string name, out MacroSubType value) =>
+            Enum.TryParse(name, true, out value) && value != MacroSubType.MSC_NONE;
+
+        private static MacroObject O(MacroType type, MacroSubType sub = MacroSubType.MSC_NONE) => new MacroObject(type, sub);
+
+        private static void Macro(World world, params MacroObject[] steps)
+        {
+            var macro = new Game.Managers.Macro("__mobile");
+
+            foreach (MacroObject step in steps)
+            {
+                macro.PushToBack(step);
+            }
+
+            Execute(world, (MacroObject)macro.Items);
+        }
+
+        private static void Execute(World world, MacroObject first)
+        {
+            world.Macros.SetMacroToExecute(first);
+            world.Macros.WaitForTargetTimer = 0;
+            world.Macros.Update();
+        }
+    }
+}

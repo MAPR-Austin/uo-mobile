@@ -111,8 +111,22 @@ namespace ClassicUO.Input
 
         public static bool MouseInWindow { get; set; }
 
+        /// <summary>
+        /// Set by the touch layer (Touch/TouchInput): while non-null the pointer is a finger,
+        /// already in UI space, and the OS cursor is ignored. A real mouse motion clears it.
+        /// </summary>
+        public static Point? TouchPosition;
+
         public static void Update()
         {
+            if (TouchPosition.HasValue)
+            {
+                Position = TouchPosition.Value;
+                IsDragging = LButtonPressed || RButtonPressed || MButtonPressed;
+
+                return;
+            }
+
             if (!MouseInWindow)
             {
                 SDL.SDL_GetGlobalMouseState(out float x, out float y);

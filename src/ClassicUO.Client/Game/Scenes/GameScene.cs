@@ -98,6 +98,15 @@ namespace ClassicUO.Game.Scenes
 
             Client.Game.Window.AllowUserResizing = true;
 
+            if (Touch.TouchInput.Enabled)
+            {
+                // Phone layout: the world fills the screen and the HUD floats over it;
+                // desktop chrome (top bar, movable viewport) stays out of the way.
+                ProfileManager.CurrentProfile.GameWindowFullSize = true;
+                ProfileManager.CurrentProfile.GameWindowLock = true;
+                ProfileManager.CurrentProfile.TopbarGumpIsDisabled = true;
+            }
+
             Camera.Zoom = ProfileManager.CurrentProfile.DefaultScale;
             Camera.Bounds.X = Math.Max(0, ProfileManager.CurrentProfile.GameWindowPosition.X);
             Camera.Bounds.Y = Math.Max(0, ProfileManager.CurrentProfile.GameWindowPosition.Y);
@@ -117,6 +126,12 @@ namespace ClassicUO.Game.Scenes
 
             WorldViewportGump viewport = new WorldViewportGump(_world, this);
             UIManager.Add(viewport, false);
+
+            if (ProfileManager.CurrentProfile.GameWindowFullSize)
+            {
+                viewport.ResizeGameWindow(new Point(Client.Game.Window.ClientBounds.Width, Client.Game.Window.ClientBounds.Height));
+                viewport.SetGameWindowPosition(new Point(-5, -5));
+            }
 
             if (!ProfileManager.CurrentProfile.TopbarGumpIsDisabled)
             {
