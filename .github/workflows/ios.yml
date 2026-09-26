@@ -21,12 +21,17 @@ jobs:
         with:
           submodules: recursive
 
-      - name: Select newest Xcode
+      # The .NET iOS workload (Microsoft.iOS.Sdk 26.5) is built against Xcode 26.5; the newest
+      # Xcode on the image (26.6) failed to provide clang++ for the final link.
+      - name: Select Xcode 26.5
         run: |
-          XC="$(ls -d /Applications/Xcode_*.app | sort -V | tail -1)"
+          ls -d /Applications/Xcode*.app
+          XC="$(ls -d /Applications/Xcode_26.5*.app 2>/dev/null | sort -V | tail -1)"
+          [ -n "$XC" ] || XC="$(xcode-select -p | sed 's|/Contents/Developer||')"
           echo "Using $XC"
           sudo xcode-select -s "$XC/Contents/Developer"
           xcodebuild -version
+          xcrun --sdk iphoneos --find clang++
 
       - uses: actions/setup-dotnet@v5
         with:
