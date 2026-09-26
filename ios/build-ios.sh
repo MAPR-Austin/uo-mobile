@@ -148,6 +148,8 @@ cmd_build() {
   [ -n "${CODESIGN_KEY:-}" ] && props+=(-p:CodesignKey="$CODESIGN_KEY")
   [ -n "${PROVISION:-}" ]    && props+=(-p:CodesignProvision="$PROVISION")
   [ "${UNSIGNED:-}" = "1" ]  && props+=(-p:EnableCodeSigning=false -p:BuildIpa=false)
+  # shellcheck disable=SC2206
+  [ -n "${EXTRA_PROPS:-}" ]  && props+=($EXTRA_PROPS)
 
   dotnet publish "$HERE/ClassicUO.iOS.csproj" -c "$CONFIG" -f "$TFM" -r "$RID" "${props[@]}"
 
