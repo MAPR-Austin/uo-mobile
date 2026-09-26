@@ -61,6 +61,15 @@ namespace ClassicUO.iOS
             Directory.CreateDirectory(uoPath);
             WriteDataReadme(uoPath);
 
+            // Windows' Apple Devices app can only drop files into the top of the app's Documents
+            // folder, so accept the UO files there too when Documents/uo has none.
+            if (!File.Exists(Path.Combine(uoPath, "tiledata.mul")) && File.Exists(Path.Combine(_documents, "tiledata.mul")))
+            {
+                uoPath = _documents;
+            }
+
+            Console.WriteLine($"[UOMobile] UO data: {uoPath}");
+
             _realArgs = BuildClassicUOArgs(args, uoPath);
             Console.WriteLine("[UOMobile] ClassicUO args: " + string.Join(" ", _realArgs));
 

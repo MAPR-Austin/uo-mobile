@@ -53,12 +53,6 @@ jobs:
       - name: Tools
         run: brew install ninja || true
 
-      - name: Probe clang++ lookup from inside MSBuild
-        run: |
-          echo "shell env bytes: $(env | wc -c)"
-          xcrun clang++ --version
-          dotnet msbuild ios/ci-probe.proj -t:Probe -v:n -nologo
-
       - name: Restore native libs (SDL3, FNA3D, FAudio, Theorafile)
         id: libcache
         uses: actions/cache/restore@v4
