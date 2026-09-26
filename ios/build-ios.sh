@@ -16,6 +16,8 @@
 #   PROVISION      provisioning profile name or UUID                         (default: auto)
 #   CONFIG         Release (default) or Debug
 #   NATIVEAOT      1 = publish with NativeAOT instead of Mono AOT (UNVERIFIED path)
+#   UNSIGNED       1 = build without code signing and package Payload/*.app as an .ipa
+#                  (CI: sign/install it from Windows with Sideloadly)
 #   DEVICE_ID      devicectl device identifier (default: first connected iPhone)
 #   UO_DATA        folder with the staged UO files (default: ~/uo-mobile/ios-data/uo)
 #   SERVER_IP      for 'config' (default 192.168.68.91), SERVER_PORT (default 2593)
@@ -145,6 +147,7 @@ cmd_build() {
   [ "${NATIVEAOT:-}" = "1" ] && props+=(-p:UseNativeAot=true)
   [ -n "${CODESIGN_KEY:-}" ] && props+=(-p:CodesignKey="$CODESIGN_KEY")
   [ -n "${PROVISION:-}" ]    && props+=(-p:CodesignProvision="$PROVISION")
+  [ "${UNSIGNED:-}" = "1" ]  && props+=(-p:EnableCodeSigning=false -p:BuildIpa=false)
 
   dotnet publish "$HERE/ClassicUO.iOS.csproj" -c "$CONFIG" -f "$TFM" -r "$RID" "${props[@]}"
 
@@ -154,6 +157,14 @@ cmd_build() {
   echo "app: $app"
   [ -n "$ipa" ] && echo "ipa: $ipa"
   du -sh "$app" | awk '{print "app size: " $1}'
+
+  if [ "${UNSIGNED:-}" = "1" ]; then
+    local out="$HERE/out"; rm -rf "$out"; mkdir -p "$out/Payload"
+    cp -R "$app" "$out/Payload/"
+    (cd "$out" && zip -qry UOMobile-unsigned.ipa Payload)
+    rm -rf "$out/Payload"
+    echo "unsigned ipa: $out/UOMobile-unsigned.ipa ($(du -h "$out/UOMobile-unsigned.ipa" | awk '{print $1}'))"
+  fi
 }
 
 # ------------------------------------------------------------------------------------------
