@@ -8,6 +8,14 @@
     <PublishAot>true</PublishAot>
   </PropertyGroup>
 
+  <!-- UO Mobile: built as a library of ios/ClassicUO.iOS.csproj, whose RuntimeIdentifier flows
+       here. The iOS app does its own AOT; the desktop NativeAOT/apphost settings don't apply. -->
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('ios'))">
+    <PublishAot>false</PublishAot>
+    <UseAppHost>false</UseAppHost>
+    <SelfContained>false</SelfContained>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(Configuration)'=='Release'">
     <OutputPath>$(ProjectDir)..\..\bin\Release\</OutputPath>
     <PublishDir>$(ProjectDir)..\..\bin\dist\</PublishDir>
