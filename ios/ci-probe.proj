@@ -1,6 +1,6 @@
 <!-- CI diagnostic: run ios/ci-probe.sh from inside MSBuild (same process tree as the link step). -->
 <Project>
   <Target Name="Probe">
-    <Exec Command="bash ios/ci-probe.sh" ContinueOnError="true" />
+    <Exec Command="bash $(MSBuildThisFileDirectory)ci-probe.sh" ContinueOnError="true" />
   </Target>
 </Project>

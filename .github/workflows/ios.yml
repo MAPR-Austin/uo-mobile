@@ -28,11 +28,15 @@ jobs:
         run: |
           ls -d /Applications/Xcode*.app
           XC="$(ls -d /Applications/Xcode_26.5*.app | sort -V | tail -1)"
+          # Xcode_26.5.0.app is a symlink to Xcode_26.5.app; the .NET link step's xcrun lookup
+          # failed through the symlinked path, so use the real directory everywhere.
+          XC="$(cd "$XC" && pwd -P)"
           echo "Using $XC"
           sudo xcode-select -s "$XC/Contents/Developer"
           sudo xcodebuild -runFirstLaunch >/dev/null 2>&1 || true
           sudo xcrun --kill-cache || true
           echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          echo "MD_APPLE_SDK_ROOT=$XC" >> "$GITHUB_ENV"
           echo "EXTRA_PROPS=-p:ValidateXcodeVersion=false" >> "$GITHUB_ENV"
           xcodebuild -version
           xcrun --sdk iphoneos --find clang++
