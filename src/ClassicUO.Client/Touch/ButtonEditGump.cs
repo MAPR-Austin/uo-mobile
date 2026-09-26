@@ -85,7 +85,7 @@ namespace ClassicUO.Touch
             Add(new Label("Label", true, 0x0481, 0, 1) { X = 12, Y = 12 });
             Add(new ResizePic(0x0BB8) { X = 70, Y = 8, Width = 170, Height = 26 });
             Add(_label = new StbTextBox(1, 40, 160, true, FontStyle.None, 0x0481) { X = 76, Y = 12, Width = 160, Height = 20 });
-            _label.SetText((def?.Label ?? "").Replace("\n", "|"));
+            _label.SetText((def?.DisplayLabel ?? "").Replace('\n', '|'));
 
             Add(new Label("Action", true, 0x0481, 0, 1) { X = 252, Y = 12 });
             Add(new ResizePic(0x0BB8) { X = 308, Y = 8, Width = 200, Height = 26 });
@@ -169,7 +169,7 @@ namespace ClassicUO.Touch
             switch (buttonID)
             {
                 case ID_SAVE:
-                    def.Label = (_label.Text ?? "").Replace("|", "\n");
+                    def.Label = _label.Text ?? "";
                     def.Action = (_action.Text ?? "").Trim();
                     TouchInput.Layouts.Save();
                     TouchInput.MarkChanged();

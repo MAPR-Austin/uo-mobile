@@ -100,7 +100,7 @@ namespace ClassicUO.Touch
                 Point c = TouchInput.ButtonCenter(b);
                 int r = TouchInput.ButtonRadius(b);
 
-                Label label = new Label(b.Label ?? "", true, 0x0481, r * 2 - 4, 1, FontStyle.BlackBorder, TEXT_ALIGN_TYPE.TS_CENTER);
+                Label label = new Label(b.DisplayLabel, true, 0x0481, r * 2 - 4, 1, FontStyle.BlackBorder, TEXT_ALIGN_TYPE.TS_CENTER);
                 label.X = c.X - r + 2;
                 label.Y = c.Y - label.Height / 2;
                 _labels.Add(label);

@@ -128,7 +128,7 @@ namespace ClassicUO.Touch
             }
 
             Revision++;
-            GameActions.Print(Client.Game.UO.World, EditMode ? "Edit mode: drag buttons to move them, tap one to change it, tap + to add." : "Layout saved.", 0x35);
+            GameActions.Print(Client.Game.UO.World, EditMode ? "Edit mode: drag buttons to move them, tap one to change it, tap + to add. Tap Edit again when done." : "Layout saved.", 0x35);
         }
 
         public static void MarkChanged()
@@ -353,7 +353,18 @@ namespace ClassicUO.Touch
                         }
                         else if (f.Button >= 0 && Current != null && f.Button < Current.Buttons.Count)
                         {
-                            ButtonEditGump.Open(Client.Game.UO.World, f.Button);
+                            string action = Current.Buttons[f.Button].Action;
+
+                            // The Edit and Layout buttons keep working in edit mode, so you can
+                            // leave it, or switch to another layout to edit that one too.
+                            if (action is "edit_layout" or "layout_next")
+                            {
+                                MobileActions.Run(Client.Game.UO.World, action);
+                            }
+                            else
+                            {
+                                ButtonEditGump.Open(Client.Game.UO.World, f.Button);
+                            }
                         }
                     }
 

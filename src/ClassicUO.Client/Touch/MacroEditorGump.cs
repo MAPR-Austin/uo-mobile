@@ -381,7 +381,7 @@ namespace ClassicUO.Touch
             }
 
             string label = m.Name.Length > 12 ? m.Name.Substring(0, 12) : m.Name;
-            layout.Buttons.Add(new ActionButtonDef { Label = label.Replace(' ', '\n'), Action = "mmacro:" + m.Name, X = 0.5f, Y = 0.5f, Size = 0.13f });
+            layout.Buttons.Add(new ActionButtonDef { Label = label.Replace(' ', '|'), Action = "mmacro:" + m.Name, X = 0.5f, Y = 0.5f, Size = 0.13f });
             TouchInput.Layouts.Save();
             TouchInput.MarkChanged();
 

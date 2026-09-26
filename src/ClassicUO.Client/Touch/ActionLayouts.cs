@@ -10,7 +10,12 @@ namespace ClassicUO.Touch
     /// <summary>One on-screen button. Position is the button centre, normalised to the screen (0..1).</summary>
     internal sealed class ActionButtonDef
     {
+        /// <summary>Button text. "|" is a line break: ClassicUO's JSON loader doubles backslashes, so "\n" would not survive a save.</summary>
         [JsonPropertyName("label")] public string Label { get; set; } = "";
+
+        /// <summary>Label as drawn (also repairs layouts saved with a mangled "\n").</summary>
+        [JsonIgnore]
+        public string DisplayLabel => (Label ?? "").Replace("\\n", "\n").Replace('|', '\n');
         /// <summary>An action id understood by <see cref="MobileActions"/> ("attack_nearest", "spell_lt:EnergyBolt", "macro:My Macro", ...).</summary>
         [JsonPropertyName("action")] public string Action { get; set; } = "";
         [JsonPropertyName("x")] public float X { get; set; }
@@ -71,7 +76,7 @@ namespace ClassicUO.Touch
         }
 
         private static ActionButtonDef B(string label, string action, float x, float y, float size = 0.14f) =>
-            new ActionButtonDef { Label = label, Action = action, X = x, Y = y, Size = size };
+            new ActionButtonDef { Label = label.Replace('\n', '|'), Action = action, X = x, Y = y, Size = size };
 
         /// <summary>
         /// Three starter layouts. Every layout carries the same top-right system row
