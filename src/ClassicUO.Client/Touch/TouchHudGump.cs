@@ -25,6 +25,7 @@ namespace ClassicUO.Touch
         private Label _layoutName;
         private int _builtRevision = -1;
         private int _builtW, _builtH;
+        private bool _builtSuppressed;
 
         private TouchHudGump(World world) : base(world, 0, 0)
         {
@@ -64,7 +65,7 @@ namespace ClassicUO.Touch
                 }
             }
 
-            if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH)
+            if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH || _builtSuppressed != TouchInput.Suppressed)
             {
                 Rebuild();
             }
@@ -73,6 +74,7 @@ namespace ClassicUO.Touch
         private void Rebuild()
         {
             _builtRevision = TouchInput.Revision;
+            _builtSuppressed = TouchInput.Suppressed;
             _builtW = TouchInput.ScreenW;
             _builtH = TouchInput.ScreenH;
             Width = _builtW;
@@ -88,7 +90,7 @@ namespace ClassicUO.Touch
 
             ActionLayout layout = TouchInput.Current;
 
-            if (layout == null)
+            if (layout == null || _builtSuppressed)
             {
                 return;
             }
@@ -117,7 +119,7 @@ namespace ClassicUO.Touch
             float layerDepth = layerDepthRef;
             ActionLayout layout = TouchInput.Current;
 
-            if (layout == null)
+            if (layout == null || TouchInput.Suppressed)
             {
                 return false;
             }

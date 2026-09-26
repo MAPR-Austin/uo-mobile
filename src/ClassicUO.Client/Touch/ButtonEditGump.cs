@@ -49,7 +49,7 @@ namespace ClassicUO.Touch
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),
             ("World Map", "open:WorldMap"), ("Macro Editor", "macro_editor"), ("Next Layout", "layout_next"),
-            ("Edit Layout", "edit_layout"),
+            ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("UO Macros", "uo_macros"),
         };
 
         private ButtonEditGump(World world, int index) : base(world, 0, 0)
@@ -68,9 +68,16 @@ namespace ClassicUO.Touch
 
             _choices = new List<(string, string)>(Presets);
 
+            MobileMacroRunner.EnsureLoaded();
+
+            foreach (MobileMacro m in MobileMacroRunner.Macros.Macros)
+            {
+                _choices.Add(($"Macro: {m.Name}", $"mmacro:{m.Name}"));
+            }
+
             foreach (Macro m in world.Macros.GetAllMacros())
             {
-                _choices.Add(($"Macro: {m.Name}", $"macro:{m.Name}"));
+                _choices.Add(($"UO Macro: {m.Name}", $"macro:{m.Name}"));
             }
 
             Add(new AlphaBlendControl(0.85f) { Width = W, Height = H });
@@ -222,7 +229,7 @@ namespace ClassicUO.Touch
                     {
                         (string label, string action) = _choices[choice];
                         _action.SetText(action);
-                        _label.SetText(label.StartsWith("Macro: ") ? label.Substring(7) : label.Replace(" ", "|"));
+                        _label.SetText(label.Contains("Macro: ") ? label.Substring(label.IndexOf("Macro: ") + 7) : label.Replace(" ", "|"));
                     }
 
                     break;

@@ -100,6 +100,7 @@ namespace ClassicUO.Touch
 
         public static void Unload()
         {
+            MobileMacroRunner.Unload();
             Layouts = null;
             EditMode = false;
             _fingers.Clear();
@@ -177,6 +178,9 @@ namespace ClassicUO.Touch
 
         private static bool InGame => Client.Game.UO.World != null && Client.Game.UO.World.InGame && Current != null;
 
+        /// <summary>While an editor window is open the HUD is hidden and every finger is a pointer.</summary>
+        public static bool Suppressed => UIManager.GetGump<MacroEditorGump>() != null || UIManager.GetGump<ButtonEditGump>() != null;
+
         public static Point ToUi(float nx, float ny) => new Point((int)(nx * ScreenW), (int)(ny * ScreenH));
 
         // ---------- input entry points ----------
@@ -191,7 +195,7 @@ namespace ClassicUO.Touch
 
             Finger f = new Finger { Id = id, Start = pos, Pos = pos, DownTime = Time.Ticks };
 
-            if (InGame)
+            if (InGame && !Suppressed)
             {
                 int button = ButtonAt(pos);
 
@@ -393,6 +397,7 @@ namespace ClassicUO.Touch
             DrainPointerQueue();
             CheckLongPress();
             Walk();
+            MobileMacroRunner.Update(Client.Game.UO.World);
         }
 
         private static void DrainPointerQueue()

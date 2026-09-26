@@ -29,8 +29,9 @@ namespace ClassicUO.Touch
     ///   open:Backpack|Paperdoll|Skills|Journal|Status|MageSpellbook|WorldMap ...
     ///   skill:Name       use a skill (Hiding, Meditation, ...)
     ///   say:text
-    ///   macro:Name       run a user macro from the macro editor
-    ///   layout_next, edit_layout, macro_editor   HUD control
+    ///   mmacro:Name      run (or stop, if running) a phone macro - see MobileMacros
+    ///   macro:Name       run a desktop-client macro (Options > Macros)
+    ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
     /// </summary>
     internal static class MobileActions
     {
@@ -154,7 +155,22 @@ namespace ClassicUO.Touch
 
                     break;
 
+                case "mmacro":
+                    MobileMacroRunner.Run(world, arg ?? "");
+
+                    break;
+
+                case "stop_macro":
+                    MobileMacroRunner.Stop();
+
+                    break;
+
                 case "macro_editor":
+                    MacroEditorGump.Open(world);
+
+                    break;
+
+                case "uo_macros": // the desktop client's own macro editor
                     GameActions.OpenSettings(world, 4);
 
                     break;
