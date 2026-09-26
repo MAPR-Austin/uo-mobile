@@ -89,6 +89,7 @@ namespace ClassicUO.Touch
                 B("Layout", "layout_next", 0.95f, 0.07f, 0.10f),
                 B("Edit", "edit_layout", 0.87f, 0.07f, 0.10f),
                 B("Cancel", "cancel_target", 0.79f, 0.07f, 0.10f),
+                B("Chat", "chat", 0.71f, 0.07f, 0.10f),
             };
 
             ActionLayout combat = new ActionLayout { Name = "Combat" };

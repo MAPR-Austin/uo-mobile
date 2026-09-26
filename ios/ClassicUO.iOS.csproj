@@ -1,0 +1,133 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UO Mobile: iOS host for ClassicUO (FNA + SDL3).
+
+    Follows the FNA docs ("Appendix C: FNA on Apple Platforms"): a `dotnet new ios` style app,
+    no AppDelegate / SceneDelegate, the FNA native libraries linked in statically, and Main()
+    handing control to SDL_RunApp, which starts UIKit and calls back into the game.
+
+    Runtime: Mono AOT by default (what the FNA docs use). Pass -p:UseNativeAot=true to try
+    NativeAOT instead (dotnet publish only; see README-MAC.md, UNVERIFIED).
+
+    The native libs are expected in ios/native/iphoneos/ (build-ios.sh builds them there):
+      libSDL3.a libFNA3D.a libmojoshader.a libFAudio.a libtheorafile.a
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-ios</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>ClassicUO.iOS</RootNamespace>
+    <AssemblyName>UOMobile</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <SupportedOSPlatformVersion>15.0</SupportedOSPlatformVersion>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">ios-arm64</RuntimeIdentifier>
+
+    <!-- App identity. Free Apple IDs need a globally unique bundle id: build-ios.sh passes
+         -p:ApplicationId=... (BUNDLE_ID env var). -->
+    <ApplicationId Condition="'$(ApplicationId)' == ''">com.example.uomobile</ApplicationId>
+    <ApplicationTitle>UO Mobile</ApplicationTitle>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+
+    <!-- Same globalization mode as the desktop build (src/Directory.Build.props). -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <!-- FNA docs: keep native symbols so P/Invokes into the statically linked fnalibs resolve,
+         and do not recompress PNGs. -->
+    <MtouchNoSymbolStrip>true</MtouchNoSymbolStrip>
+    <_ExportSymbolsExplicitly>false</_ExportSymbolsExplicitly>
+    <OptimizePNGs>false</OptimizePNGs>
+
+    <!-- ClassicUO.Client is an Exe project (cuo). It is referenced as a library below; turn off
+         the "exe references must match self-contained" check (NETSDK1150/1151). -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+
+    <!-- Local build/scratch folders under ios/ must not be globbed into the app. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);.build/**;native/**;out/**</DefaultItemExcludes>
+
+    <FnaLibDir Condition="'$(FnaLibDir)' == ''">$(MSBuildProjectDirectory)/native/iphoneos</FnaLibDir>
+    <!-- nativeref (default): <NativeReference> items. mtouch: the exact MtouchExtraArgs line from
+         the FNA docs. Switch with -p:FnaLinkMode=mtouch if the default fails to link. -->
+    <FnaLinkMode Condition="'$(FnaLinkMode)' == ''">nativeref</FnaLinkMode>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(UseNativeAot)' == 'true'">
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Mono: AOT-compile every assembly ("-all") but keep the interpreter as a fallback for
+         generic instantiations the AOT compiler could not foresee (otherwise:
+         ExecutionEngineException "Attempting to JIT compile method"). Ignored under NativeAOT.
+         Source: learn.microsoft.com/dotnet/maui/macios/interpreter -->
+    <MtouchInterpreter Condition="'$(UseNativeAot)' != 'true'">-all</MtouchInterpreter>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Plain reference on purpose: AdditionalProperties (e.g. OutputType=Library) would be
+         inherited by cuo's own references and build every library twice in parallel (file-lock
+         races, seen in a Windows test). The cuo host files are dropped from the bundle below. -->
+    <ProjectReference Include="..\src\ClassicUO.Client\ClassicUO.Client.csproj" />
+    <!-- FNA is referenced transitively through ClassicUO.Client; listed explicitly so the
+         SDL3 bindings (namespace SDL3) are directly visible to Program.cs. -->
+    <ProjectReference Include="..\external\FNA\FNA.Core.csproj" />
+  </ItemGroup>
+
+  <!-- Native fnalibs, statically linked. -->
+  <ItemGroup Condition="'$(FnaLinkMode)' == 'nativeref'">
+    <NativeReference Include="$(FnaLibDir)/libSDL3.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <SmartLink>false</SmartLink>
+      <Frameworks>AudioToolbox AVFoundation CoreAudio CoreBluetooth CoreFoundation CoreGraphics CoreHaptics CoreMotion CoreVideo Foundation GameController Metal OpenGLES QuartzCore UIKit UniformTypeIdentifiers</Frameworks>
+    </NativeReference>
+    <NativeReference Include="$(FnaLibDir)/libFNA3D.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <SmartLink>false</SmartLink>
+      <IsCxx>true</IsCxx>
+      <Frameworks>Metal QuartzCore</Frameworks>
+    </NativeReference>
+    <NativeReference Include="$(FnaLibDir)/libmojoshader.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <SmartLink>false</SmartLink>
+      <IsCxx>true</IsCxx>
+    </NativeReference>
+    <NativeReference Include="$(FnaLibDir)/libFAudio.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <SmartLink>false</SmartLink>
+    </NativeReference>
+    <NativeReference Include="$(FnaLibDir)/libtheorafile.a">
+      <Kind>Static</Kind>
+      <ForceLoad>true</ForceLoad>
+      <SmartLink>false</SmartLink>
+      <!-- ClassicUO.Utility.ZLib P/Invokes "libz"; link the system zlib into the executable too. -->
+      <LinkerFlags>-lz</LinkerFlags>
+    </NativeReference>
+  </ItemGroup>
+
+  <PropertyGroup Condition="'$(FnaLinkMode)' == 'mtouch'">
+    <MtouchExtraArgs>--cxx --gcc_flags "-L$(FnaLibDir) -force_load $(FnaLibDir)/libSDL3.a -force_load $(FnaLibDir)/libFAudio.a -force_load $(FnaLibDir)/libFNA3D.a -force_load $(FnaLibDir)/libtheorafile.a -force_load $(FnaLibDir)/libmojoshader.a -lz -framework AudioToolbox -framework AVFoundation -framework CoreBluetooth -framework CoreHaptics -framework CoreMotion -framework GameController -framework OpenGLES -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers"</MtouchExtraArgs>
+  </PropertyGroup>
+
+  <!-- cuo is an Exe project; keep its desktop host files (apphost, runtimeconfig, deps) out of
+       the .app. Only cuo.dll is needed. (Verified on Windows with a stand-in harness.) -->
+  <Target Name="UOMobileDropCuoHostFiles" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <_UOMobileCuoHost Include="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'cuo' Or '%(Filename)%(Extension)' == 'cuo.exe' Or '%(Filename)%(Extension)' == 'cuo.runtimeconfig.json' Or '%(Filename)%(Extension)' == 'cuo.deps.json'" />
+      <ResolvedFileToPublish Remove="@(_UOMobileCuoHost)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="UOMobileCheckNativeLibs" BeforeTargets="Build" Condition="'$(UOMobileSkipNativeCheck)' != 'true'">
+    <Error Condition="!Exists('$(FnaLibDir)/libSDL3.a') Or !Exists('$(FnaLibDir)/libFNA3D.a') Or !Exists('$(FnaLibDir)/libmojoshader.a') Or !Exists('$(FnaLibDir)/libFAudio.a') Or !Exists('$(FnaLibDir)/libtheorafile.a')"
+           Text="fnalibs for iOS not found in $(FnaLibDir). Run ./build-ios.sh libs (see README-MAC.md)." />
+  </Target>
+
+</Project>

@@ -31,6 +31,7 @@ namespace ClassicUO.Touch
     ///   say:text
     ///   mmacro:Name      run (or stop, if running) a phone macro - see MobileMacros
     ///   macro:Name       run a desktop-client macro (Options > Macros)
+    ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
     /// </summary>
     internal static class MobileActions
@@ -152,6 +153,11 @@ namespace ClassicUO.Touch
                     {
                         GameActions.Print(world, $"No macro named '{arg}'.");
                     }
+
+                    break;
+
+                case "chat": // raise the keyboard on the speech line
+                    TouchInput.OpenChat();
 
                     break;
 

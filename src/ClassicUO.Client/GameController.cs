@@ -108,7 +108,11 @@ namespace ClassicUO
             _filter = HandleSdlEvent;
             SDL_SetEventFilter(_filter, IntPtr.Zero);
 
-            Microsoft.Xna.Framework.Input.TextInputEXT.StartTextInput();
+            // On phones text input raises the on-screen keyboard; Touch/TouchInput shows it on demand.
+            if (!TouchInput.HasVirtualKeyboard)
+            {
+                Microsoft.Xna.Framework.Input.TextInputEXT.StartTextInput();
+            }
 
             _displayScale = DpiScale;
 

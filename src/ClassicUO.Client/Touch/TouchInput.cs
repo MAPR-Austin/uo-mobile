@@ -73,6 +73,25 @@ namespace ClassicUO.Touch
         private static long _frame => (long)Client.Game.DrawCount;
 
         public static bool Enabled { get; set; }
+
+        /// <summary>Platforms where starting text input pops an on-screen keyboard.</summary>
+        public static bool HasVirtualKeyboard => OperatingSystem.IsIOS() || OperatingSystem.IsAndroid();
+
+        // The keyboard is up only after a tap on a text box or the Chat button, and goes away on
+        // the next tap anywhere else (UIManager always gives the chat line keyboard focus, so
+        // focus alone can't decide it).
+        private static bool _keyboardWanted;
+
+        /// <summary>Focus the speech line and raise the keyboard (the "chat" button action).</summary>
+        public static void OpenChat()
+        {
+            if (UIManager.SystemChat != null && !UIManager.SystemChat.IsDisposed)
+            {
+                UIManager.KeyboardFocusControl = UIManager.SystemChat.TextBoxControl;
+            }
+
+            _keyboardWanted = true;
+        }
         public static bool EditMode { get; private set; }
         public static ActionLayoutSet Layouts { get; private set; }
 
@@ -406,6 +425,7 @@ namespace ClassicUO.Touch
             }
 
             DrainPointerQueue();
+            SyncKeyboard();
             CheckLongPress();
             Walk();
             MobileMacroRunner.Update(Client.Game.UO.World);
@@ -422,6 +442,7 @@ namespace ClassicUO.Touch
                 {
                     case PointerEventType.Down:
                         Client.Game.DispatchMouseDown(MouseButtonType.Left);
+                        _keyboardWanted = UIManager.MouseOverControl is Game.UI.Controls.StbTextBox;
 
                         break;
 
@@ -441,6 +462,25 @@ namespace ClassicUO.Touch
 
                         break;
                 }
+            }
+        }
+
+        private static void SyncKeyboard()
+        {
+            if (!HasVirtualKeyboard)
+            {
+                return;
+            }
+
+            bool active = Microsoft.Xna.Framework.Input.TextInputEXT.IsTextInputActive();
+
+            if (_keyboardWanted && !active)
+            {
+                Microsoft.Xna.Framework.Input.TextInputEXT.StartTextInput();
+            }
+            else if (!_keyboardWanted && active)
+            {
+                Microsoft.Xna.Framework.Input.TextInputEXT.StopTextInput();
             }
         }
 

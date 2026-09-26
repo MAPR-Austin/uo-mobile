@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- CFBundleIdentifier / CFBundleShortVersionString / CFBundleVersion are filled in from
+	     ApplicationId / ApplicationDisplayVersion / ApplicationVersion in ClassicUO.iOS.csproj. -->
+	<key>CFBundleDisplayName</key>
+	<string>UO Mobile</string>
+	<key>CFBundleName</key>
+	<string>UO Mobile</string>
+	<key>LSRequiresIPhoneOS</key>
+	<true/>
+	<key>MinimumOSVersion</key>
+	<string>15.0</string>
+
+	<key>UIDeviceFamily</key>
+	<array>
+		<integer>1</integer>
+		<integer>2</integer>
+	</array>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>arm64</string>
+		<string>metal</string>
+	</array>
+
+	<!-- Landscape only, full screen, no status bar. -->
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationLandscapeLeft</string>
+		<string>UIInterfaceOrientationLandscapeRight</string>
+	</array>
+	<key>UIInterfaceOrientation</key>
+	<string>UIInterfaceOrientationLandscapeRight</string>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<!-- A launch screen is required, or iOS runs the app letterboxed in legacy-size mode.
+	     An empty UILaunchScreen dictionary (iOS 14+) avoids shipping a storyboard. -->
+	<key>UILaunchScreen</key>
+	<dict/>
+
+	<!-- Let the user copy UO data into Documents/uo with Finder (USB) or the Files app. -->
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
+
+	<!-- The shard is on the local network (ServUO on the Windows PC). -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>UO Mobile connects to an Ultima Online server on your local network.</string>
+	<!-- Plain TCP to a LAN IP is not subject to ATS (ATS covers URLSession/HTTP), kept for any
+	     HTTP the client might do (e.g. update checks, web links). -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
+	<!-- Game controllers (optional; matches the FNA docs). -->
+	<key>GCSupportedGameControllers</key>
+	<array>
+		<dict>
+			<key>ProfileName</key>
+			<string>ExtendedGamepad</string>
+		</dict>
+	</array>
+	<key>GCSupportsControllerUserInteraction</key>
+	<true/>
+
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+</dict>
+</plist>
