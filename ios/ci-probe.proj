@@ -1,0 +1,11 @@
+<!-- CI diagnostic: run the compiler lookup the .NET iOS link step does, from inside MSBuild. -->
+<Project>
+  <Target Name="Probe">
+    <Exec Command="echo env bytes: $(env | wc -c); echo env vars: $(env | wc -l); env | awk '{ if (length($0) > 2000) print substr($0,1,80) &quot;... (&quot; length($0) &quot; chars)&quot; }'" />
+    <Exec Command="xcrun --find clang++" ContinueOnError="true" />
+    <Exec Command="xcrun -sdk iphoneos clang++ --version" ContinueOnError="true" />
+    <Exec Command="xcrun clang++ --version" ContinueOnError="true" />
+    <Exec Command="xcodebuild -sdk $(xcrun --sdk macosx --show-sdk-path) -find clang++; echo exit=$?" ContinueOnError="true" />
+    <Exec Command="env -i HOME=$HOME PATH=$PATH xcrun clang++ --version" ContinueOnError="true" />
+  </Target>
+</Project>
