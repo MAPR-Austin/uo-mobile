@@ -21,24 +21,21 @@ jobs:
         with:
           submodules: recursive
 
-      # Microsoft.iOS.Sdk 26.5.x requires Xcode 26.6, but on the image 26.6 once could not find
-      # clang++ for the final link. Run its first-launch setup and probe the linker lookup the
-      # .NET targets use; if it still fails, use 26.5 and skip .NET's Xcode version check.
-      - name: Select Xcode
+      # Microsoft.iOS.Sdk 26.5.x asks for Xcode 26.6, but on this image 26.6's clang++ lookup
+      # fails inside the .NET link step (xcrun ... -find clang++ exit 16384) even though it works
+      # from the shell. 26.5 links fine, so use it and skip .NET's exact-version check.
+      - name: Select Xcode 26.5
         run: |
           ls -d /Applications/Xcode*.app
-          pick() { sudo xcode-select -s "$1/Contents/Developer"; sudo xcodebuild -runFirstLaunch >/dev/null 2>&1 || true; }
-          probe() { xcrun --sdk iphoneos --find clang++ && xcodebuild -sdk "$(xcrun --sdk macosx --show-sdk-path)" -find clang++; }
-          XC="$(ls -d /Applications/Xcode_26.6*.app 2>/dev/null | sort -V | tail -1)"
-          if [ -n "$XC" ] && pick "$XC" && probe; then
-            echo "Using $XC"
-          else
-            XC="$(ls -d /Applications/Xcode_26.5*.app | sort -V | tail -1)"
-            pick "$XC"; probe
-            echo "Using $XC with ValidateXcodeVersion=false"
-            echo "EXTRA_PROPS=-p:ValidateXcodeVersion=false" >> "$GITHUB_ENV"
-          fi
+          XC="$(ls -d /Applications/Xcode_26.5*.app | sort -V | tail -1)"
+          echo "Using $XC"
+          sudo xcode-select -s "$XC/Contents/Developer"
+          sudo xcodebuild -runFirstLaunch >/dev/null 2>&1 || true
+          sudo xcrun --kill-cache || true
+          echo "DEVELOPER_DIR=$XC/Contents/Developer" >> "$GITHUB_ENV"
+          echo "EXTRA_PROPS=-p:ValidateXcodeVersion=false" >> "$GITHUB_ENV"
           xcodebuild -version
+          xcrun --sdk iphoneos --find clang++
 
       - uses: actions/setup-dotnet@v5
         with:
