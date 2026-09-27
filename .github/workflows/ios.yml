@@ -63,7 +63,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ios/native
-          key: fnalibs-${{ runner.os }}-${{ hashFiles('.gitmodules') }}-${{ hashFiles('external/FNA/lib/**/CMakeLists.txt') }}
+          key: fnalibs-${{ runner.os }}-${{ hashFiles('.gitmodules', 'ios/build-ios.sh') }}-${{ hashFiles('external/FNA/lib/**/CMakeLists.txt') }}
 
       - name: Build native libs
         if: steps.libcache.outputs.cache-hit != 'true'

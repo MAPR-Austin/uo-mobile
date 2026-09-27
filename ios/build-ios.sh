@@ -103,6 +103,12 @@ cmd_libs() {
   ninja -C "$BUILD_DIR/fna3d-ios"
 
   # FAudio (static)
+  # F3DAudio.c's default distance curves are #pragma pack(1) structs laid out back to back, so the
+  # second one's pointer is not 8-byte aligned and Apple's linker rejects it ("ld: pointer not
+  # aligned in '_F3DAudioCalculate.lpfReverbDefault'"). Align those statics (idempotent patch).
+  local f3d="$FNA_LIB/FAudio/src/F3DAudio.c"
+  grep -q 'aligned(8))) name##Default' "$f3d" ||     sed -i '' 's/static F3DAUDIO_DISTANCE_CURVE name##Default = /static F3DAUDIO_DISTANCE_CURVE __attribute__((aligned(8))) name##Default = /' "$f3d"
+  grep -q 'aligned(8))) name##Default' "$f3d" || die "F3DAudio alignment patch did not apply"
   log "FAudio"
   cmake -S "$FNA_LIB/FAudio" -B "$BUILD_DIR/faudio-ios" "${common[@]}" "${sdl_vars[@]}" \
         -DBUILD_SHARED_LIBS=OFF
