@@ -70,10 +70,7 @@ namespace ClassicUO.iOS
             {
                 string dir = _documents ?? GetDocumentsDirectory();
                 File.AppendAllText(Path.Combine(dir, "crash.txt"),
-                    $"=== {DateTime.Now:yyyy-MM-dd HH:mm:ss} ({where}) ===
-{ex}
-
-");
+                    $"=== {DateTime.Now:yyyy-MM-dd HH:mm:ss} ({where}) ==={Environment.NewLine}{ex}{Environment.NewLine}{Environment.NewLine}");
                 Console.WriteLine($"[UOMobile] FATAL ({where}): {ex}");
             }
             catch
