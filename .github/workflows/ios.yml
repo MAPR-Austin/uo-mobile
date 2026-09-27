@@ -122,9 +122,8 @@ jobs:
           ASC_KEY_P8: ${{ secrets.ASC_KEY_P8 }}
         run: |
           mkdir -p "$HOME/.appstoreconnect/private_keys"
-          printf '%s
-' "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
-          xcrun altool --upload-app --type ios --file ios/out/GraveyardBattles.ipa             --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --output-format normal
+          echo "$ASC_KEY_P8" > "$HOME/.appstoreconnect/private_keys/AuthKey_$ASC_KEY_ID.p8"
+          xcrun altool --upload-app --type ios --file ios/out/GraveyardBattles.ipa --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID" --output-format normal
 
       - uses: actions/upload-artifact@v4
         if: env.HAVE_SIGNING == 'true'
