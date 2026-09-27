@@ -87,7 +87,7 @@ namespace ClassicUO
 
                 using (LogFile crashfile = new LogFile(path, "crash.txt"))
                 {
-                    crashfile.WriteAsync(sb.ToString()).RunSynchronously();
+                    crashfile.Write(sb.ToString());
                 }
             };
 #endif

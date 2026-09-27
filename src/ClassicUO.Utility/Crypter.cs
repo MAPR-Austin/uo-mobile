@@ -108,7 +108,9 @@ namespace ClassicUO.Utility
 
         private static string CalculateKey()
         {
-            return Environment.MachineName;
+            // iOS: the hostname changes between networks, which would make a saved password
+            // decrypt to garbage. The key only obfuscates settings.json inside the app sandbox.
+            return OperatingSystem.IsIOS() ? "UOMobile" : Environment.MachineName;
         }
     }
 }

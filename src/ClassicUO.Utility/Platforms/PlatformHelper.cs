@@ -15,8 +15,18 @@ namespace ClassicUO.Utility.Platforms
         public static readonly bool IsLinux = RuntimeInformation.IsOSPlatform(OSPlatform.Linux);
         public static readonly bool IsOSX = RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
 
+        /// <summary>Set where Process.Start can't open URLs (iOS: SDL_OpenURL).</summary>
+        public static Action<string> OpenUrlOverride;
+
         public static void LaunchBrowser(string url)
         {
+            if (OpenUrlOverride != null)
+            {
+                OpenUrlOverride(url);
+
+                return;
+            }
+
             try
             {
                 if (IsWindows)

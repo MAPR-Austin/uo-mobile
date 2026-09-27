@@ -48,7 +48,7 @@ namespace ClassicUO.Touch
             ("Hide", "skill:Hiding"), ("Meditate", "skill:Meditation"), ("Stealth", "skill:Stealth"),
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),
-            ("World Map", "open:WorldMap"), ("Macro Editor", "macro_editor"), ("Next Layout", "layout_next"),
+            ("Macro Editor", "macro_editor"), ("Next Layout", "layout_next"),
             ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("Chat", "chat"), ("UO Macros", "uo_macros"),
         };
 

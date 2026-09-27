@@ -24,7 +24,19 @@ sealed class TcpSocketWrapper : SocketWrapper
 
         try
         {
-            _socket.Connect(uri.Host, uri.Port);
+            // Bounded connect: a blocking Connect to an unreachable host can hang the UI thread
+            // for over a minute (iOS watchdog), and fails instantly while iOS shows its Local
+            // Network permission prompt.
+            var connect = _socket.ConnectAsync(uri.Host, uri.Port);
+
+            if (!connect.Wait(TimeSpan.FromSeconds(8)))
+            {
+                Log.Error($"connect to {uri.Host}:{uri.Port} timed out");
+                _socket.Close();
+                InvokeOnError(SocketError.TimedOut);
+
+                return;
+            }
 
             if (!IsConnected)
             {
@@ -39,6 +51,11 @@ sealed class TcpSocketWrapper : SocketWrapper
         {
             Log.Error($"error while connecting {socketEx}");
             InvokeOnError(socketEx.SocketErrorCode);
+        }
+        catch (AggregateException agg) when (agg.InnerException is SocketException inner)
+        {
+            Log.Error($"error while connecting {inner}");
+            InvokeOnError(inner.SocketErrorCode);
         }
         catch (Exception ex)
         {

@@ -105,6 +105,11 @@ namespace ClassicUO
             // iOS: the window is the whole screen; FNA starts with its 800x480 default backbuffer.
             FillScreenOnPhone();
 
+            if (OperatingSystem.IsIOS())
+            {
+                ClassicUO.Utility.Platforms.PlatformHelper.OpenUrlOverride = url => SDL_OpenURL(url);
+            }
+
             SetRefreshRate(Settings.GlobalSettings.FPS);
             _uoSpriteBatch = new UltimaBatcher2D(GraphicsDevice);
 
@@ -449,6 +454,33 @@ namespace ClassicUO
 
         private volatile bool _inBackground;
 
+        private void SaveForSuspend()
+        {
+            try
+            {
+                if (UO.World != null && UO.World.InGame && ProfileManager.CurrentProfile != null && ProfileManager.ProfilePath != null)
+                {
+                    ProfileManager.CurrentProfile.Save(UO.World, ProfileManager.ProfilePath);
+                    UO.World.Macros?.Save();
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"save on suspend (profile): {ex.Message}");
+            }
+
+            try
+            {
+                Settings.GlobalSettings?.Save();
+                TouchInput.Layouts?.Save();
+                MobileMacroRunner.Macros?.Save();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"save on suspend (settings): {ex.Message}");
+            }
+        }
+
         protected override void Update(GameTime gameTime)
         {
             if (_inBackground)
@@ -708,8 +740,16 @@ namespace ClassicUO
                 // iOS: no GPU work while backgrounded (the OS may kill the app for it). These
                 // arrive synchronously here, inside the UIKit callback, as SDL recommends.
                 case SDL_EventType.SDL_EVENT_WILL_ENTER_BACKGROUND:
-                case SDL_EventType.SDL_EVENT_DID_ENTER_BACKGROUND:
                     _inBackground = true;
+
+                    break;
+
+                // iOS kills suspended apps without UnloadContent/GameScene.Unload running, so this
+                // is the last reliable moment to save the profile, settings and touch layouts.
+                case SDL_EventType.SDL_EVENT_DID_ENTER_BACKGROUND:
+                case SDL_EventType.SDL_EVENT_TERMINATING:
+                    _inBackground = true;
+                    SaveForSuspend();
 
                     break;
 

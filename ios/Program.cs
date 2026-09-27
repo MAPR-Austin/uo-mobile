@@ -106,6 +106,7 @@ namespace ClassicUO.iOS
             MoveLooseMusic(uoPath);
 
             _realArgs = BuildClassicUOArgs(args, uoPath);
+            TriggerLocalNetworkPrompt(_realArgs);
             Console.WriteLine("[UOMobile] ClassicUO args: " + string.Join(" ", _realArgs));
 
             InstallNativeResolvers();
@@ -119,7 +120,10 @@ namespace ClassicUO.iOS
             SDL.SDL_SetHint(SDL.SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
             SDL.SDL_SetHint(SDL.SDL_HINT_PEN_TOUCH_EVENTS, "0");
             SDL.SDL_SetHint("SDL_ACCELEROMETER_AS_JOYSTICK", "0");
-            SDL.SDL_SetHint("SDL_IOS_ORIENTATIONS", "LandscapeLeft LandscapeRight");
+            SDL.SDL_SetHint(SDL.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+            // "ambient" (SDL's default) is muted by the ring/silent switch and mixes under other
+            // apps' audio; a game with its own music wants "playback".
+            SDL.SDL_SetHint(SDL.SDL_HINT_AUDIO_CATEGORY, "playback");
             SDL.SDL_SetHint("SDL_IOS_HIDE_HOME_INDICATOR", "1");
             // No FNA_GRAPHICS_ENABLE_HIGHDPI on purpose: rendering at point resolution keeps the
             // UO UI readable on a phone. Pass "args=-highdpi" in uomobile.txt to try native res.
@@ -177,6 +181,34 @@ namespace ClassicUO.iOS
         /// loose files into Documents, so move any loose music there on startup.
         /// </summary>
         /// <summary>What the player copied in, for diagnosing "UO files not found" from the log.</summary>
+        /// <summary>
+        /// iOS asks for Local Network permission the first time the app talks to the LAN, and the
+        /// connection attempt that triggered it fails. Send one harmless UDP datagram to the shard
+        /// at launch so the prompt appears before the player taps Login.
+        /// </summary>
+        private static void TriggerLocalNetworkPrompt(string[] args)
+        {
+            try
+            {
+                int i = Array.IndexOf(args, "-ip");
+                int p = Array.IndexOf(args, "-port");
+
+                if (i < 0 || i + 1 >= args.Length)
+                {
+                    return;
+                }
+
+                int port = p >= 0 && p + 1 < args.Length && int.TryParse(args[p + 1], out int v) ? v : 2593;
+
+                using var udp = new System.Net.Sockets.UdpClient();
+                udp.Send(new byte[] { 0 }, 1, args[i + 1], port);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] local network probe: {ex.Message}");
+            }
+        }
+
         private static void LogDocumentsContents()
         {
             try

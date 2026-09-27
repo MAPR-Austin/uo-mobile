@@ -478,6 +478,7 @@ namespace ClassicUO.Touch
             }
 
             DrainPointerQueue();
+            ParkPointer();
             SyncKeyboard();
             CheckLongPress();
             Walk();
@@ -506,6 +507,7 @@ namespace ClassicUO.Touch
 
                     case PointerEventType.Up:
                         Client.Game.DispatchMouseUp(MouseButtonType.Left);
+                        _parkPointerAt = _frame + 2;
 
                         break;
 
@@ -518,6 +520,30 @@ namespace ClassicUO.Touch
             }
         }
 
+        private static long _parkPointerAt;
+
+        /// <summary>
+        /// A lifted finger leaves no pointer behind: once the tap has been handled, move the virtual
+        /// pointer off-screen so hover highlights and tooltips don't stick to the last tap.
+        /// </summary>
+        private static void ParkPointer()
+        {
+            if (_parkPointerAt == 0 || _frame < _parkPointerAt || _pointerFinger != long.MinValue || _pointerQueue.Count > 0)
+            {
+                return;
+            }
+
+            _parkPointerAt = 0;
+
+            if (Mouse.TouchPosition.HasValue)
+            {
+                Mouse.TouchPosition = new Point(-10000, -10000);
+                Mouse.Update();
+            }
+        }
+
+        private static Control _keyboardFor;
+
         private static void SyncKeyboard()
         {
             if (!HasVirtualKeyboard)
@@ -525,15 +551,23 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            bool active = Microsoft.Xna.Framework.Input.TextInputEXT.IsTextInputActive();
+            IntPtr window = Client.Game.Window.Handle;
+            bool active = SDL3.SDL.SDL_TextInputActive(window);
+            Control box = UIManager.KeyboardFocusControl is Control c && !c.IsDisposed ? c : null;
+
+            // Focus moved to another box (account -> password) while the keyboard is up:
+            // restart it so the keyboard type/capitalisation match the new box.
+            if (_keyboardWanted && active && box != _keyboardFor)
+            {
+                SDL3.SDL.SDL_StopTextInput(window);
+                active = false;
+            }
 
             if (_keyboardWanted && !active)
             {
-                // Tell iOS where the text box is, so SDL slides the view up above the keyboard.
-                if (UIManager.KeyboardFocusControl is Control box && !box.IsDisposed)
+                if (box != null)
                 {
-                    IntPtr window = Client.Game.Window.Handle;
-
+                    // Tell iOS where the text box is, so SDL slides the view up above the keyboard.
                     if (SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) && ww > 0 && wh > 0)
                     {
                         float fx = ww / (float)ScreenW, fy = wh / (float)ScreenH;
@@ -548,12 +582,36 @@ namespace ClassicUO.Touch
                     }
                 }
 
-                Microsoft.Xna.Framework.Input.TextInputEXT.StartTextInput();
+                StartKeyboard(window, box);
+                _keyboardFor = box;
             }
             else if (!_keyboardWanted && active)
             {
-                Microsoft.Xna.Framework.Input.TextInputEXT.StopTextInput();
+                SDL3.SDL.SDL_StopTextInput(window);
+                _keyboardFor = null;
             }
+        }
+
+        /// <summary>
+        /// SDL3's default keyboard capitalises sentences and autocorrects, which mangles account
+        /// names and passwords (first login fails with "incorrect password"). Pick a keyboard per box.
+        /// </summary>
+        private static void StartKeyboard(IntPtr window, Control box)
+        {
+            string kind = box?.GetType().Name ?? "";
+            bool password = kind == "PasswordStbTextBox";
+            bool account = !password && box?.RootParent is Game.UI.Gumps.Login.LoginGump;
+
+            uint props = SDL3.SDL.SDL_CreateProperties();
+            SDL3.SDL.SDL_SetNumberProperty(props, SDL3.SDL.SDL_PROP_TEXTINPUT_TYPE_NUMBER,
+                (long)(password ? SDL3.SDL.SDL_TextInputType.SDL_TEXTINPUT_TYPE_TEXT_PASSWORD_HIDDEN
+                    : account ? SDL3.SDL.SDL_TextInputType.SDL_TEXTINPUT_TYPE_TEXT_USERNAME
+                    : SDL3.SDL.SDL_TextInputType.SDL_TEXTINPUT_TYPE_TEXT));
+            SDL3.SDL.SDL_SetNumberProperty(props, SDL3.SDL.SDL_PROP_TEXTINPUT_CAPITALIZATION_NUMBER,
+                (long)(password || account ? SDL3.SDL.SDL_Capitalization.SDL_CAPITALIZE_NONE : SDL3.SDL.SDL_Capitalization.SDL_CAPITALIZE_SENTENCES));
+            SDL3.SDL.SDL_SetBooleanProperty(props, SDL3.SDL.SDL_PROP_TEXTINPUT_AUTOCORRECT_BOOLEAN, false);
+            SDL3.SDL.SDL_StartTextInputWithProperties(window, props);
+            SDL3.SDL.SDL_DestroyProperties(props);
         }
 
         private static void CheckLongPress()

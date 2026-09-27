@@ -32,7 +32,26 @@ namespace ClassicUO.Configuration
                 RegexOptions.IgnorePatternWhitespace
             );
 
-            return JsonSerializer.Deserialize(text, ctx);
+            try
+            {
+                return JsonSerializer.Deserialize(text, ctx);
+            }
+            catch (JsonException e)
+            {
+                // A file cut short (e.g. the app was killed mid-save) must not crash every launch:
+                // keep it aside and start from defaults.
+                Log.Error($"{file} is corrupt, starting fresh: {e.Message}");
+
+                try
+                {
+                    File.Move(file, file + ".corrupt", true);
+                }
+                catch (IOException)
+                {
+                }
+
+                return null;
+            }
         }
 
         public static void Save<T>(T obj, string file, JsonTypeInfo<T> ctx) where T : class
@@ -48,7 +67,11 @@ namespace ClassicUO.Configuration
                 }
 
                 var json = JsonSerializer.Serialize(obj, ctx);
-                File.WriteAllText(file, json);
+
+                // write-then-rename, so a kill mid-save leaves the previous file intact
+                string tmp = file + ".tmp";
+                File.WriteAllText(tmp, json);
+                File.Move(tmp, file, true);
             }
             catch (IOException e)
             {
