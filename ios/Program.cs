@@ -101,6 +101,17 @@ namespace ClassicUO.iOS
                 uoPath = _documents;
             }
 
+            // ...and anywhere deeper, e.g. a whole folder dragged in (Documents/ios-data/uo/...).
+            if (!File.Exists(Path.Combine(uoPath, "tiledata.mul")))
+            {
+                string found = FindUoData(_documents);
+
+                if (found != null)
+                {
+                    uoPath = found;
+                }
+            }
+
             Console.WriteLine($"[UOMobile] UO data: {uoPath}");
 
             MoveLooseMusic(uoPath);
@@ -180,6 +191,40 @@ namespace ClassicUO.iOS
         /// UO music lives in &lt;uo&gt;/Music/Digital (*.mp3 + Config.txt). Apple Devices can only drop
         /// loose files into Documents, so move any loose music there on startup.
         /// </summary>
+        /// <summary>First folder under Documents (breadth-first, a few levels) that holds tiledata.mul.</summary>
+        private static string FindUoData(string root)
+        {
+            try
+            {
+                var queue = new Queue<(string Dir, int Depth)>();
+                queue.Enqueue((root, 0));
+
+                while (queue.Count > 0)
+                {
+                    (string dir, int depth) = queue.Dequeue();
+
+                    if (File.Exists(Path.Combine(dir, "tiledata.mul")))
+                    {
+                        return dir;
+                    }
+
+                    if (depth < 4)
+                    {
+                        foreach (string sub in Directory.GetDirectories(dir))
+                        {
+                            queue.Enqueue((sub, depth + 1));
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] searching for UO data: {ex.Message}");
+            }
+
+            return null;
+        }
+
         /// <summary>What the player copied in, for diagnosing "UO files not found" from the log.</summary>
         /// <summary>
         /// iOS asks for Local Network permission the first time the app talks to the LAN, and the
