@@ -28,8 +28,8 @@
 
     <!-- App identity. Free Apple IDs need a globally unique bundle id: build-ios.sh passes
          -p:ApplicationId=... (BUNDLE_ID env var). -->
-    <ApplicationId Condition="'$(ApplicationId)' == ''">com.example.uomobile</ApplicationId>
-    <ApplicationTitle>UO Mobile</ApplicationTitle>
+    <ApplicationId Condition="'$(ApplicationId)' == ''">com.mapraustin.britgraveyard</ApplicationId>
+    <ApplicationTitle>Graveyard Battles</ApplicationTitle>
     <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
     <ApplicationVersion>1</ApplicationVersion>
 

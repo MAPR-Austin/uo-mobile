@@ -5,18 +5,20 @@
 	<!-- CFBundleIdentifier / CFBundleShortVersionString / CFBundleVersion are filled in from
 	     ApplicationId / ApplicationDisplayVersion / ApplicationVersion in ClassicUO.iOS.csproj. -->
 	<key>CFBundleDisplayName</key>
-	<string>UO Mobile</string>
+	<string>Graveyard Battles</string>
 	<key>CFBundleName</key>
-	<string>UO Mobile</string>
+	<string>Graveyard Battles</string>
+	<key>XSAppIconAssets</key>
+	<string>Assets.xcassets/AppIcon.appiconset</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>MinimumOSVersion</key>
 	<string>15.0</string>
 
+	<!-- iPhone only: keeps App Store Connect from applying iPad multitasking/screenshot rules. -->
 	<key>UIDeviceFamily</key>
 	<array>
 		<integer>1</integer>
-		<integer>2</integer>
 	</array>
 	<key>UIRequiredDeviceCapabilities</key>
 	<array>
@@ -56,7 +58,7 @@
 
 	<!-- The shard is on the local network (ServUO on the Windows PC). -->
 	<key>NSLocalNetworkUsageDescription</key>
-	<string>UO Mobile connects to an Ultima Online server on your local network.</string>
+	<string>Graveyard Battles connects to a game server on your local network.</string>
 	<!-- Plain TCP to a LAN IP is not subject to ATS (ATS covers URLSession/HTTP), kept for any
 	     HTTP the client might do (e.g. update checks, web links). -->
 	<key>NSAppTransportSecurity</key>
