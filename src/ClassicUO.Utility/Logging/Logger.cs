@@ -7,6 +7,28 @@ namespace ClassicUO.Utility.Logging
 {
     public class Logger
     {
+        // iOS/Android: Console.ForegroundColor throws PlatformNotSupportedException.
+        private static readonly bool ConsoleColorsSupported = ProbeConsoleColors();
+
+        private static bool ProbeConsoleColors()
+        {
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsAndroid() || OperatingSystem.IsBrowser())
+            {
+                return false;
+            }
+
+            try
+            {
+                _ = Console.ForegroundColor;
+
+                return true;
+            }
+            catch (PlatformNotSupportedException)
+            {
+                return false;
+            }
+        }
+
         private static readonly Dictionary<LogTypes, Tuple<ConsoleColor, string>> _logTypesInfo = new Dictionary<LogTypes, Tuple<ConsoleColor, string>>
         {
             {
@@ -108,11 +130,18 @@ namespace ClassicUO.Utility.Logging
                 {
                     Console.Write(DateTime.UtcNow);
                     Console.Write(" | ");
-                    ConsoleColor temp = Console.ForegroundColor;
+                    if (ConsoleColorsSupported)
+                    {
+                        ConsoleColor temp = Console.ForegroundColor;
 
-                    Console.ForegroundColor = _logTypesInfo[type].Item1;
-                    Console.Write(_logTypesInfo[type].Item2);
-                    Console.ForegroundColor = temp;
+                        Console.ForegroundColor = _logTypesInfo[type].Item1;
+                        Console.Write(_logTypesInfo[type].Item2);
+                        Console.ForegroundColor = temp;
+                    }
+                    else
+                    {
+                        Console.Write(_logTypesInfo[type].Item2);
+                    }
                     Console.Write(" | ");
 
                     if (_indent > 0)
