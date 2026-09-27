@@ -102,6 +102,9 @@ namespace ClassicUO
 
             GraphicManager.ApplyChanges();
 
+            // iOS: the window is the whole screen; FNA starts with its 800x480 default backbuffer.
+            FillScreenOnPhone();
+
             SetRefreshRate(Settings.GlobalSettings.FPS);
             _uoSpriteBatch = new UltimaBatcher2D(GraphicsDevice);
 
@@ -131,6 +134,30 @@ namespace ClassicUO
         /// height, while a phone in landscape is ~400 points tall. Pick ScreenScale so the UI space is
         /// exactly 480 units high (UI space = backbuffer / DpiScale). Logged for tuning.
         /// </summary>
+        /// <summary>
+        /// iOS: make the backbuffer the screen (scenes resize the "window" to 640x480 on desktop,
+        /// which would squash a 4:3 image onto a phone) and refit the UI scale.
+        /// </summary>
+        internal void FillScreenOnPhone()
+        {
+            if (!OperatingSystem.IsIOS())
+            {
+                return;
+            }
+
+            Rectangle bounds = Window.ClientBounds;
+
+            if (bounds.Width > 0 && bounds.Height > 0 &&
+                (GraphicManager.PreferredBackBufferWidth != bounds.Width || GraphicManager.PreferredBackBufferHeight != bounds.Height))
+            {
+                GraphicManager.PreferredBackBufferWidth = bounds.Width;
+                GraphicManager.PreferredBackBufferHeight = bounds.Height;
+                GraphicManager.ApplyChanges();
+            }
+
+            FitUiToPhone();
+        }
+
         private void FitUiToPhone()
         {
             if (!OperatingSystem.IsIOS())

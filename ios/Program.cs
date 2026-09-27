@@ -147,6 +147,12 @@ namespace ClassicUO.iOS
         {
             try
             {
+                // SDL's UIKit startup changes the working directory to the (read-only) app bundle
+                // between Main and this callback; ClassicUO derives its writable root from the
+                // working directory (CUOEnviroment.ExecutablePath), so point it back at Documents.
+                Directory.SetCurrentDirectory(_documents);
+                LogDocumentsContents();
+
                 // ClassicUO.Bootstrap is internal in the cuo assembly; call its public static
                 // Main(string[]) by reflection so no ClassicUO source file has to change.
                 Type boot = Type.GetType("ClassicUO.Bootstrap, cuo", throwOnError: true);
@@ -170,6 +176,38 @@ namespace ClassicUO.iOS
         /// UO music lives in &lt;uo&gt;/Music/Digital (*.mp3 + Config.txt). Apple Devices can only drop
         /// loose files into Documents, so move any loose music there on startup.
         /// </summary>
+        /// <summary>What the player copied in, for diagnosing "UO files not found" from the log.</summary>
+        private static void LogDocumentsContents()
+        {
+            try
+            {
+                foreach (string dir in new[] { _documents, Path.Combine(_documents, "uo"), Path.Combine(_documents, "uo", "Music", "Digital") })
+                {
+                    if (!Directory.Exists(dir))
+                    {
+                        Console.WriteLine($"[UOMobile] {dir}: (missing)");
+
+                        continue;
+                    }
+
+                    string[] files = Directory.GetFiles(dir);
+                    long bytes = 0;
+
+                    foreach (string f in files)
+                    {
+                        bytes += new FileInfo(f).Length;
+                    }
+
+                    bool tiledata = File.Exists(Path.Combine(dir, "tiledata.mul"));
+                    Console.WriteLine($"[UOMobile] {dir}: {files.Length} files, {bytes / (1024 * 1024)} MB, tiledata.mul={(tiledata ? "yes" : "no")}, cwd={Directory.GetCurrentDirectory()}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] could not list Documents: {ex.Message}");
+            }
+        }
+
         private static void MoveLooseMusic(string uoPath)
         {
             try
@@ -250,6 +288,8 @@ namespace ClassicUO.iOS
                 "-clientversion", clientVersion,
                 "-uopath", path,
                 "-language", "ENU",
+                // Server-list ICMP ping needs raw sockets / a ping binary; the iOS sandbox has neither.
+                "-no_server_ping",
                 // Empty plugin list: the default is ./Assistant/Razor.dll (Windows only).
                 "-plugins",
                 // NOTE: no "-skiploginscreen". ClassicUO treats that flag as a switch and would

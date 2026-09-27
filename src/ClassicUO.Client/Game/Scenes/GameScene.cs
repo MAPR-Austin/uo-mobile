@@ -164,6 +164,8 @@ namespace ClassicUO.Game.Scenes
                 Client.Game.SetWindowSize(w, h);
             }
 
+            Client.Game.FillScreenOnPhone();
+
             Plugin.OnConnected();
         }
 

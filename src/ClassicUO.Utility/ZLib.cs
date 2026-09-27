@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: BSD-2-Clause
+﻿// SPDX-License-Identifier: BSD-2-Clause
 
 using System;
 using System.Runtime.InteropServices;
@@ -14,7 +14,12 @@ namespace ClassicUO.Utility
 
         static ZLib()
         {
-            if (Environment.Is64BitProcess)
+            // iOS: no loadable system libz in the sandbox's search path; the managed path is safe.
+            if (OperatingSystem.IsIOS())
+            {
+                _compressor = new ManagedUniversal();
+            }
+            else if (Environment.Is64BitProcess)
             {
                 if(PlatformHelper.IsWindows)
                 {

@@ -474,7 +474,11 @@ namespace ClassicUO.Game
 
             DrawToolTip(sb, Mouse.Position);
 
-            if (!Settings.GlobalSettings.RunMouseInASeparateThread)
+            // Touch: there is no pointer to show, only a last tap position. Draw the UO cursor
+            // only while a target cursor is up, as a "pick a target" cue.
+            bool touchHidesCursor = Touch.TouchInput.Enabled && !(_world.InGame && _world.TargetManager.IsTargeting);
+
+            if (!Settings.GlobalSettings.RunMouseInASeparateThread && !touchHidesCursor)
             {
                 Graphic = AssignGraphicByState();
 
