@@ -378,7 +378,7 @@ namespace ClassicUO.Game
                             break;
                     }
 
-                    _aura.Draw(sb, Mouse.Position.X, Mouse.Position.Y, hue, 0f);
+                    _aura.Draw(sb, Touch.TouchInput.CursorPosition.X, Touch.TouchInput.CursorPosition.Y, hue, 0f);
                 }
 
                 if (ProfileManager.CurrentProfile.ShowTargetRangeIndicator)
@@ -393,8 +393,8 @@ namespace ClassicUO.Game
                             sb.DrawString(
                                 Fonts.Bold,
                                 dist,
-                                Mouse.Position.X - 26,
-                                Mouse.Position.Y - 21,
+                                Touch.TouchInput.CursorPosition.X - 26,
+                                Touch.TouchInput.CursorPosition.Y - 21,
                                 hue,
                                 0f
                             );
@@ -403,8 +403,8 @@ namespace ClassicUO.Game
                             sb.DrawString(
                                 Fonts.Bold,
                                 dist,
-                                Mouse.Position.X - 25,
-                                Mouse.Position.Y - 20,
+                                Touch.TouchInput.CursorPosition.X - 25,
+                                Touch.TouchInput.CursorPosition.Y - 20,
                                 hue,
                                 0f
                             );
@@ -439,9 +439,9 @@ namespace ClassicUO.Game
                     Point offset = GetDraggingItemOffset();
 
                     int x =
-                        (ItemHold.IsFixedPosition ? ItemHold.FixedX : Mouse.Position.X) - offset.X;
+                        (ItemHold.IsFixedPosition ? ItemHold.FixedX : Touch.TouchInput.CursorPosition.X) - offset.X;
                     int y =
-                        (ItemHold.IsFixedPosition ? ItemHold.FixedY : Mouse.Position.Y) - offset.Y;
+                        (ItemHold.IsFixedPosition ? ItemHold.FixedY : Touch.TouchInput.CursorPosition.Y) - offset.Y;
 
                     Vector3 hue = ShaderHueTranslator.GetHueVector(
                         ItemHold.Hue,
@@ -472,7 +472,7 @@ namespace ClassicUO.Game
                 }
             }
 
-            DrawToolTip(sb, Mouse.Position);
+            DrawToolTip(sb, Touch.TouchInput.CursorPosition);
 
             // Touch: there is no pointer to show, only a last tap position. Draw the UO cursor
             // only while a target cursor is up, as a "pick a target" cue.
@@ -519,7 +519,7 @@ namespace ClassicUO.Game
 
                 sb.Draw(
                     artInfo.Texture,
-                    new Vector2(Mouse.Position.X - offX, Mouse.Position.Y - offY),
+                    new Vector2(Touch.TouchInput.CursorPosition.X - offX, Touch.TouchInput.CursorPosition.Y - offY),
                     rect,
                     hueVec,
                     0f

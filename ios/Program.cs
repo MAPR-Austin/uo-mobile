@@ -232,7 +232,6 @@ namespace ClassicUO.iOS
             return null;
         }
 
-        /// <summary>What the player copied in, for diagnosing "UO files not found" from the log.</summary>
         /// <summary>
         /// iOS asks for Local Network permission the first time the app talks to the LAN, and the
         /// connection attempt that triggered it fails. Send one harmless UDP datagram to the shard
@@ -261,6 +260,7 @@ namespace ClassicUO.iOS
             }
         }
 
+        /// <summary>What the player copied in, for diagnosing "UO files not found" from the log.</summary>
         private static void LogDocumentsContents()
         {
             try
@@ -295,57 +295,151 @@ namespace ClassicUO.iOS
         }
 
         /// <summary>
-        /// UO music lives in &lt;uo&gt;/Music/Digital (*.mp3 + Config.txt). Apple Devices can only drop
-        /// loose files into Documents, so move any loose music there on startup.
+        /// Music goes in uo/Music/Digital. Players drop it in through the Files app, so collect it
+        /// from wherever it landed: loose at the top of Documents or the UO folder, or inside a
+        /// folder they copied whole (e.g. "music-mobile"), up to three levels down. Empty files are
+        /// the Apple Devices copy failing (build 31: every mp3 arrived as 0 KB); they are skipped
+        /// and logged, never allowed to replace a good copy. A good copy replaces the installed file
+        /// in one step. One unreadable folder doesn't stop the rest. The result is logged either way.
         /// </summary>
         private static void MoveLooseMusic(string uoPath)
         {
+            string target = Path.Combine(uoPath, "Music", "Digital");
+
             try
             {
-                string target = Path.Combine(uoPath, "Music", "Digital");
                 int moved = 0;
+                var folders = new List<string> { _documents, uoPath };
+                CollectMusicFolders(_documents, uoPath, target, 0, folders);
 
-                foreach (string dir in new[] { _documents, uoPath })
+                foreach (string dir in folders)
                 {
-                    if (!Directory.Exists(dir))
+                    try
                     {
-                        continue;
+                        moved += CollectMusicFrom(dir, uoPath, target);
                     }
-
-                    foreach (string file in Directory.GetFiles(dir))
+                    catch (Exception ex)
                     {
-                        string name = Path.GetFileName(file);
-                        bool isMusic = name.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)
-                                       || name.Equals("Config.txt", StringComparison.OrdinalIgnoreCase);
-
-                        if (!isMusic)
-                        {
-                            continue;
-                        }
-
-                        Directory.CreateDirectory(target);
-                        string dest = Path.Combine(target, name);
-
-                        if (File.Exists(dest))
-                        {
-                            File.Delete(dest);
-                        }
-
-                        File.Move(file, dest);
-                        moved++;
+                        Console.WriteLine($"[UOMobile] music: skipped {dir}: {ex.Message}");
                     }
                 }
 
                 if (moved > 0)
                 {
-                    Console.WriteLine($"[UOMobile] moved {moved} music files into {target}");
+                    Console.WriteLine($"[UOMobile] music: moved {moved} files into {target}");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[UOMobile] could not move music files: {ex.Message}");
+                Console.WriteLine($"[UOMobile] music: could not move music files: {ex.Message}");
+            }
+
+            // What the game will actually find (support: "no music" starts here).
+            try
+            {
+                if (Directory.Exists(target))
+                {
+                    foreach (string f in Directory.GetFiles(target))
+                    {
+                        Console.WriteLine($"[UOMobile] music: {Path.GetFileName(f)} {new FileInfo(f).Length} bytes");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[UOMobile] music: no {target} folder, so no music");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] music: could not list {target}: {ex.Message}");
             }
         }
+
+        /// <summary>Moves one folder's music into <paramref name="target"/>; returns how many files moved.</summary>
+        private static int CollectMusicFrom(string dir, string uoPath, string target)
+        {
+            if (!Directory.Exists(dir))
+            {
+                return 0;
+            }
+
+            string[] files = Directory.GetFiles(dir);
+            // Only real (non-empty) mp3s make a folder a music folder: a failed copy's Config.txt
+            // must not replace the installed one.
+            bool hasMp3 = Array.Exists(files, f => f.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase) && new FileInfo(f).Length > 0);
+            bool topLevel = dir == _documents || dir == uoPath;
+            int moved = 0;
+
+            foreach (string file in files)
+            {
+                string name = Path.GetFileName(file);
+                bool isMp3 = name.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase);
+                // A Config.txt is music's when it travels with mp3s, or lies loose at the top
+                // (the old way) while none is installed. Anywhere else it's someone else's.
+                bool isConfig = name.Equals("Config.txt", StringComparison.OrdinalIgnoreCase) &&
+                                (hasMp3 || topLevel && !File.Exists(Path.Combine(target, "Config.txt")));
+
+                if (!isMp3 && !isConfig)
+                {
+                    continue;
+                }
+
+                if (new FileInfo(file).Length == 0)
+                {
+                    Console.WriteLine($"[UOMobile] music: skipped {name} in {dir}: it is empty (0 bytes), the copy did not finish");
+
+                    continue;
+                }
+
+                Directory.CreateDirectory(target);
+                File.Move(file, Path.Combine(target, name), true); // replace in one step
+                moved++;
+            }
+
+            // Tidy up a copied-in music folder we just emptied (never any other folder).
+            if (moved > 0 && !topLevel && Directory.GetFileSystemEntries(dir).Length == 0)
+            {
+                Directory.Delete(dir);
+            }
+
+            return moved;
+        }
+
+        /// <summary>Folders under Documents that may hold copied-in music (not the UO data folder itself).</summary>
+        private static void CollectMusicFolders(string dir, string uoPath, string target, int depth, List<string> into)
+        {
+            if (depth >= 3)
+            {
+                return;
+            }
+
+            string[] subdirs;
+
+            try
+            {
+                subdirs = Directory.GetDirectories(dir);
+            }
+            catch
+            {
+                return;
+            }
+
+            foreach (string sub in subdirs)
+            {
+                string name = Path.GetFileName(sub);
+
+                if (name.StartsWith(".") || PathEquals(sub, uoPath) || PathEquals(sub, target))
+                {
+                    continue;
+                }
+
+                into.Add(sub);
+                CollectMusicFolders(sub, uoPath, target, depth + 1, into);
+            }
+        }
+
+        private static bool PathEquals(string a, string b) =>
+            string.Equals(Path.GetFullPath(a).TrimEnd('/', '\\'), Path.GetFullPath(b).TrimEnd('/', '\\'), StringComparison.Ordinal);
 
         private static string GetDocumentsDirectory()
         {

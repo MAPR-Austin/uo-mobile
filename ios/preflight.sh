@@ -77,6 +77,8 @@ missing="$(grep -rn "new ActionButtonDef *{" src/ClassicUO.Client/Touch --includ
 need src/ClassicUO.Client/GameController.cs "UOM_PHONE_FIT" "phone screen-fit path can be forced on desktop (UOM_PHONE_FIT=1)"
 need src/ClassicUO.Client/GameController.cs "FollowPhoneRotation();" "backbuffer follows rotation (FNA does not update PreferredBackBuffer*)"
 need src/ClassicUO.Client/Touch/ActionLayouts.cs "FillPortraitFromDefaults(set)" "old layouts get portrait positions (build-31 files have none)"
+need src/ClassicUO.Client/Game/Managers/UIManager.cs "HitTestGumps(position, TouchInput.PointerGump" "hit testing maps zoomed windows like the pointer does"
+need src/ClassicUO.Client/GameController.cs "GumpScale.Save();" "window zoom saved on suspend"
 
 echo "== SDL3 names"
 # Every hint set by string literal must be a real SDL3 hint (SDL2 names are silently ignored,

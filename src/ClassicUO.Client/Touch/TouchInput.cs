@@ -37,6 +37,10 @@ namespace ClassicUO.Touch
         private const uint LONG_PRESS_MS = 550;
         private const int TAP_SLOP = 12;
         private const int POINTER_FRAME_DELAY = 2; // drawn frames
+        // A press on a window waits this long (unless the finger moves or lifts first) so a second
+        // finger can turn it into a window pinch before the game ever sees it. Taps are unaffected:
+        // lifting releases the press and its release together.
+        private const uint WINDOW_PRESS_HOLD_MS = 130;
 
         // Pinch: two world fingers zoom the camera. Ignored: the finger left over when a pinch ends.
         private enum Owner { Joystick, Button, Pointer, EditDrag, Pinch, Ignored }
@@ -56,9 +60,35 @@ namespace ClassicUO.Touch
             public uint DownTime;
             public bool Moved, LongPressFired;
             public bool Joystick; // EditDrag of the joystick itself
-            public bool OnWorld; // Pointer: landed on the world, not on a window (only these may pinch)
+            public bool OnWorld; // Pointer: landed on the world, not on a window
+            public Game.UI.Gumps.Gump OnGump; // Pointer: the window it landed on (a pinch there zooms that window)
+            public uint HoldUntil; // Pointer on a window: its events wait until this tick (0 = not held)
             public bool PinchLeftover; // Ignored: still down after its pinch partner lifted
+            public Game.UI.Gumps.Gump PinchGump; // PinchLeftover: the window that pinch was zooming (null = world)
         }
+
+        /// <summary>
+        /// A pointer finger that pressed a zoomed window: the game sees it in the window's own
+        /// unscaled layout (see <see cref="GumpScale"/>), fixed at touch-down so a scroll or press
+        /// inside the window stays consistent even if the window moves.
+        /// </summary>
+        private sealed class PointerMap
+        {
+            public Game.UI.Gumps.Gump Gump;
+            public Point Origin, DownPhysical, DownLogical;
+            public float Scale;
+        }
+
+        private static readonly Dictionary<long, PointerMap> _maps = new Dictionary<long, PointerMap>();
+        private static readonly List<long> _mapsToDrop = new List<long>();
+
+        /// <summary>The window the game's pointer position is currently mapped onto (null: raw position).</summary>
+        public static Game.UI.Gumps.Gump PointerGump { get; private set; }
+
+        private static Point? _physicalPointer;
+
+        /// <summary>Where the finger really is (held items, tooltips and the target cursor draw here).</summary>
+        public static Point CursorPosition => Enabled && _physicalPointer.HasValue ? _physicalPointer.Value : Mouse.Position;
 
         private enum PointerEventType { Down, Move, Up, RightClick }
 
@@ -141,6 +171,11 @@ namespace ClassicUO.Touch
             _pointerFinger = long.MinValue;
             _downFinger = long.MinValue;
             _pinchA = _pinchB = long.MinValue;
+            _pinchGump = null;
+            _maps.Clear();
+            PointerGump = null;
+            _physicalPointer = null;
+            GumpScale.Unload();
             JoystickActive = false;
             PressedButton = -1;
         }
@@ -170,14 +205,21 @@ namespace ClassicUO.Touch
                     continue;
                 }
 
-                int x = Math.Max(0, Math.Min(g.X, w - g.Width));
-                int y = Math.Max(0, Math.Min(g.Y, h - g.Height));
+                KeepOnScreen(g, w, h);
+            }
+        }
 
-                if (x != g.X || y != g.Y)
-                {
-                    g.X = x;
-                    g.Y = y;
-                }
+        /// <summary>Pull a window back inside the screen, by its drawn (zoomed) size.</summary>
+        private static void KeepOnScreen(Game.UI.Gumps.Gump g, int w, int h)
+        {
+            float scale = GumpScale.Of(g);
+            int x = Math.Max(0, Math.Min(g.X, w - (int)(g.Width * scale)));
+            int y = Math.Max(0, Math.Min(g.Y, h - (int)(g.Height * scale)));
+
+            if (x != g.X || y != g.Y)
+            {
+                g.X = x;
+                g.Y = y;
             }
         }
 
@@ -453,7 +495,7 @@ namespace ClassicUO.Touch
 
             if (leftover != null || _pointerFinger != long.MinValue)
             {
-                bool pinched = leftover != null ? CanPinch() && BeginPinch(leftover, f) : TryStartPinch(f);
+                bool pinched = leftover != null ? CanPinch() && BeginPinch(leftover, f, leftover.PinchGump) : TryStartPinch(f);
 
                 if (!pinched)
                 {
@@ -465,10 +507,33 @@ namespace ClassicUO.Touch
             }
 
             f.Owner = Owner.Pointer;
-            f.OnWorld = Client.Game.Scene is Game.Scenes.GameScene && UIManager.IsWorldAt(pos);
+
+            _maps.Remove(id); // iOS reuses touch ids; a lifted finger's map must not carry over
+
+            if (Client.Game.Scene is Game.Scenes.GameScene)
+            {
+                f.OnGump = UIManager.GumpAtPhysical(pos, out Point local);
+                f.OnWorld = f.OnGump == null && UIManager.IsWorldAt(pos);
+
+                if (f.OnGump != null && GumpScale.Scalable(f.OnGump))
+                {
+                    f.HoldUntil = Time.Ticks + WINDOW_PRESS_HOLD_MS;
+                }
+                float scale = GumpScale.Of(f.OnGump);
+
+                if (scale != 1f)
+                {
+                    _maps[id] = new PointerMap
+                    {
+                        Gump = f.OnGump, Scale = scale, Origin = new Point(f.OnGump.X, f.OnGump.Y),
+                        DownPhysical = pos, DownLogical = local
+                    };
+                }
+            }
+
             _fingers[id] = f;
             _pointerFinger = id;
-            SetPointer(pos);
+            SetPointer(MapPointer(pos, id));
             _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Down, pos, _frame + POINTER_FRAME_DELAY, id));
 
             return true;
@@ -486,6 +551,7 @@ namespace ClassicUO.Touch
             if (Math.Abs(pos.X - f.Start.X) > TAP_SLOP || Math.Abs(pos.Y - f.Start.Y) > TAP_SLOP)
             {
                 f.Moved = true;
+                f.HoldUntil = 0; // a drag: let the press through now
             }
 
             switch (f.Owner)
@@ -538,16 +604,28 @@ namespace ClassicUO.Touch
 
         private static bool TryStartPinch(Finger second)
         {
-            // Only a press that started on the world: a finger on a window may be dragging it, and
-            // cancelling that press would throw the window off-screen or drop what it carries.
-            if (!CanPinch() || !_fingers.TryGetValue(_pointerFinger, out Finger first) || !first.OnWorld)
+            if (!CanPinch() || !_fingers.TryGetValue(_pointerFinger, out Finger first))
             {
                 return false;
             }
 
+            // A press on the world zooms the world; a press on a window zooms that window.
+            Game.UI.Gumps.Gump gump = null;
+
+            if (!first.OnWorld)
+            {
+                gump = first.OnGump;
+
+                // Only while its press is still held back: once the game has it, a control may be
+                // pressed (buttons, scroll arrows, sliders, skill rows) and can't be un-pressed.
+                if (gump == null || gump.IsDisposed || !GumpScale.Scalable(gump) || _downFinger == first.Id || !IsHeld(first.Id))
+                {
+                    return false;
+                }
+            }
+
             // Undo the first finger's click: drop whatever of it hasn't reached the game yet (other
-            // fingers' events stay - dropping a queued release would leave the button held). If its
-            // press already went through, release it off-screen so the release clicks nothing.
+            // fingers' events stay - dropping a queued release would leave the button held).
             int queued = _pointerQueue.Count;
 
             for (int i = 0; i < queued; i++)
@@ -562,6 +640,9 @@ namespace ClassicUO.Touch
 
             if (_downFinger == first.Id)
             {
+                // World: release off-screen, where the release picks nothing. (A window press is
+                // never taken over once it reached the game: its control may already be pressed,
+                // scrolling or dragging - see the check above.)
                 _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Move, OffScreen, _frame, first.Id));
                 _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, OffScreen, _frame + POINTER_FRAME_DELAY, first.Id));
             }
@@ -572,11 +653,20 @@ namespace ClassicUO.Touch
 
             _pointerFinger = long.MinValue;
 
-            return BeginPinch(first, second);
+            return BeginPinch(first, second, gump);
         }
 
-        private static bool BeginPinch(Finger a, Finger b)
+        private static Game.UI.Gumps.Gump _pinchGump;
+        private static float _pinchStartScale;
+        private static Vector2 _pinchContent; // window: the point under the fingers' midpoint, in the window's own units
+
+        private static bool BeginPinch(Finger a, Finger b, Game.UI.Gumps.Gump gump)
         {
+            if (gump != null && gump.IsDisposed)
+            {
+                return false;
+            }
+
             a.Owner = Owner.Pinch;
             b.Owner = Owner.Pinch;
             a.PinchLeftover = false;
@@ -585,8 +675,19 @@ namespace ClassicUO.Touch
             _pinchA = a.Id;
             _pinchB = b.Id;
             _pinchStartDistance = Math.Max(1f, Distance(a.Pos, b.Pos));
-            // A profile zoom outside the pinch range (desktop allows 0.5-2.5) would jump on the first move.
-            _pinchStartZoom = MathHelper.Clamp(((Game.Scenes.GameScene)Client.Game.Scene).Camera.Zoom, PINCH_ZOOM_MIN, PINCH_ZOOM_MAX);
+            _pinchGump = gump;
+
+            if (gump != null)
+            {
+                _pinchStartScale = GumpScale.Of(gump);
+                Vector2 mid = Mid(a.Pos, b.Pos);
+                _pinchContent = new Vector2((mid.X - gump.X) / _pinchStartScale, (mid.Y - gump.Y) / _pinchStartScale);
+            }
+            else
+            {
+                // A profile zoom outside the pinch range (desktop allows 0.5-2.5) would jump on the first move.
+                _pinchStartZoom = MathHelper.Clamp(((Game.Scenes.GameScene)Client.Game.Scene).Camera.Zoom, PINCH_ZOOM_MIN, PINCH_ZOOM_MAX);
+            }
 
             return true;
         }
@@ -599,9 +700,29 @@ namespace ClassicUO.Touch
                 return;
             }
 
+            float spread = Math.Max(1f, Distance(a.Pos, b.Pos)) / _pinchStartDistance;
+
+            if (_pinchGump != null)
+            {
+                if (_pinchGump.IsDisposed)
+                {
+                    return;
+                }
+
+                // Fingers apart = bigger, up to what fits on the screen. The point that was under
+                // the fingers stays under them, so moving both fingers also moves the window.
+                float fit = Math.Min(ScreenW / (float)Math.Max(1, _pinchGump.Width), ScreenH / (float)Math.Max(1, _pinchGump.Height));
+                GumpScale.Set(_pinchGump, Math.Min(_pinchStartScale * spread, Math.Max(1f, fit)));
+                float scale = GumpScale.Of(_pinchGump);
+                Vector2 mid = Mid(a.Pos, b.Pos);
+                _pinchGump.X = (int)MathF.Round(mid.X - _pinchContent.X * scale);
+                _pinchGump.Y = (int)MathF.Round(mid.Y - _pinchContent.Y * scale);
+
+                return;
+            }
+
             // Fingers apart = zoom in (a smaller Camera.Zoom).
-            float zoom = _pinchStartZoom * _pinchStartDistance / Math.Max(1f, Distance(a.Pos, b.Pos));
-            scene.Camera.Zoom = MathHelper.Clamp(zoom, PINCH_ZOOM_MIN, PINCH_ZOOM_MAX);
+            scene.Camera.Zoom = MathHelper.Clamp(_pinchStartZoom / spread, PINCH_ZOOM_MIN, PINCH_ZOOM_MAX);
         }
 
         private static void EndPinch(long liftedId)
@@ -617,10 +738,20 @@ namespace ClassicUO.Touch
             {
                 f.Owner = Owner.Ignored; // does nothing until it lifts, or a new finger re-pinches with it
                 f.PinchLeftover = true;
+                f.PinchGump = _pinchGump;
             }
 
+            if (_pinchGump != null && !_pinchGump.IsDisposed)
+            {
+                KeepOnScreen(_pinchGump, ScreenW, ScreenH);
+                GumpScale.Save();
+            }
+
+            _pinchGump = null;
             _pinchA = _pinchB = long.MinValue;
         }
+
+        private static Vector2 Mid(Point a, Point b) => new Vector2((a.X + b.X) * 0.5f, (a.Y + b.Y) * 0.5f);
 
         private static float Distance(Point a, Point b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
@@ -734,6 +865,7 @@ namespace ClassicUO.Touch
             }
 
             DrainPointerQueue();
+            DropFinishedMaps();
             ParkPointer();
             SyncKeyboard();
             CheckLongPress();
@@ -743,10 +875,10 @@ namespace ClassicUO.Touch
 
         private static void DrainPointerQueue()
         {
-            while (_pointerQueue.Count > 0 && _pointerQueue.Peek().ReadyFrame <= _frame)
+            while (_pointerQueue.Count > 0 && _pointerQueue.Peek().ReadyFrame <= _frame && !IsHeld(_pointerQueue.Peek().Finger))
             {
                 PointerEvent e = _pointerQueue.Dequeue();
-                SetPointer(e.Pos);
+                SetPointer(MapPointer(e.Pos, e.Finger));
 
                 switch (e.Type)
                 {
@@ -793,10 +925,107 @@ namespace ClassicUO.Touch
 
             _parkPointerAt = 0;
 
+            PointerGump = null;
+            _physicalPointer = null;
+
             if (Mouse.TouchPosition.HasValue)
             {
                 Mouse.TouchPosition = OffScreen;
                 Mouse.Update();
+            }
+        }
+
+        /// <summary>
+        /// Where the game should see a finger. Over a zoomed window: in that window's own layout.
+        /// Carrying an item: whichever window is under the finger now (so a drop from a zoomed
+        /// backpack onto the world or another window lands under the finger). Moving a zoomed
+        /// window: 1:1 with the finger (the drag is measured in the window's own units).
+        /// </summary>
+        private static Point MapPointer(Point pos, long finger)
+        {
+            PointerGump = null;
+            _physicalPointer = pos == OffScreen ? (Point?)null : pos;
+
+            if (pos == OffScreen || !(Client.Game.Scene is Game.Scenes.GameScene))
+            {
+                return pos;
+            }
+
+            if (Client.Game.UO.GameCursor.ItemHold.Enabled)
+            {
+                Game.UI.Gumps.Gump under = UIManager.GumpAtPhysical(pos, out Point local);
+
+                if (under != null && GumpScale.Of(under) != 1f)
+                {
+                    PointerGump = under;
+
+                    return local;
+                }
+
+                return pos;
+            }
+
+            if (!_maps.TryGetValue(finger, out PointerMap m) || m.Gump.IsDisposed)
+            {
+                return pos;
+            }
+
+            if (UIManager.IsDragging && UIManager.DraggingControl != null && UIManager.DraggingControl != m.Gump)
+            {
+                // Dragging something out of the zoomed window (a split-stack menu, a spell or skill
+                // icon): from here on the finger is on the screen, not in the window.
+                _maps.Remove(finger);
+
+                return pos;
+            }
+
+            PointerGump = m.Gump;
+
+            if (UIManager.IsDragging && UIManager.DraggingControl == m.Gump)
+            {
+                return m.DownLogical + (pos - m.DownPhysical);
+            }
+
+            return new Point(m.Origin.X + (int)MathF.Round((pos.X - m.Origin.X) / m.Scale),
+                             m.Origin.Y + (int)MathF.Round((pos.Y - m.Origin.Y) / m.Scale));
+        }
+
+        private static bool IsHeld(long finger) =>
+            _fingers.TryGetValue(finger, out Finger f) && f.HoldUntil != 0 && Time.Ticks < f.HoldUntil;
+
+        /// <summary>A lifted finger's mapping goes once none of its events are left to dispatch.</summary>
+        private static void DropFinishedMaps()
+        {
+            if (_maps.Count == 0)
+            {
+                return;
+            }
+
+            _mapsToDrop.Clear();
+
+            foreach (long id in _maps.Keys)
+            {
+                if (_fingers.ContainsKey(id))
+                {
+                    continue;
+                }
+
+                bool queued = false;
+
+                foreach (PointerEvent e in _pointerQueue)
+                {
+                    queued |= e.Finger == id;
+                }
+
+                if (!queued)
+                {
+                    _mapsToDrop.Add(id);
+                }
+            }
+
+            foreach (long id in _mapsToDrop)
+            {
+                _maps.Remove(id);
             }
         }
 

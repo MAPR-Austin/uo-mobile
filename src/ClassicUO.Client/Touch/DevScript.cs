@@ -165,6 +165,62 @@ namespace ClassicUO.Touch
 
                     break;
 
+                case "gumps": // every window: type, position, size, zoom
+                    foreach (Game.UI.Gumps.Gump gump in Game.Managers.UIManager.Gumps)
+                    {
+                        Log.Info($"[devscript] gump {gump.GetType().Name} at {gump.X},{gump.Y} size {gump.Width}x{gump.Height} scale {GumpScale.Of(gump)}");
+                    }
+
+                    break;
+
+                case "near": // near [tiles]: items on the ground within 6 (or the given) tiles
+                    int range = a.Length > 0 ? int.Parse(a[0]) : 6;
+
+                    foreach (Game.GameObjects.Item it in Client.Game.UO.World.Items.Values)
+                    {
+                        if (it.OnGround && it.Distance <= range)
+                        {
+                            Log.Info($"[devscript] near {it.Name} 0x{it.Graphic:X4} at {it.X},{it.Y},{it.Z} dist {it.Distance}");
+                        }
+                    }
+
+                    break;
+
+                case "pack": // what the backpack holds (graphic and position inside it)
+                    {
+                        Game.GameObjects.Item bp = Client.Game.UO.World.Player?.FindItemByLayer(Game.Data.Layer.Backpack);
+
+                        foreach (Game.GameObjects.Item it in Client.Game.UO.World.Items.Values)
+                        {
+                            if (bp != null && it.Container == bp.Serial)
+                            {
+                                Log.Info($"[devscript] pack 0x{it.Graphic:X4} x{it.Amount} at {it.X},{it.Y}");
+                            }
+                        }
+                    }
+
+                    break;
+
+                case "packitems": // each item shown in the open backpack: its on-screen centre (normalised, zoom applied)
+                    foreach (Game.UI.Gumps.Gump gump in Game.Managers.UIManager.Gumps)
+                    {
+                        if (gump is Game.UI.Gumps.ContainerGump cg)
+                        {
+                            float sc = GumpScale.Of(cg);
+
+                            foreach (Game.UI.Controls.ItemGump ig in cg.FindControls<Game.UI.Controls.ItemGump>())
+                            {
+                                {
+                                    float cx = cg.X + (ig.ScreenCoordinateX - cg.X + ig.Width / 2f) * sc;
+                                    float cy = cg.Y + (ig.ScreenCoordinateY - cg.Y + ig.Height / 2f) * sc;
+                                    Log.Info($"[devscript] packitem 0x{ig.Graphic:X4} centre {cx / TouchInput.ScreenW:0.0000} {cy / TouchInput.ScreenH:0.0000}");
+                                }
+                            }
+                        }
+                    }
+
+                    break;
+
                 case "zoom":
                     Log.Info($"[devscript] zoom={(Client.Game.Scene as Game.Scenes.GameScene)?.Camera.Zoom}");
 

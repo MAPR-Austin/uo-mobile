@@ -550,6 +550,15 @@ namespace ClassicUO
             {
                 Log.Error($"save on suspend (settings): {ex.Message}");
             }
+
+            try
+            {
+                GumpScale.Save();
+            }
+            catch (Exception ex)
+            {
+                Log.Error($"save on suspend (window zoom): {ex.Message}");
+            }
         }
 
         protected override void Update(GameTime gameTime)

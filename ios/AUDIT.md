@@ -17,9 +17,21 @@ must be caught here.
    stands aside, so the resize reaches the game through `FollowPhoneRotation`, the only path on
    iOS. Drive two-finger gestures with `down/move/up <id> x y` in `dev/cmd.txt`. Desktop can't
    produce FNA's orientation events: anything that depends on them goes in the phone checks.
-5. **Phone checks** for the build, listed in the ship message so the player runs them. For
-   build 32: launch while holding the phone in portrait, rotate both ways in game and on the
-   login screen, pinch in and out, and pinch starting on a window (it must not pinch).
+   Windows and items: `gumps` lists windows with position, size and zoom; `packitems` gives
+   each backpack item's on-screen centre (zoom applied) to aim at; `pack` and `near [tiles]`
+   show where an item ended up after a drag.
+5. **Phone checks** for the build, listed in the ship message so the player runs them.
+   - Build 32: launch while holding the phone in portrait; rotate both ways in game and on the
+     login screen; pinch in and out.
+   - Build 33:
+     - pinch the backpack and the paperdoll separately (the world zoom must not change);
+     - pinch a window with a slow second finger (the window must stay where it is);
+     - start a pinch on a scroll arrow or a skill row, then drag a mobile off the world (a health
+       bar must appear);
+     - drag a stack out of a backpack zoomed to 0.6 (the amount window must open under the finger);
+     - tap Names, then pinch the world (name plates must not zoom);
+     - read backpack and journal text at 0.6;
+     - music plays after copying the music folder in as a whole folder.
 3. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -66,11 +78,23 @@ must be caught here.
   keyboard is raised on demand; nothing is hover-only or right-click-only on a required path.
   Multi-touch: each finger has exactly one owner until it lifts. A gesture that takes over a
   finger (pinch) must cancel that finger's click without dropping another finger's queued
-  release, since a lost mouse-up leaves the button held. Only a press that started on the world
-  may be taken over: cancelling a press on a window, a window drag or a held item throws the
-  window off-screen or drops the item. A finger landing mid-gesture must not click.
+  release, since a lost mouse-up leaves the button held. A press is only taken over *before the
+  game has seen it*. Presses on windows are held back for up to 130 ms, or until the finger moves
+  or lifts, so a second finger can claim them for a window pinch. Once a window press has reached
+  the game, never cancel it: its control may already be pressed, scrolling, dragging or
+  resizing, and forgetting the press leaves it stuck (scroll arrows keep scrolling, a skill row
+  blocks health-bar pulls). A world press may still be taken over after dispatch, by releasing it
+  off-screen. A finger landing mid-gesture must not click.
   Accepted: the first finger's press reaches the game after 2 frames, so a pinch that starts
   within the double-click time of an earlier tap can still double-click.
+- **Per-window zoom** (Touch/GumpScale): a zoomed window is drawn in its own pass. That pass
+  must stay in true bottom-to-top order, because translucent pixels above it (the HUD) otherwise
+  block it through the depth buffer. Every pointer event is mapped into the zoomed window's own
+  layout, and hit testing must go through the same mapping (`HitTestGumps`), so the game and
+  the finger agree on what's under it. While an item is carried, the window under the finger is
+  re-checked on every event, so a drop lands under the finger. Anything new that reads
+  `Mouse.Position` to *draw* at the finger (held item, tooltip, target cursor) must use
+  `TouchInput.CursorPosition`.
 - **Lifecycle**: no GPU work in the background; everything saves on DID_ENTER_BACKGROUND; saves
   are write-then-rename; a corrupt file must not crash every launch.
 - **Network**: connects are bounded (no multi-second block on the main thread); the Local
@@ -104,4 +128,5 @@ must be caught here.
 | 29 | `Exception: CRC mismatch` | the iOS-only switch to ClassicUO's `ZLibManaged` (broken, never used on 64-bit) | `System.IO.Compression.ZLibStream`, verified on desktop with `UOM_DOTNET_ZLIB=1` |
 | 31 | no music | the Apple Devices folder copy wrote 0 KB mp3s | (pending) download game files from the server |
 | audit | (pre-ship, build 32) | build-31 `mobile_layouts.json` has no portrait positions, so derivation put Attack Last on the joystick; editors are 520/640 wide against a 480-wide portrait UI | fill from the default layout by action; widen the fit while a wide window is open |
+| audit | (agent, build 33) | a resting finger's tiny motion turned a window pinch into a window drag; cancelling a dispatched window press left controls stuck; windows dragged out of a zoomed window opened away from the finger; name plates could be zoomed; the aura drew away from the finger | hold window presses until move, lift or 130 ms, and pinch only while held; a drag of another window drops the mapping; world-anchored windows and health bars are not scalable; the aura and range text draw at `CursorPosition` |
 | audit | (agent, build 32) | a launch held in portrait likely got a landscape backbuffer (FNA orientation shaping); a pinch started on a window threw it off-screen; fingers landing mid-pinch clicked; macro-bar buttons had no portrait position; a null layout crashed every login; the desktop rotation test used a path iOS never takes | `PreparingDeviceSettings` forces the window's shape; pinch only from world presses; re-pinch and ignore extra fingers; PX/PY on every new button (preflight); drop nulls on load; the desktop resize handler stands aside under `UOM_PHONE_FIT` |

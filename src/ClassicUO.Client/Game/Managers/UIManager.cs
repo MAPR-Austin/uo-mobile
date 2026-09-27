@@ -6,6 +6,7 @@ using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Input;
 using ClassicUO.Renderer;
+using ClassicUO.Touch;
 using ClassicUO.Utility;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
@@ -57,7 +58,7 @@ namespace ClassicUO.Game.Managers
         /// window? Same rule as <see cref="IsMouseOverWorld"/>, for a point the mouse isn't at yet.
         /// </summary>
         internal static bool IsWorldAt(Point p) =>
-            !_isDraggingControl && GetMouseOverControl(p) == null && !IsModalOpen &&
+            !_isDraggingControl && GumpAtPhysical(p, out _) == null && !IsModalOpen &&
             Client.Game.Scene?.Camera != null && Client.Game.Scene.Camera.Bounds.Contains(p);
 
         public static Control DraggingControl { get; private set; }
@@ -366,6 +367,9 @@ namespace ClassicUO.Game.Managers
             HandleMouseInput();
         }
 
+        // Phone per-window zoom (Touch/GumpScale): a scaled window's draw list.
+        private static readonly RenderLists _scaledRenderLists = new();
+
         public static void Draw(UltimaBatcher2D batcher)
         {
             _renderLists.Clear();
@@ -379,9 +383,41 @@ namespace ClassicUO.Game.Managers
 
             for (LinkedListNode<Gump> last = Gumps.Last; last != null; last = last.Previous)
             {
-                Control g = last.Value;
+                Gump g = last.Value;
                 layerDepth+=10;
-                g.AddToRenderLists(_renderLists, g.X, g.Y, ref layerDepth);
+                float scale = GumpScale.Of(g);
+
+                if (scale == 1f || !g.IsVisible)
+                {
+                    g.AddToRenderLists(_renderLists, g.X, g.Y, ref layerDepth);
+
+                    continue;
+                }
+
+                // A zoomed window is drawn in its own pass, scaled around its top-left. Keep true
+                // bottom-to-top order around it: draw everything below first, and the windows above
+                // after it. Depth alone isn't enough, because translucent pixels above (the HUD)
+                // would block it. Scissors follow the batch transform.
+                _renderLists.DrawRenderLists(batcher, sbyte.MaxValue);
+                _renderLists.Clear();
+                batcher.SetStencil(null);
+                batcher.End();
+
+                Matrix transform = Matrix.CreateTranslation(-g.X, -g.Y, 0f) *
+                                   Matrix.CreateScale(scale, scale, 1f) *
+                                   Matrix.CreateTranslation(g.X, g.Y, 0f);
+
+                batcher.Begin(null, transform);
+                batcher.SetStencil(DepthStencilState.Default);
+                _scaledRenderLists.Clear();
+                g.AddToRenderLists(_scaledRenderLists, g.X, g.Y, ref layerDepth);
+                _scaledRenderLists.DrawRenderLists(batcher, sbyte.MaxValue);
+                _scaledRenderLists.Clear();
+                batcher.SetStencil(null);
+                batcher.End();
+
+                batcher.Begin();
+                batcher.SetStencil(DepthStencilState.Default);
             }
 
             Profiler.EnterContext(Profiler.ProfilerContext.RENDER_FRAME_UI);
@@ -507,29 +543,69 @@ namespace ClassicUO.Game.Managers
                 return DraggingControl;
             }
 
+            return HitTestGumps(position, TouchInput.PointerGump, out _, out _);
+        }
+
+        /// <summary>
+        /// Touch: the window under a physical point (UI units) and that point in the window's own
+        /// layout (they differ when the window is zoomed; see Touch/GumpScale). Null over the world.
+        /// </summary>
+        internal static Gump GumpAtPhysical(Point p, out Point local)
+        {
+            HitTestGumps(p, null, out Gump gump, out local);
+
+            return gump;
+        }
+
+        /// <summary>
+        /// Front to back. <paramref name="only"/>: the position is already in that window's own
+        /// layout (the touch pointer is mapped onto it), so only it can be hit. Otherwise each
+        /// zoomed window is tested with the point mapped into its layout.
+        /// </summary>
+        private static Control HitTestGumps(Point position, Gump only, out Gump gumpHit, out Point local)
+        {
+            gumpHit = null;
+            local = position;
             Control control = null;
 
             IsModalOpen = IsModalControlOpen();
 
             for (LinkedListNode<Gump> first = Gumps.First; first != null; first = first.Next)
             {
-                Control c = first.Value;
+                Gump c = first.Value;
 
-                if (IsModalOpen && !c.IsModal || !c.IsVisible || !c.IsEnabled)
+                if (IsModalOpen && !c.IsModal || !c.IsVisible || !c.IsEnabled || only != null && c != only)
                 {
                     continue;
                 }
 
-                c.HitTest(position, ref control);
+                Point p = position;
+
+                if (only == null)
+                {
+                    float scale = GumpScale.Of(c);
+
+                    if (scale != 1f)
+                    {
+                        p = GumpScale.ToLogical(c, position, scale);
+                    }
+                }
+
+                c.HitTest(p, ref control);
 
                 if (control != null)
                 {
+                    gumpHit = c;
+                    local = p;
+
                     return control;
                 }
             }
 
             return null;
         }
+
+
 
         /// <summary>
         ///     Returns all controls which are part of a Gump from the provided list,

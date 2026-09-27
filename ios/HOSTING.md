@@ -14,6 +14,26 @@ and the manual Documents copy stay as fallbacks until the cloud path has been pr
 - World: copy the current home world (characters, accounts, items)
 - Accounts: anyone with the app can create one on first login (as today)
 
+## Live server (2026-09-27)
+
+- Google Cloud project `graveyardbattles`, VM `uo-server`, zone `us-south1-a`, `e2-standard-2`,
+  Ubuntu 24.04, static IP **34.174.14.240**. Measured from the owner's home: 31 ms average.
+- Game: `34.174.14.240:2593`. Files: `https://34-174-14-240.sslip.io/files/` (Caddy with Let's
+  Encrypt; `files/uo` links to the UO data folder `/srv/uo/client`, and music is in
+  `uo/Music/Digital`).
+- Shard: `/srv/uo/servuo`, systemd unit `uo` (Mono 6.8). `uo-ctl save | say <text> |
+  restart [minutes] | status | log`. A stop saves first (ServiceControl.cs; ServUO doesn't save
+  on its own). Nightly backup at 04:15 to `/srv/uo/backups` (keeps 14).
+- Deploy files: the servuo repo's `deploy/` folder (setup.sh, unit, scripts, Caddyfile), staged
+  through the private bucket `gs://graveyardbattles-uo-data`.
+- Linux differences from the Windows copy:
+  - `Compiler.Dynamic=False` (use the shipped Scripts.dll, no `dotnet` on the VM);
+  - `Server.Address=34.174.14.240` (otherwise ServUO advertises 127.0.0.1 to internet clients
+    after login);
+  - `Nice=-10` in the unit (Mono refuses ServUO's own High-priority call; it is now caught).
+- Admin SSH: `gcloud compute ssh uoadmin@uo-server --zone us-south1-a` (a Linux user name can't
+  start with a digit, so the Windows user name `18166` won't work).
+
 ## 1. Where the server runs (ping first)
 
 Measured from the owner's home connection (Spectrum cable, 2026-09-27). ICMP ping, TCP handshake, or

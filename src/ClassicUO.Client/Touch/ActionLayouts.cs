@@ -236,5 +236,6 @@ namespace ClassicUO.Touch
 
     [JsonSourceGenerationOptions(WriteIndented = true)]
     [JsonSerializable(typeof(ActionLayoutSet))]
+    [JsonSerializable(typeof(Dictionary<string, float>))] // GumpScale
     sealed partial class MobileJsonContext : JsonSerializerContext { }
 }
