@@ -103,6 +103,12 @@ namespace ClassicUO.IO.Audio
 
         protected int Frequency = 22050;
 
+        /// <summary>
+        /// When set, sound effects are resampled to this rate once, on load (see <see cref="Resampler"/>).
+        /// 0 leaves them at 22050 Hz.
+        /// </summary>
+        public static int OutputRate;
+
         protected abstract ArraySegment<byte> GetBuffer();
         protected abstract void OnBufferNeeded(object sender, EventArgs e);
 

@@ -6,12 +6,32 @@ namespace ClassicUO.IO.Audio
 {
     public class UOSound : Sound
     {
+        private const int MAX_RESAMPLE_SECONDS = 30;
+
         private readonly byte[] _waveBuffer;
 
         public UOSound(string name, int index, byte[] buffer) : base(name, index)
         {
-            _waveBuffer = buffer;
-            Delay = (uint) ((buffer.Length - 32) / 88.2f);
+            Delay = (uint) ((buffer.Length - 32) / 88.2f); // from the 22 kHz length
+
+            // Phones: hand FAudio 48 kHz so it doesn't upsample with linear interpolation (hiss).
+            // Not the few minutes-long sounds (heartbeat loops, up to 480 s): resampling those
+            // would stall the frame and cost ~90 MB; they play at 22 kHz as before.
+            if (OutputRate > 0 && OutputRate != Frequency && buffer.Length <= MAX_RESAMPLE_SECONDS * Frequency * 2)
+            {
+                var watch = System.Diagnostics.Stopwatch.StartNew();
+                _waveBuffer = Resampler.Pcm16Mono(buffer, Frequency, OutputRate);
+                Frequency = OutputRate;
+
+                if (watch.ElapsedMilliseconds > 8)
+                {
+                    ClassicUO.Utility.Logging.Log.Info($"[UOMobile] sound {index} ({buffer.Length / 44100.0:0.0} s) resampled in {watch.ElapsedMilliseconds} ms");
+                }
+            }
+            else
+            {
+                _waveBuffer = buffer;
+            }
         }
 
         public bool CalculateByDistance { get; set; }

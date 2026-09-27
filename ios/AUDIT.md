@@ -51,6 +51,9 @@ must be caught here.
      The IPv6-only (NAT64) path itself can't be run from Windows (it needs macOS Internet
      Sharing's NAT64). It was accepted on the code reading (.NET resolves host names with
      getaddrinfo, so DNS64 applies) and on the host name's DNS records.
+   - Build 36:
+     - sound effects (war/peace, footsteps, spells, hits) have no static;
+     - no hitch the first time a sound plays in combat.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -106,6 +109,10 @@ must be caught here.
   off-screen. A finger landing mid-gesture must not click.
   Accepted: the first finger's press reaches the game after 2 frames, so a pinch that starts
   within the double-click time of an earlier tap can still double-click.
+- **Audio**: give FAudio 48 kHz material. It upsamples with linear interpolation, and for UO's
+  22 kHz originals that leaves images only ~13 dB down (hiss, "static", on a phone speaker).
+  Music is re-encoded on the server (`music-48k.sh`). Sound effects are resampled on load with
+  a windowed sinc (`ClassicUO.IO/Audio/Resampler.cs`, images ~83 dB down).
 - **Game-file downloads** (Touch/GameFiles, DownloadScreen):
   - Nothing may read the UO files before the download screen is done. That includes startup
     checks: Main's "UO directory invalid" check killed a fresh install before it could download
@@ -167,3 +174,4 @@ must be caught here.
 | audit | (agent, build 33) | a resting finger's tiny motion turned a window pinch into a window drag; cancelling a dispatched window press left controls stuck; windows dragged out of a zoomed window opened away from the finger; name plates could be zoomed; the aura drew away from the finger | hold window presses until move, lift or 130 ms, and pinch only while held; a drag of another window drops the mapping; world-anchored windows and health bars are not scalable; the aura and range text draw at `CursorPosition` |
 | desktop | (pre-ship, build 34) | a fresh download install showed "Your UO directory is invalid" and quit | Main's folder check waits for the download screen when a file server is configured |
 | audit | (agent, build 34) | iOS's default HTTP handler caches small files (an update could get a stale copy); UO.Load could run while backgrounded; a leading "/" in a manifest path escaped the folder; a wrong manifest could delete a good install; each app switch used up a retry; quitting during the download crashed in Unload; the console log could hold a password | the managed SocketsHttpHandler everywhere and no-cache on the server; load only in the foreground; full-path confinement; manifest sanity check, deletions after success, re-check by hash after a load failure; progress resets the retry count; `FileManager?.Dispose()`; redacted args |
+| 34 | static behind every sound effect (music fixed) | FAudio linear-upsamples the 22 kHz effects | effects resampled to 48 kHz on load (windowed sinc) |

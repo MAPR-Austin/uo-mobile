@@ -262,6 +262,10 @@ namespace ClassicUO
             SolidColorTextureCache.Initialize(GraphicsDevice);
             Audio = new AudioManager();
 
+            // Phones: sound effects at 48 kHz, band-limited (FAudio's own upsampling of the 22 kHz
+            // originals is audible as static). Touch mode on desktop takes the same path, for tests.
+            ClassicUO.IO.Audio.Sound.OutputRate = TouchInput.Enabled ? 48000 : 0;
+
             var bytes = Loader.GetBackgroundImage().ToArray();
             using var ms = new MemoryStream(bytes);
             _renderTargets.InitializeBackground(Texture2D.FromStream(GraphicsDevice, ms));
