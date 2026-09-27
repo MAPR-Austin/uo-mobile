@@ -114,9 +114,40 @@ namespace ClassicUO
                 Microsoft.Xna.Framework.Input.TextInputEXT.StartTextInput();
             }
 
+            FitUiToPhone();
             _displayScale = DpiScale;
 
             base.Initialize();
+        }
+
+        /// <summary>
+        /// iOS: UO's windows (the 640x480 login gump, paperdoll, ...) assume at least ~480 UI units of
+        /// height, while a phone in landscape is ~400 points tall. Pick ScreenScale so the UI space is
+        /// exactly 480 units high (UI space = backbuffer / DpiScale). Logged for tuning.
+        /// </summary>
+        private void FitUiToPhone()
+        {
+            if (!OperatingSystem.IsIOS())
+            {
+                return;
+            }
+
+            float display = SDL_GetWindowDisplayScale(Window.Handle);
+
+            if (display <= 0f)
+            {
+                display = 1f;
+            }
+
+            int backbufferHeight = GraphicManager.PreferredBackBufferHeight;
+
+            if (backbufferHeight <= 0)
+            {
+                return;
+            }
+
+            ScreenScale = Math.Clamp(backbufferHeight / (display * 480f), 0.25f, 8f);
+            Log.Info($"[UOMobile] display scale {display}, window {Window.ClientBounds}, backbuffer {GraphicManager.PreferredBackBufferWidth}x{backbufferHeight}, ScreenScale {ScreenScale}, UI {(int)(GraphicManager.PreferredBackBufferWidth / DpiScale)}x{(int)(backbufferHeight / DpiScale)}");
         }
 
         protected override void LoadContent()
@@ -592,6 +623,8 @@ namespace ClassicUO
 
         private void WindowOnClientSizeChanged(int width, int height)
         {
+            FitUiToPhone();
+
             if (!IsWindowMaximized() && Window.AllowUserResizing)
             {
                 if (ProfileManager.CurrentProfile != null)

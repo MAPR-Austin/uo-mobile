@@ -151,6 +151,13 @@ namespace ClassicUO
                 }
             }
 
+            if (OperatingSystem.IsIOS())
+            {
+                // The desktop cursor thread drives SDL's OS cursor; phones have none, and UIKit
+                // expects UI calls on the main thread.
+                Settings.GlobalSettings.RunMouseInASeparateThread = false;
+            }
+
             if (string.IsNullOrWhiteSpace(Settings.GlobalSettings.UltimaOnlineDirectory))
             {
                 Settings.GlobalSettings.UltimaOnlineDirectory = CUOEnviroment.ExecutablePath;
