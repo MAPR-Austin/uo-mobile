@@ -48,6 +48,42 @@ namespace ClassicUO.iOS
 
         public static void Main(string[] args)
         {
+            // Anything that escapes (here, in SDL callbacks, or in the game loop) is written to
+            // Documents/crash.txt before the runtime aborts, so a TestFlight crash can be read
+            // from the Files app / Apple Devices without a Mac.
+            AppDomain.CurrentDomain.UnhandledException += (_, e) => WriteCrash(e.ExceptionObject as Exception, "unhandled");
+
+            try
+            {
+                MainCore(args);
+            }
+            catch (Exception ex)
+            {
+                WriteCrash(ex, "Main");
+                throw;
+            }
+        }
+
+        private static void WriteCrash(Exception ex, string where)
+        {
+            try
+            {
+                string dir = _documents ?? GetDocumentsDirectory();
+                File.AppendAllText(Path.Combine(dir, "crash.txt"),
+                    $"=== {DateTime.Now:yyyy-MM-dd HH:mm:ss} ({where}) ===
+{ex}
+
+");
+                Console.WriteLine($"[UOMobile] FATAL ({where}): {ex}");
+            }
+            catch
+            {
+                // nothing left to do
+            }
+        }
+
+        private static void MainCore(string[] args)
+        {
             _documents = GetDocumentsDirectory();
             Directory.CreateDirectory(_documents);
 
@@ -74,6 +110,7 @@ namespace ClassicUO.iOS
             Console.WriteLine("[UOMobile] ClassicUO args: " + string.Join(" ", _realArgs));
 
             InstallNativeResolvers();
+            Console.WriteLine("[UOMobile] resolvers installed; starting SDL");
 
 #if IOS || __IOS__
             // Hints from the FNA iOS docs, plus orientation / home-indicator.
@@ -295,14 +332,18 @@ namespace ClassicUO.iOS
             {
                 IntPtr self = NativeLibrary.GetMainProgramHandle();
 
-                if (self != IntPtr.Zero && NativeLibrary.TryGetExport(self, probe, out _))
+                if (!NativeLibrary.TryGetExport(self, probe, out _))
                 {
-                    return self;
+                    Console.WriteLine($"[UOMobile] resolver: '{probe}' not exported from the executable (library {name}); using it anyway");
                 }
+
+                // The fnalibs are linked statically into the app (see ClassicUO.iOS.csproj), so the
+                // executable is the library - same as FNA's own LoadStaticLibrary on iOS.
+                return self;
             }
-            catch
+            catch (Exception ex)
             {
-                // fall through to default probing
+                Console.WriteLine($"[UOMobile] resolver: {name}: {ex.Message}");
             }
 
             return IntPtr.Zero;
