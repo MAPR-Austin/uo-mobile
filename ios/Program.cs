@@ -285,15 +285,10 @@ namespace ClassicUO.iOS
         // ---------------------------------------------------------------------------------
         private static void InstallNativeResolvers()
         {
-            try
-            {
-                NativeLibrary.SetDllImportResolver(typeof(SDL).Assembly, Resolve);
-            }
-            catch (InvalidOperationException)
-            {
-                // a resolver is already set for this assembly
-            }
-
+            // Not on the FNA assembly (which also holds the SDL3 bindings): FNA's module initializer
+            // (FNADllMap.Init) registers its own resolver there - on iOS it returns the main program
+            // handle for the statically linked fnalibs - and a second registration throws, which
+            // aborted the first TestFlight builds (TypeInitializationException in <Module>..cctor).
             try
             {
                 NativeLibrary.SetDllImportResolver(typeof(ClassicUO.Utility.ZLib).Assembly, Resolve);
@@ -354,7 +349,7 @@ namespace ClassicUO.iOS
         {
             try
             {
-                string dir = Path.Combine(_documents, "Logs");
+                string dir = _documents /* top level: Apple Devices cannot copy out of subfolders */;
                 Directory.CreateDirectory(dir);
                 string file = Path.Combine(dir, "uomobile-console.log");
 
@@ -387,7 +382,7 @@ namespace ClassicUO.iOS
 
             try
             {
-                string dir = Path.Combine(_documents, "Logs");
+                string dir = _documents;
                 Directory.CreateDirectory(dir);
                 File.AppendAllText(Path.Combine(dir, "uomobile-fatal.txt"), $"[{DateTime.Now:u}] {text}\n\n");
             }
