@@ -21,6 +21,11 @@ namespace ClassicUO
             if (!CUOEnviroment.IsUnix)
                 return;
 
+            // iOS links the native libs statically and FNA's own module initializer already
+            // registered the resolver for its assembly; a second registration throws.
+            if (OperatingSystem.IsIOS())
+                return;
+
             // Get the platform and architecture
             string os = getPlatformName();
             string cpu = RuntimeInformation.ProcessArchitecture.ToString().ToLowerInvariant();
