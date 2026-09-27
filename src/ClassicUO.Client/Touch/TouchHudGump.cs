@@ -26,6 +26,9 @@ namespace ClassicUO.Touch
         private int _builtRevision = -1;
         private int _builtW, _builtH;
         private bool _builtSuppressed;
+        private bool _builtWar;
+
+        private static bool InWar => Client.Game.UO.World?.Player?.InWarMode ?? false;
 
         private TouchHudGump(World world) : base(world, 0, 0)
         {
@@ -65,7 +68,7 @@ namespace ClassicUO.Touch
                 }
             }
 
-            if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH || _builtSuppressed != TouchInput.Suppressed)
+            if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH || _builtSuppressed != TouchInput.Suppressed || _builtWar != InWar)
             {
                 Rebuild();
             }
@@ -75,6 +78,7 @@ namespace ClassicUO.Touch
         {
             _builtRevision = TouchInput.Revision;
             _builtSuppressed = TouchInput.Suppressed;
+            _builtWar = InWar;
             _builtW = TouchInput.ScreenW;
             _builtH = TouchInput.ScreenH;
             Width = _builtW;
@@ -100,7 +104,9 @@ namespace ClassicUO.Touch
                 Point c = TouchInput.ButtonCenter(b);
                 int r = TouchInput.ButtonRadius(b);
 
-                Label label = new Label(b.DisplayLabel, true, 0x0481, r * 2 - 4, 1, FontStyle.BlackBorder, TEXT_ALIGN_TYPE.TS_CENTER);
+                // The war/peace toggle names what a tap will do: "Peace" while at war.
+                string text = b.Action == "war_peace" && _builtWar ? "Peace" : b.DisplayLabel;
+                Label label = new Label(text, true, 0x0481, r * 2 - 4, 1, FontStyle.BlackBorder, TEXT_ALIGN_TYPE.TS_CENTER);
                 label.X = c.X - r + 2;
                 label.Y = c.Y - label.Height / 2;
                 _labels.Add(label);
@@ -109,7 +115,7 @@ namespace ClassicUO.Touch
 
             string title = TouchInput.EditMode ? $"EDITING: {layout.Name}" : layout.Name;
             _layoutName = new Label(title, true, TouchInput.EditMode ? (ushort)0x0035 : (ushort)0x0481, 0, 1, FontStyle.BlackBorder);
-            _layoutName.X = (int)(0.60f * _builtW) - _layoutName.Width / 2;
+            _layoutName.X = (int)(0.45f * _builtW) - _layoutName.Width / 2;
             _layoutName.Y = 4;
             Add(_layoutName);
         }
@@ -148,7 +154,8 @@ namespace ClassicUO.Touch
                         int r = TouchInput.ButtonRadius(b);
                         bool pressed = TouchInput.PressedButton == i;
 
-                        DrawCircle(batcher, c, r, pressed ? ButtonPressed : edit ? EditFill : ButtonFill, hue, layerDepth);
+                        Color fill = pressed ? ButtonPressed : edit ? EditFill : b.Action == "war_peace" && InWar ? WarFill : ButtonFill;
+                        DrawCircle(batcher, c, r, fill, hue, layerDepth);
                         DrawCircle(batcher, c, r, edit ? EditRing : ButtonRing, hue, layerDepth, ring: true);
                     }
 
@@ -174,6 +181,7 @@ namespace ClassicUO.Touch
 
         private static readonly Color ButtonFill = new Color(20, 20, 28, 150);
         private static readonly Color ButtonPressed = new Color(200, 160, 60, 200);
+        private static readonly Color WarFill = new Color(170, 20, 20, 210);
         private static readonly Color ButtonRing = new Color(220, 200, 150, 200);
         private static readonly Color JoyBase = new Color(20, 20, 28, 90);
         private static readonly Color JoyRing = new Color(220, 200, 150, 140);

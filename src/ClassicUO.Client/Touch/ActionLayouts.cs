@@ -80,7 +80,7 @@ namespace ClassicUO.Touch
 
         /// <summary>
         /// Three starter layouts. Every layout carries the same top-right system row
-        /// (layout toggle, edit, cancel target) so the player can never lose the way back.
+        /// (layout toggle, edit, cancel target, chat, war/peace) so the player can never lose the way back.
         /// </summary>
         public static ActionLayoutSet CreateDefault()
         {
@@ -90,6 +90,7 @@ namespace ClassicUO.Touch
                 B("Edit", "edit_layout", 0.87f, 0.07f, 0.10f),
                 B("Cancel", "cancel_target", 0.79f, 0.07f, 0.10f),
                 B("Chat", "chat", 0.71f, 0.07f, 0.10f),
+                B("War", "war_peace", 0.63f, 0.07f, 0.10f),
             };
 
             ActionLayout combat = new ActionLayout { Name = "Combat" };
@@ -103,7 +104,6 @@ namespace ClassicUO.Touch
                 B("Attack\nLast", "attack_last", 0.64f, 0.88f),
                 B("Health\nBar", "healthbar_target", 0.95f, 0.40f, 0.11f),
                 B("Bandage", "bandage_self", 0.84f, 0.44f, 0.11f),
-                B("War", "war_peace", 0.95f, 0.22f, 0.10f),
             });
 
             ActionLayout mage = new ActionLayout { Name = "Mage" };
