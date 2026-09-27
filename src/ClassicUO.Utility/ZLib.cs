@@ -252,6 +252,14 @@ namespace ClassicUO.Utility
 
             public ZLibError Decompress(IntPtr dest, ref int destLength, IntPtr source, int sourceLength)
             {
+                // match native uncompress(): bad input is an error code, never an exception
+                if (sourceLength <= 0 || source == IntPtr.Zero || dest == IntPtr.Zero)
+                {
+                    destLength = 0;
+
+                    return ZLibError.BufferError;
+                }
+
                 try
                 {
                     using var input = new System.IO.UnmanagedMemoryStream((byte*)source, sourceLength);
@@ -275,7 +283,7 @@ namespace ClassicUO.Utility
 
                     return ZLibError.Ok;
                 }
-                catch (System.IO.InvalidDataException)
+                catch (Exception)
                 {
                     return ZLibError.DataError;
                 }

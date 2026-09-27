@@ -132,8 +132,11 @@ cmd_libs() {
     printf '%-20s %s\n' "$(basename "$a")" "$(lipo -info "$a" 2>/dev/null | sed 's/.*: //')"
   done
   # sanity: the entry points our DllImports need
-  nm -gU "$NATIVE_DIR/libSDL3.a" 2>/dev/null | grep -q ' _SDL_RunApp$' || warn "SDL_RunApp not found in libSDL3.a"
-  nm -gU "$NATIVE_DIR/libFNA3D.a" 2>/dev/null | grep -q ' _FNA3D_CreateDevice$' || warn "FNA3D_CreateDevice not found in libFNA3D.a"
+  local libsyms; libsyms="$(mktemp)"
+  nm -gU "$NATIVE_DIR/libSDL3.a" "$NATIVE_DIR/libFNA3D.a" > "$libsyms" 2>/dev/null || true
+  grep -E ' _SDL_RunApp$' "$libsyms" >/dev/null || warn "SDL_RunApp not found in libSDL3.a"
+  grep -E ' _FNA3D_CreateDevice$' "$libsyms" >/dev/null || warn "FNA3D_CreateDevice not found in libFNA3D.a"
+  rm -f "$libsyms"
 }
 
 libs_present() {
@@ -172,6 +175,8 @@ cmd_build() {
   for sym in _SDL_SetHint _SDL_RunApp _FNA3D_CreateDevice _FAudioCreate _tf_fopen; do
     grep -E " $sym\$" "$syms" || die "$sym is missing from $exe: the native libs were not linked"
   done
+  # System.IO.Compression's native zlib backs DotNetZLib on iOS (warning only: symbol name may vary)
+  grep -E " _CompressionNative_InflateInit2_\$" "$syms" || warn "CompressionNative_InflateInit2_ not found in the executable (System.IO.Compression native)"
   rm -f "$syms"
   echo "native libs linked: SDL3, FNA3D, FAudio, Theorafile symbols present"
   [ -n "$ipa" ] && echo "ipa: $ipa"

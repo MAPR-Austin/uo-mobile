@@ -42,6 +42,7 @@ namespace ClassicUO.iOS
 
         private static string[] _realArgs;
         private static string _documents;
+        private static string _uoPath;
 
         // Must stay referenced for the lifetime of the app: SDL holds a native pointer to it.
         private static SDL.SDL_main_func _mainFunc;
@@ -113,6 +114,7 @@ namespace ClassicUO.iOS
             }
 
             Console.WriteLine($"[UOMobile] UO data: {uoPath}");
+            _uoPath = uoPath;
 
             MoveLooseMusic(uoPath);
 
@@ -187,21 +189,20 @@ namespace ClassicUO.iOS
         }
 
         /// <summary>
-        /// UO music lives in &lt;uo&gt;/Music/Digital (*.mp3 + Config.txt). Apple Devices can only drop
-        /// loose files into Documents, so move any loose music there on startup.
+        /// First folder under Documents (breadth-first, a few levels, sorted, hidden folders such as
+        /// the Files app's .Trash skipped) that holds tiledata.mul.
         /// </summary>
-        /// <summary>First folder under Documents (breadth-first, a few levels) that holds tiledata.mul.</summary>
         private static string FindUoData(string root)
         {
-            try
+            var queue = new Queue<(string Dir, int Depth)>();
+            queue.Enqueue((root, 0));
+
+            while (queue.Count > 0)
             {
-                var queue = new Queue<(string Dir, int Depth)>();
-                queue.Enqueue((root, 0));
+                (string dir, int depth) = queue.Dequeue();
 
-                while (queue.Count > 0)
+                try
                 {
-                    (string dir, int depth) = queue.Dequeue();
-
                     if (File.Exists(Path.Combine(dir, "tiledata.mul")))
                     {
                         return dir;
@@ -209,16 +210,22 @@ namespace ClassicUO.iOS
 
                     if (depth < 4)
                     {
-                        foreach (string sub in Directory.GetDirectories(dir))
+                        string[] subs = Directory.GetDirectories(dir);
+                        Array.Sort(subs, StringComparer.OrdinalIgnoreCase);
+
+                        foreach (string sub in subs)
                         {
-                            queue.Enqueue((sub, depth + 1));
+                            if (!Path.GetFileName(sub).StartsWith("."))
+                            {
+                                queue.Enqueue((sub, depth + 1));
+                            }
                         }
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"[UOMobile] searching for UO data: {ex.Message}");
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[UOMobile] searching {dir}: {ex.Message}");
+                }
             }
 
             return null;
@@ -257,7 +264,9 @@ namespace ClassicUO.iOS
         {
             try
             {
-                foreach (string dir in new[] { _documents, Path.Combine(_documents, "uo"), Path.Combine(_documents, "uo", "Music", "Digital") })
+                string uo = _uoPath ?? Path.Combine(_documents, "uo");
+
+                foreach (string dir in new[] { _documents, uo, Path.Combine(uo, "Music", "Digital") })
                 {
                     if (!Directory.Exists(dir))
                     {
@@ -284,6 +293,10 @@ namespace ClassicUO.iOS
             }
         }
 
+        /// <summary>
+        /// UO music lives in &lt;uo&gt;/Music/Digital (*.mp3 + Config.txt). Apple Devices can only drop
+        /// loose files into Documents, so move any loose music there on startup.
+        /// </summary>
         private static void MoveLooseMusic(string uoPath)
         {
             try

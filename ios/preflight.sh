@@ -8,9 +8,11 @@ fail=0
 ok()   { printf '  ok   %s\n' "$1"; }
 bad()  { printf '  FAIL %s\n' "$1"; fail=1; }
 need() { if grep -q -- "$2" "$1"; then ok "$3"; else bad "$3  ($1 lacks: $2)"; fi; }
-none() { # none <description> <grep -rnE args...>: fails if anything matches
+none() { # none <description> <grep -rnE args...>: fails if anything matches, or if grep itself errors
   local desc="$1"; shift
-  local hits; hits="$(grep -rnE "$@" 2>/dev/null || true)"
+  local hits rc
+  hits="$(grep -rnE "$@" 2>&1)"; rc=$?
+  if [ $rc -eq 2 ]; then bad "$desc (the check itself failed: $hits)"; return; fi
   if [ -z "$hits" ]; then ok "$desc"; else bad "$desc"; printf '%s\n' "$hits" | sed 's/^/         /' | head -20; fi
 }
 
@@ -72,6 +74,21 @@ for h in $(grep -rhoE 'SDL_SetHint\("[A-Z0-9_]+"' ios src --include=*.cs | sed -
   grep -q "= \"$h\";" "$SDLCS" || unknown="$unknown $h"
 done
 [ -z "$unknown" ] && ok "all SDL_SetHint names exist in SDL3" || bad "unknown SDL3 hint names:$unknown"
+
+echo "== Scripts"
+none "no 'nm | grep -q' under pipefail (SIGPIPE makes it fail)" '^[^#]*nm [^|]*\| *grep -q' ios/build-ios.sh .github/workflows
+# the committed copy is what the macOS runner executes (a Windows working tree may show CRLF)
+if command -v git >/dev/null 2>&1 && git rev-parse >/dev/null 2>&1; then
+  crs="$(git ls-files --eol ios/*.sh | grep -v 'i/lf' || true)"
+  [ -z "$crs" ] && ok "committed shell scripts have LF line endings" || bad "CRLF committed in: $crs"
+fi
+
+echo "== UO file names (iOS APFS is case-sensitive; go through GetUOFilePath)"
+names="$(grep -rnE '(File\.Exists|Path\.Combine)\([^;]*"[A-Za-z0-9_]+\.(mul|uop|idx|def|enu|rle)"' src ios \
+          --include=*.cs --exclude=Main.cs --exclude=Program.cs \
+         | grep -vE '^[^:]+:[0-9]+:[[:space:]]*//' | grep -v 'GetUOFilePath(' || true)"
+[ -z "$names" ] && ok "hard-coded UO data file names only in the known case-exact checks" \
+  || { bad "UO file name used without GetUOFilePath (case-sensitive on iOS)"; printf '%s\n' "$names" | sed 's/^/         /'; }
 
 echo "== CI workflow"
 W=.github/workflows/ios.yml

@@ -33,6 +33,11 @@ must be caught here.
 - **iOS-only substitutes**: an alternative implementation chosen on iOS (zlib, compressors, file
   access) must be run on desktop via an env flag. A code path that is "never used on desktop"
   is untested.
+- **Substitute contract**: an iOS replacement must match the original on empty input, short
+  output and error codes, not just the happy path (DotNetZLib versus native `uncompress`).
+- **Launch watchdog**: everything before the first frame (`UO.Load` runs in LoadContent on the
+  main thread) must stay well under about 20 s, or iOS kills the app with 0x8badf00d and no
+  crash.txt is written. Check "Files loaded in N ms" in the console log.
 - **SDL3 hints and properties**: use SDL3 names (`SDL_ORIENTATIONS`, not the SDL2 `SDL_IOS_*`).
   Check the value types.
 - **Screen and UI**: the backbuffer must follow the screen (scenes resize it on desktop); the UI
@@ -68,4 +73,5 @@ must be caught here.
 | 25 | `PlatformNotSupportedException` | `Console.ForegroundColor` in Logger | guarded |
 | 28 | `UnauthorizedAccessException` on settings.json | SDL chdir to the bundle | chdir back in RealMain |
 | 29 | "UO directory invalid" | files in `Documents/ios-data/uo` | recursive `FindUoData` |
+| audit | (pre-ship, build 31) | DotNetZLib threw on empty input; FindUoData could pick up `.Trash`; the log listed the wrong folder; preflight `none()` passed when grep errored | contract guards; skip dot-folders; log the chosen folder; exit code 2 now fails the check |
 | 29 | `Exception: CRC mismatch` | the iOS-only switch to ClassicUO's `ZLibManaged` (broken, never used on 64-bit) | `System.IO.Compression.ZLibStream`, verified on desktop with `UOM_DOTNET_ZLIB=1` |
