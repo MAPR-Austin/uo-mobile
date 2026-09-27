@@ -115,7 +115,7 @@
   </ItemGroup>
 
   <PropertyGroup Condition="'$(FnaLinkMode)' == 'mtouch'">
-    <MtouchExtraArgs>--cxx --gcc_flags "-L$(FnaLibDir) -force_load $(FnaLibDir)/libSDL3.a -force_load $(FnaLibDir)/libFAudio.a -force_load $(FnaLibDir)/libFNA3D.a -force_load $(FnaLibDir)/libtheorafile.a -force_load $(FnaLibDir)/libmojoshader.a -lz -framework AudioToolbox -framework AVFoundation -framework CoreBluetooth -framework CoreHaptics -framework CoreMotion -framework GameController -framework OpenGLES -framework Metal -framework QuartzCore -framework UniformTypeIdentifiers"</MtouchExtraArgs>
+    <MtouchExtraArgs>--cxx --gcc_flags "-L$(FnaLibDir) -force_load $(FnaLibDir)/libSDL3.a -force_load $(FnaLibDir)/libFAudio.a -force_load $(FnaLibDir)/libFNA3D.a -force_load $(FnaLibDir)/libtheorafile.a -force_load $(FnaLibDir)/libmojoshader.a -lz -framework AudioToolbox -framework AVFoundation -framework CoreAudio -framework CoreBluetooth -framework CoreFoundation -framework CoreGraphics -framework CoreHaptics -framework CoreMedia -framework CoreMotion -framework CoreVideo -framework Foundation -framework GameController -framework ImageIO -framework Metal -framework OpenGLES -framework QuartzCore -framework UIKit -framework UniformTypeIdentifiers"</MtouchExtraArgs>
   </PropertyGroup>
 
   <!-- cuo is an Exe project; keep its desktop host files (apphost, runtimeconfig, deps) out of
