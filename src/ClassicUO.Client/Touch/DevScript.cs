@@ -117,6 +117,9 @@ namespace ClassicUO.Touch
 
                     break;
 
+                case "tap" when Client.Game.DownloadTap(TouchInput.ToUi(F(a[0]), F(a[1]))):
+                    break; // the download screen took it
+
                 case "tap":
                     TouchInput.OnDown(900, TouchInput.ToUi(F(a[0]), F(a[1])));
                     _lines.Enqueue($"up 900 {a[0]} {a[1]}");

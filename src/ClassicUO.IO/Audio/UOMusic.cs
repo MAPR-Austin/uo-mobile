@@ -9,7 +9,10 @@ namespace ClassicUO.IO.Audio
 {
     public class UOMusic : Sound
     {
-        private const int NUMBER_OF_PCM_BYTES_TO_READ_PER_CHUNK = 0x8000; // 32768 bytes, about 0.9 seconds
+        private const int NUMBER_OF_PCM_BYTES_TO_READ_PER_CHUNK = 0x8000; // 32768 bytes: 0.37 s at 22 kHz stereo, 0.17 s at 48 kHz
+        // Buffers queued ahead. Refills happen on the main thread, so this is how long a stall
+        // (entering the world, a GC) can last without a dropout: ~1 s at 48 kHz.
+        private const int PENDING_BUFFERS = 6;
         private bool m_Playing;
         private readonly bool m_Repeat;
         private MP3Stream m_Stream;
@@ -46,8 +49,11 @@ namespace ClassicUO.IO.Audio
                     {
                         if (m_Repeat)
                         {
+                            // Loop: fill the rest of this chunk from the start, and keep it (the
+                            // count used to stay at the tail's length, dropping the loop's first
+                            // part - an audible skip at every loop).
                             m_Stream.Position = 0;
-                            m_Stream.Read(m_WaveBuffer, bytesReturned, m_WaveBuffer.Length - bytesReturned);
+                            bytesReturned += m_Stream.Read(m_WaveBuffer, bytesReturned, m_WaveBuffer.Length - bytesReturned);
                         }
                         else
                         {
@@ -82,7 +88,7 @@ namespace ClassicUO.IO.Audio
                     return;
                 }
 
-                while (SoundInstance.PendingBufferCount < 3)
+                while (SoundInstance.PendingBufferCount < PENDING_BUFFERS)
                 {
                     var buffer = GetBuffer();
 

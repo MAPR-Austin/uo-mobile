@@ -31,6 +31,11 @@ and the manual Documents copy stay as fallbacks until the cloud path has been pr
   - `Server.Address=34.174.14.240` (otherwise ServUO advertises 127.0.0.1 to internet clients
     after login);
   - `Nice=-10` in the unit (Mono refuses ServUO's own High-priority call; it is now caught).
+- Downloads: `/srv/uo/bin/make-manifest.py` writes `files/manifest.json` (174 files, 2.15 GB:
+  80 UO data files and 94 music tracks). Re-run it after changing anything in `/srv/uo/client`;
+  phones pick up only the changed files on their next launch. The music is UO's originals
+  (`/srv/uo/music-src`) re-encoded to 48 kHz by `music-48k.sh`. FAudio's linear upsampling of
+  the 22 kHz originals was audible as hiss ("static" on Stones).
 - Admin SSH: `gcloud compute ssh uoadmin@uo-server --zone us-south1-a` (a Linux user name can't
   start with a digit, so the Windows user name `18166` won't work).
 
@@ -82,50 +87,60 @@ friend onto its backbone at their nearest edge.
 - **Accounts**: auto-create on first login (as today). Anyone with the app and the address can
   make an account; add invite codes later if that becomes a problem.
 
-## 3. The manifest
+## 3. The manifest (as built)
 
-`https://<host>/files/manifest.json`, generated on the server by a script whenever files
-change:
+`https://34-174-14-240.sslip.io/files/manifest.json` is written by `/srv/uo/bin/make-manifest.py`
+from everything under `/srv/uo/client`:
 
 ```json
-{ "version": 3, "min_app_build": 33,
+{ "version": 50228959978997,
   "files": [ { "path": "uo/artLegacyMUL.uop", "size": 312345678, "sha256": "..." },
-             { "path": "uo/Music/Digital/Stones.mp3", "size": 912345, "sha256": "..." } ] }
+             { "path": "uo/Music/Digital/Stones.mp3", "size": 1234567, "sha256": "..." } ] }
 ```
 
-The paths mirror the folder that ClassicUO's `-uopath` expects. Music (the 4 mobile tracks
-plus Config.txt, 3.7 MB) lives under `uo/Music/Digital`, where the client already looks.
+- The version is derived from the contents, so an unchanged set keeps its version.
+- Paths mirror the UO folder, and music is in `uo/Music/Digital`, where the client looks.
+- The app rejects a manifest with fewer than 20 files or without `uo/tiledata.mul`, and
+  treats it as offline.
+- Caddy serves every file with `Cache-Control: no-cache`.
+- There is no minimum-app-build field yet.
 
-## 4. App: the download step
+## 4. App: the download step (as built: Touch/GameFiles.cs, Touch/DownloadScreen.cs)
 
-Runs in `GameController.LoadContent` **before** `UO.Load`. The renderer's fonts and the
-background image are embedded, so a progress screen can draw before any UO file exists.
+It runs in place of `UO.Load` (GameController: `LoadContent` stops early, and
+`FinishLoadContent` runs when the files are ready, never while backgrounded). The screen draws
+with the embedded font.
 
-1. Read `installed.json` (the manifest last installed completely).
-2. Fetch `manifest.json` (short timeout). If that fails and an install is complete, start the
-   game as-is. If nothing is installed, show an error with a Retry button.
-3. Compare by path + size + sha256 against `installed.json`, not by re-hashing 2 GB on every
-   launch. List the files to fetch and the files to delete.
-4. First install, or a large update: ask first ("Download 2.1 GB of game files? Wi-Fi
-   recommended."). Small updates start on their own.
-5. Download on a background task with `HttpClient`, one file at a time, into `name.part`,
-   resuming with `Range`. Check the size and sha256, then rename atomically. The main thread
-   keeps drawing (progress bar, MB/s, ETA), so the iOS launch watchdog never fires.
-6. Write `installed.json` only after every file checks out, then call `UO.Load` as today. A
-   partial set never reaches `UO.Load`.
-7. If the app is backgrounded, the download is suspended and resumes with `Range` on return
-   or on the next launch.
+1. Read `<uo>/.uomobile-installed.json` (manifest path -> sha256, plus a `complete` flag).
+2. Fetch the manifest (10 s timeout). If that fails:
+   - a complete install plays as it is;
+   - otherwise, with nothing adopted yet, the manual copy plays;
+   - otherwise the screen shows Retry.
+3. For each file not on record with a matching sha256:
+   - first hash what's already in the folder (a lost record costs a check, not a download);
+   - then adopt from the manual copy (hash, then move);
+   - then download.
+4. Over 50 MB, ask first ("Download" button).
+5. Download with 3 workers into `name.part`:
+   - resume with HTTP Range;
+   - a 30 s idle timeout per read;
+   - 4 tries per file, and an attempt that made progress doesn't count;
+   - check the sha256, then rename.
+6. Delete files the manifest no longer lists (only now), mark the record complete, load the game.
+7. If `UO.Load` throws, the record is dropped, so the next launch re-checks everything by hash.
 
-- **Storage**: `Library/Application Support/uo`, marked excluded from iCloud backup. This is
-  not `Documents`, so 2 GB doesn't land in the user's iCloud backup.
-- **Precedence**: complete download, then the manual copy (`FindUoData` in Documents), then
-  the error screen. After the download works, the old 2 GB manual copy in Documents can be
-  deleted in the Files app.
-- **Server address**: the default host is baked into the build. `Documents/server.txt`
-  (`host[:port]`) overrides it for home/LAN testing. The Local Network permission prompt is
-  only triggered when the host is a private address.
-- **Desktop test** (AUDIT rule: every iOS-only path runs on desktop): `UOM_DOWNLOAD=1` runs
-  the same step in the Windows client against the real server, into a scratch folder.
+- **HTTP:** the managed `SocketsHttpHandler` on every platform (iOS's default handler has a
+  response cache).
+- **iOS launcher (ios/Program.cs):**
+  - the default server is `34.174.14.240` and files come from the URL above;
+  - `Documents/uomobile.txt` overrides both: `ip=192.168.68.91` for the home server,
+    `files=off` for a manual copy;
+  - downloads go to `Library/Application Support/uo`, excluded from iCloud backup;
+  - a copy found in Documents is passed as `-download_adopt`;
+  - the Local Network prompt appears only for private addresses;
+  - `-ignore_relay_ip` is always on.
+- **Desktop test:** `-download <url> -uopath <folder> [-download_adopt <copy>]` (AUDIT.md
+  procedure step 2).
 
 ## 5. Rollout order
 
@@ -133,7 +148,7 @@ background image are embedded, so a progress screen can draw before any UO file 
 2. Owner creates the Google Cloud account and project, with billing and a budget alert.
 3. Set up the VM: Mono, ServUO + current world, client data, Caddy, firewall, systemd,
    backups. Test from the Windows client (login, walk, fight, save, restart).
-4. Build 33: the downloader + the cloud host. Test it on desktop against the VM, run the
+4. Build 34: the downloader + the cloud host. Test it on desktop against the VM, run the
    audit, ship.
 5. Phone: build 33 downloads the files and plays on the VM. The home server stays reachable
    through `server.txt`.

@@ -20,7 +20,11 @@ must be caught here.
    Windows and items: `gumps` lists windows with position, size and zoom; `packitems` gives
    each backpack item's on-screen centre (zoom applied) to aim at; `pack` and `near [tiles]`
    show where an item ended up after a drag.
-5. **Phone checks** for the build, listed in the ship message so the player runs them.
+   Game-file downloads: run the desktop client with `-download <url> -uopath <empty folder>`
+   (plus `-download_adopt <copy>` for the reuse path, or an unreachable URL for offline). Cover
+   the first install, an update (change a file on the server and rerun make-manifest.py),
+   adopting a copy, offline with an install, and offline without one.
+3. **Phone checks** for the build, listed in the ship message so the player runs them.
    - Build 32: launch while holding the phone in portrait; rotate both ways in game and on the
      login screen; pinch in and out.
    - Build 33:
@@ -32,11 +36,18 @@ must be caught here.
      - tap Names, then pinch the world (name plates must not zoom);
      - read backpack and journal text at 0.6;
      - music plays after copying the music folder in as a whole folder.
-3. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
+   - Build 34:
+     - first launch reuses the files already on the phone and downloads only the music (about
+       117 MB);
+     - the download survives leaving the app and coming back;
+     - login goes to the cloud server (34.174.14.240) with no Local Network prompt;
+     - music has no static (48 kHz re-encode) and region tracks change as you walk;
+     - `ip=192.168.68.91` in uomobile.txt still reaches the home server.
+4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
    shipping.
-4. After shipping, `git tag tf-<build> <sha>`. When the phone turns up a new failure, add it to
+5. After shipping, `git tag tf-<build> <sha>`. When the phone turns up a new failure, add it to
    **Known failures** and, if a grep can catch it, to `preflight.sh`.
 
 ## Categories to check
@@ -87,6 +98,20 @@ must be caught here.
   off-screen. A finger landing mid-gesture must not click.
   Accepted: the first finger's press reaches the game after 2 frames, so a pinch that starts
   within the double-click time of an earlier tap can still double-click.
+- **Game-file downloads** (Touch/GameFiles, DownloadScreen):
+  - Nothing may read the UO files before the download screen is done. That includes startup
+    checks: Main's "UO directory invalid" check killed a fresh install before it could download
+    (desktop test, build 34).
+  - A partial set never reaches UO.Load: installed.json is only marked complete at the end.
+  - Every file is checked against the manifest's sha256; resume uses HTTP Range.
+  - Manifest paths are confined to the UO folder (no `..`, nothing absolute).
+  - The manifest is fetched with no-cache (Caddy also sends it), so updates are seen.
+  - The file server must be HTTPS (iOS blocks plain HTTP).
+  - Downloads go to Library/Application Support, excluded from iCloud backup. A manual copy
+    in Documents is adopted (moved) when its hash matches.
+  - While the screen runs there is no scene and no world. Every SDL input case that reaches
+    Scene or World must be guarded.
+  - Logs never contain passwords (the ARG trace redacts them; the phone's log is in Documents).
 - **Per-window zoom** (Touch/GumpScale): a zoomed window is drawn in its own pass. That pass
   must stay in true bottom-to-top order, because translucent pixels above it (the HUD) otherwise
   block it through the depth buffer. Every pointer event is mapped into the zoomed window's own
@@ -116,17 +141,19 @@ must be caught here.
 |---|---|---|---|
 | 14-16 | abort at launch | our resolver + FNA's: `CannotRegisterSecondResolver` | never register on the FNA assembly |
 | 17 | `EntryPointNotFoundException: SDL_SetHint` | `<NativeReference>` items were ignored, so no SDL in the binary | `MtouchExtraArgs --gcc_flags -force_load`, plus the CI symbol check |
+| CI | `xcrun -find clang++` exit 16384 | `Xcode_26.x.0.app` is a symlink | `pwd -P`, `ValidateXcodeVersion=false` |
 | 18 | undefined CoreMedia/CoreGraphics symbols | frameworks missing | the full SDL3 framework list |
 | 19 | `ld: pointer not aligned` in F3DAudio | packed structs | `aligned(8)` patch in build-ios.sh |
 | 21 | App Store ITMS-90683 | no camera/Bluetooth purpose strings | added to Info.plist |
-| CI | `xcrun -find clang++` exit 16384 | `Xcode_26.x.0.app` is a symlink | `pwd -P`, `ValidateXcodeVersion=false` |
 | 22 | `CannotRegisterSecondResolver` in `DllMap.Init` | ClassicUO's desktop DllMap | skipped on iOS |
 | 25 | `PlatformNotSupportedException` | `Console.ForegroundColor` in Logger | guarded |
 | 28 | `UnauthorizedAccessException` on settings.json | SDL chdir to the bundle | chdir back in RealMain |
 | 29 | "UO directory invalid" | files in `Documents/ios-data/uo` | recursive `FindUoData` |
-| audit | (pre-ship, build 31) | DotNetZLib threw on empty input; FindUoData could pick up `.Trash`; the log listed the wrong folder; preflight `none()` passed when grep errored | contract guards; skip dot-folders; log the chosen folder; exit code 2 now fails the check |
 | 29 | `Exception: CRC mismatch` | the iOS-only switch to ClassicUO's `ZLibManaged` (broken, never used on 64-bit) | `System.IO.Compression.ZLibStream`, verified on desktop with `UOM_DOTNET_ZLIB=1` |
-| 31 | no music | the Apple Devices folder copy wrote 0 KB mp3s | (pending) download game files from the server |
+| audit | (pre-ship, build 31) | DotNetZLib threw on empty input; FindUoData could pick up `.Trash`; the log listed the wrong folder; preflight `none()` passed when grep errored | contract guards; skip dot-folders; log the chosen folder; exit code 2 now fails the check |
+| 31 | no music | the Apple Devices folder copy wrote 0 KB mp3s | build 34: the app downloads the music (48 kHz) with the game files |
 | audit | (pre-ship, build 32) | build-31 `mobile_layouts.json` has no portrait positions, so derivation put Attack Last on the joystick; editors are 520/640 wide against a 480-wide portrait UI | fill from the default layout by action; widen the fit while a wide window is open |
-| audit | (agent, build 33) | a resting finger's tiny motion turned a window pinch into a window drag; cancelling a dispatched window press left controls stuck; windows dragged out of a zoomed window opened away from the finger; name plates could be zoomed; the aura drew away from the finger | hold window presses until move, lift or 130 ms, and pinch only while held; a drag of another window drops the mapping; world-anchored windows and health bars are not scalable; the aura and range text draw at `CursorPosition` |
 | audit | (agent, build 32) | a launch held in portrait likely got a landscape backbuffer (FNA orientation shaping); a pinch started on a window threw it off-screen; fingers landing mid-pinch clicked; macro-bar buttons had no portrait position; a null layout crashed every login; the desktop rotation test used a path iOS never takes | `PreparingDeviceSettings` forces the window's shape; pinch only from world presses; re-pinch and ignore extra fingers; PX/PY on every new button (preflight); drop nulls on load; the desktop resize handler stands aside under `UOM_PHONE_FIT` |
+| audit | (agent, build 33) | a resting finger's tiny motion turned a window pinch into a window drag; cancelling a dispatched window press left controls stuck; windows dragged out of a zoomed window opened away from the finger; name plates could be zoomed; the aura drew away from the finger | hold window presses until move, lift or 130 ms, and pinch only while held; a drag of another window drops the mapping; world-anchored windows and health bars are not scalable; the aura and range text draw at `CursorPosition` |
+| desktop | (pre-ship, build 34) | a fresh download install showed "Your UO directory is invalid" and quit | Main's folder check waits for the download screen when a file server is configured |
+| audit | (agent, build 34) | iOS's default HTTP handler caches small files (an update could get a stale copy); UO.Load could run while backgrounded; a leading "/" in a manifest path escaped the folder; a wrong manifest could delete a good install; each app switch used up a retry; quitting during the download crashed in Unload; the console log could hold a password | the managed SocketsHttpHandler everywhere and no-cache on the server; load only in the foreground; full-path confinement; manifest sanity check, deletions after success, re-check by hash after a load failure; progress resets the retry count; `FileManager?.Dispose()`; redacted args |

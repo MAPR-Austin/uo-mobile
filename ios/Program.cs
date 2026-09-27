@@ -31,14 +31,17 @@ namespace ClassicUO.iOS
 {
     public static class Program
     {
-        // Defaults; override without rebuilding by creating Documents/uomobile.txt, e.g.
-        //   ip=192.168.68.91
+        // Defaults; override without rebuilding in Documents/uomobile.txt, e.g.
+        //   ip=192.168.68.91        (the home server instead of the cloud one)
         //   port=2593
         //   clientversion=7.0.116.0
+        //   files=off               (use a manual copy of the UO files instead of downloading)
         //   args=-fps 30
-        private const string DEFAULT_IP = "192.168.68.91";
+        // The cloud shard and its file server: ios/HOSTING.md.
+        private const string DEFAULT_IP = "34.174.14.240";
         private const string DEFAULT_PORT = "2593";
         private const string DEFAULT_CLIENT_VERSION = "7.0.116.0";
+        private const string DEFAULT_FILES = "https://34-174-14-240.sslip.io/files/";
 
         private static string[] _realArgs;
         private static string _documents;
@@ -91,36 +94,49 @@ namespace ClassicUO.iOS
             StartConsoleLog();
             Console.WriteLine($"[UOMobile] Documents: {_documents}");
 
-            string uoPath = Path.Combine(_documents, "uo");
-            Directory.CreateDirectory(uoPath);
-            WriteDataReadme(uoPath);
+            Dictionary<string, string> cfg = ReadConfig(Path.Combine(_documents, "uomobile.txt"));
+            string files = cfg.TryGetValue("files", out string fv) && fv.Length > 0 ? fv : DEFAULT_FILES;
+            bool download = !files.Equals("off", StringComparison.OrdinalIgnoreCase);
 
-            // Windows' Apple Devices app can only drop files into the top of the app's Documents
-            // folder, so accept the UO files there too when Documents/uo has none.
-            if (!File.Exists(Path.Combine(uoPath, "tiledata.mul")) && File.Exists(Path.Combine(_documents, "tiledata.mul")))
+            // A manual copy in Documents (the pre-download way: Apple Devices / the Files app).
+            string manual = File.Exists(Path.Combine(_documents, "uo", "tiledata.mul")) ? Path.Combine(_documents, "uo")
+                          : File.Exists(Path.Combine(_documents, "tiledata.mul")) ? _documents
+                          : FindUoData(_documents);
+            string uoPath;
+            string adopt = null;
+
+            if (download)
             {
-                uoPath = _documents;
+                // The game downloads its files (Touch/GameFiles) into the app's private Library
+                // folder: not shown in the Files app and kept out of the iCloud backup. A manual
+                // copy is adopted - moved in where it matches - instead of downloaded again.
+                uoPath = Path.Combine(Path.GetDirectoryName(_documents), "Library", "Application Support", "uo");
+                Directory.CreateDirectory(uoPath);
+                ExcludeFromBackup(uoPath);
+                adopt = manual;
+            }
+            else
+            {
+                // files=off: a manual copy, or what earlier downloads left (adopting a copy moves it).
+                string downloaded = Path.Combine(Path.GetDirectoryName(_documents), "Library", "Application Support", "uo");
+                uoPath = manual ?? (File.Exists(Path.Combine(downloaded, "tiledata.mul")) ? downloaded : Path.Combine(_documents, "uo"));
+                Directory.CreateDirectory(uoPath);
+                WriteDataReadme(uoPath);
             }
 
-            // ...and anywhere deeper, e.g. a whole folder dragged in (Documents/ios-data/uo/...).
-            if (!File.Exists(Path.Combine(uoPath, "tiledata.mul")))
-            {
-                string found = FindUoData(_documents);
-
-                if (found != null)
-                {
-                    uoPath = found;
-                }
-            }
-
-            Console.WriteLine($"[UOMobile] UO data: {uoPath}");
+            Console.WriteLine($"[UOMobile] UO data: {uoPath}" + (download ? $" (downloads from {files}" + (adopt != null ? $", reusing {adopt})" : ")") : ""));
             _uoPath = uoPath;
 
-            MoveLooseMusic(uoPath);
+            // With downloads on, the music comes from the server, checked; loose copies would only
+            // overwrite verified files.
+            if (!download)
+            {
+                MoveLooseMusic(uoPath);
+            }
 
-            _realArgs = BuildClassicUOArgs(args, uoPath);
+            _realArgs = BuildClassicUOArgs(args, uoPath, cfg, download ? files : null, adopt);
             TriggerLocalNetworkPrompt(_realArgs);
-            Console.WriteLine("[UOMobile] ClassicUO args: " + string.Join(" ", _realArgs));
+            Console.WriteLine("[UOMobile] ClassicUO args: " + string.Join(" ", Redacted(_realArgs)));
 
             InstallNativeResolvers();
             Console.WriteLine("[UOMobile] resolvers installed; starting SDL");
@@ -245,6 +261,13 @@ namespace ClassicUO.iOS
                 int p = Array.IndexOf(args, "-port");
 
                 if (i < 0 || i + 1 >= args.Length)
+                {
+                    return;
+                }
+
+                // Only a shard on the local network needs the Local Network permission; don't
+                // ask for it when playing on the cloud server.
+                if (!IsLocalNetwork(args[i + 1]))
                 {
                     return;
                 }
@@ -455,10 +478,8 @@ namespace ClassicUO.iOS
             return Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         }
 
-        private static string[] BuildClassicUOArgs(string[] launchArgs, string uoPath)
+        private static string[] BuildClassicUOArgs(string[] launchArgs, string uoPath, Dictionary<string, string> cfg, string filesUrl, string adopt)
         {
-            Dictionary<string, string> cfg = ReadConfig(Path.Combine(_documents, "uomobile.txt"));
-
             string ip = cfg.TryGetValue("ip", out string v) && v.Length > 0 ? v : DEFAULT_IP;
             string port = cfg.TryGetValue("port", out v) && v.Length > 0 ? v : DEFAULT_PORT;
             string clientVersion = cfg.TryGetValue("clientversion", out v) && v.Length > 0 ? v : DEFAULT_CLIENT_VERSION;
@@ -479,7 +500,22 @@ namespace ClassicUO.iOS
                 // NOTE: no "-skiploginscreen". ClassicUO treats that flag as a switch and would
                 // swallow a following value such as "off", so passing "-skiploginscreen off"
                 // would actually SKIP the login screen. Omitting it shows the login screen.
+                // Behind the cloud's NAT the shard advertises an address the phone may not reach
+                // after the server list; always reconnect to the host we logged in to.
+                "-ignore_relay_ip",
             };
+
+            if (filesUrl != null)
+            {
+                list.Add("-download");
+                list.Add(filesUrl);
+
+                if (adopt != null)
+                {
+                    list.Add("-download_adopt");
+                    list.Add(adopt);
+                }
+            }
 
             if (cfg.TryGetValue("args", out v) && v.Length > 0)
             {
@@ -504,9 +540,10 @@ namespace ClassicUO.iOS
                 {
                     File.WriteAllText(file,
                         "# UO Mobile settings. Lines are key=value; delete a line to use the default.\n" +
-                        "# ip=" + DEFAULT_IP + "\n" +
+                        "# ip=" + DEFAULT_IP + "   (192.168.68.91 = the home server)\n" +
                         "# port=" + DEFAULT_PORT + "\n" +
                         "# clientversion=" + DEFAULT_CLIENT_VERSION + "\n" +
+                        "# files=" + DEFAULT_FILES + "   (off = use a manual copy of the UO files)\n" +
                         "# args=-fps 30\n");
                     return result;
                 }
@@ -534,6 +571,54 @@ namespace ClassicUO.iOS
             }
 
             return result;
+        }
+
+        /// <summary>The args for the log, without password values (uomobile.txt args= could hold one).</summary>
+        private static IEnumerable<string> Redacted(string[] args)
+        {
+            for (int i = 0; i < args.Length; i++)
+            {
+                bool secret = i > 0 && args[i - 1].StartsWith("-password", StringComparison.OrdinalIgnoreCase);
+
+                yield return secret ? "(hidden)" : args[i];
+            }
+        }
+
+        private static bool IsLocalNetwork(string host)
+        {
+            if (host.EndsWith(".local", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!System.Net.IPAddress.TryParse(host, out System.Net.IPAddress ip) || ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            {
+                return false;
+            }
+
+            byte[] b = ip.GetAddressBytes();
+
+            return b[0] == 10 || b[0] == 192 && b[1] == 168 || b[0] == 172 && b[1] >= 16 && b[1] <= 31 || b[0] == 169 && b[1] == 254;
+        }
+
+        /// <summary>2 GB of game files have no place in the player's iCloud backup; they download again.</summary>
+        private static void ExcludeFromBackup(string path)
+        {
+#if IOS || __IOS__
+            try
+            {
+                using var url = Foundation.NSUrl.FromFilename(path);
+
+                if (!url.SetResource(Foundation.NSUrl.IsExcludedFromBackupKey, Foundation.NSNumber.FromBoolean(true), out Foundation.NSError error))
+                {
+                    Console.WriteLine($"[UOMobile] could not exclude {path} from the backup: {error?.LocalizedDescription}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] could not exclude {path} from the backup: {ex.Message}");
+            }
+#endif
         }
 
         private static void WriteDataReadme(string uoPath)

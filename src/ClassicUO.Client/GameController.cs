@@ -265,6 +265,33 @@ namespace ClassicUO
             var bytes = Loader.GetBackgroundImage().ToArray();
             using var ms = new MemoryStream(bytes);
             _renderTargets.InitializeBackground(Texture2D.FromStream(GraphicsDevice, ms));
+
+            // Phone: the game files come from the shard's file server. Nothing below may touch
+            // them until they're in place, so the download screen runs first (Update/Draw) and
+            // finishes loading when it's done.
+            if (GameFiles.Configured)
+            {
+                _download = new DownloadScreen(new GameFiles(Settings.GlobalSettings.UltimaOnlineDirectory));
+
+                return;
+            }
+
+            FinishLoadContent();
+        }
+
+        private DownloadScreen _download;
+
+        /// <summary>Dev automation: a tap on the download screen (UI units).</summary>
+        internal bool DownloadTap(Point ui)
+        {
+            _download?.OnTap(ui);
+
+            return _download != null;
+        }
+
+        /// <summary>LoadContent's second half: everything that reads the UO files.</summary>
+        private void FinishLoadContent()
+        {
 #if false
             SetScene(new MainScene(this));
 #else
@@ -583,6 +610,45 @@ namespace ClassicUO
 
             Mouse.Update();
 
+            if (_download != null)
+            {
+                _download.Update();
+                DevScript.Update();
+
+                // Not while backgrounded: loading creates textures, and iOS forbids GPU work there.
+                if (_download.Done && !_inBackground)
+                {
+                    bool downloaded = _download.UoPathOverride == null;
+
+                    if (!downloaded)
+                    {
+                        Settings.GlobalSettings.UltimaOnlineDirectory = _download.UoPathOverride;
+                    }
+
+                    _download = null;
+
+                    try
+                    {
+                        FinishLoadContent();
+                    }
+                    catch
+                    {
+                        // The files are on record but the game can't load them: next launch,
+                        // check every file again (only mismatches download).
+                        if (downloaded)
+                        {
+                            GameFiles.ForgetInstalled(Settings.GlobalSettings.UltimaOnlineDirectory);
+                        }
+
+                        throw;
+                    }
+                }
+
+                base.Update(gameTime);
+
+                return;
+            }
+
             var data = NetClient.Socket.CollectAvailableData();
             var packetsCount = PacketHandlers.Handler.ParsePackets(NetClient.Socket, UO.World, data);
 
@@ -658,6 +724,24 @@ namespace ClassicUO
 
         protected override void Draw(GameTime gameTime)
         {
+            if (_download != null)
+            {
+                DrawCount++;
+                GraphicsDevice.SetRenderTarget(null);
+                GraphicsDevice.Clear(Color.Black);
+                _download.Draw(_uoSpriteBatch, GraphicManager.PreferredBackBufferWidth, GraphicManager.PreferredBackBufferHeight, DpiScale);
+
+                if (_pendingScreenshot != null)
+                {
+                    SaveScreenshot(_pendingScreenshot);
+                    _pendingScreenshot = null;
+                }
+
+                base.Draw(gameTime);
+
+                return;
+            }
+
             _renderTargets.EnsureSizes(
                 GraphicsDevice,
                 new Rectangle(0, 0, GraphicManager.PreferredBackBufferWidth, GraphicManager.PreferredBackBufferHeight),
@@ -876,6 +960,15 @@ namespace ClassicUO
                     Plugin.OnFocusLost();
                     break;
 
+                // While the download screen runs there is no scene or world yet: it only takes taps.
+                case SDL_EventType.SDL_EVENT_KEY_DOWN when _download != null:
+                case SDL_EventType.SDL_EVENT_KEY_UP when _download != null:
+                case SDL_EventType.SDL_EVENT_TEXT_INPUT when _download != null:
+                case SDL_EventType.SDL_EVENT_MOUSE_MOTION when _download != null:
+                case SDL_EventType.SDL_EVENT_MOUSE_WHEEL when _download != null:
+                case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN when _download != null:
+                    break;
+
                 case SDL_EventType.SDL_EVENT_KEY_DOWN:
 
                     Keyboard.OnKeyDown(sdlEvent->key);
@@ -985,6 +1078,16 @@ namespace ClassicUO
 
                     break;
 
+                case SDL_EventType.SDL_EVENT_FINGER_DOWN when _download != null:
+                case SDL_EventType.SDL_EVENT_FINGER_MOTION when _download != null:
+                case SDL_EventType.SDL_EVENT_FINGER_CANCELED when _download != null:
+                    break;
+
+                case SDL_EventType.SDL_EVENT_FINGER_UP when _download != null:
+                    _download.OnTap(TouchInput.ToUi(sdlEvent->tfinger.x, sdlEvent->tfinger.y));
+
+                    break;
+
                 case SDL_EventType.SDL_EVENT_FINGER_DOWN:
                     TouchInput.OnDown((long)sdlEvent->tfinger.fingerID, TouchInput.ToUi(sdlEvent->tfinger.x, sdlEvent->tfinger.y));
 
@@ -1037,6 +1140,14 @@ namespace ClassicUO
                 case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
                     if (sdlEvent->button.which == TOUCH_MOUSE_ID)
                     {
+                        break;
+                    }
+
+                    if (_download != null) // desktop test of the download screen
+                    {
+                        Mouse.Update();
+                        _download.OnTap(Mouse.Position);
+
                         break;
                     }
 

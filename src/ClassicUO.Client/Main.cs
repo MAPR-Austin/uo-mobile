@@ -168,7 +168,10 @@ namespace ClassicUO
 
             uint flags = 0;
 
-            if (!Directory.Exists(Settings.GlobalSettings.UltimaOnlineDirectory) || !File.Exists(Path.Combine(Settings.GlobalSettings.UltimaOnlineDirectory, "tiledata.mul")))
+            // With a file server configured the folder may still be empty: the download screen
+            // (Touch/GameFiles) fills it before anything reads it.
+            if (!Touch.GameFiles.Configured &&
+                (!Directory.Exists(Settings.GlobalSettings.UltimaOnlineDirectory) || !File.Exists(Path.Combine(Settings.GlobalSettings.UltimaOnlineDirectory, "tiledata.mul"))))
             {
                 flags |= INVALID_UO_DIRECTORY;
             }
@@ -252,7 +255,8 @@ namespace ClassicUO
                     }
                 }
 
-                Log.Trace($"ARG: {cmd}, VALUE: {value}");
+                // Never write a password to the log (the phone's log sits in Documents).
+                Log.Trace($"ARG: {cmd}, VALUE: {(cmd.StartsWith("password", StringComparison.OrdinalIgnoreCase) ? "(hidden)" : value)}");
 
                 switch (cmd)
                 {
@@ -492,6 +496,21 @@ namespace ClassicUO
                     case "no_server_ping":
 
                         CUOEnviroment.NoServerPing = true;
+
+                        break;
+
+                    case "download": // game files come from this file server (Touch/GameFiles)
+                        Touch.GameFiles.BaseUrl = string.IsNullOrEmpty(value) || value.EndsWith("/") ? value : value + "/";
+
+                        break;
+
+                    case "download_adopt": // an older manual copy of the files to reuse instead of downloading
+                        Touch.GameFiles.AdoptFrom = value;
+
+                        break;
+
+                    case "ignore_relay_ip": // reconnect to the login host after the server list (cloud NAT)
+                        Settings.GlobalSettings.IgnoreRelayIp = true;
 
                         break;
                 }

@@ -80,6 +80,15 @@ need src/ClassicUO.Client/Touch/ActionLayouts.cs "FillPortraitFromDefaults(set)"
 need src/ClassicUO.Client/Game/Managers/UIManager.cs "HitTestGumps(position, TouchInput.PointerGump" "hit testing maps zoomed windows like the pointer does"
 need src/ClassicUO.Client/GameController.cs "GumpScale.Save();" "window zoom saved on suspend"
 
+echo "== Game-file downloads"
+need src/ClassicUO.Client/Main.cs "if (!Touch.GameFiles.Configured &&" "UO folder check waits for the download screen (build 34)"
+need src/ClassicUO.Client/Main.cs '"(hidden)"' "passwords redacted from the argument trace"
+need src/ClassicUO.Client/GameController.cs "FinishLoadContent();" "UO.Load deferred until the files are in place"
+grep -E 'DEFAULT_FILES = "https://' ios/Program.cs >/dev/null && ok "file server URL is HTTPS (iOS blocks plain HTTP)" || bad "DEFAULT_FILES must be https://"
+need ios/Program.cs '"-ignore_relay_ip"' "reconnect to the login host (cloud NAT)"
+unguarded="$(awk '/private bool HandleSdlEvent/,/^        }$/' src/ClassicUO.Client/GameController.cs | grep -c 'when _download != null')"
+[ "$unguarded" -ge 10 ] && ok "input cases guarded while the download screen runs ($unguarded)" || bad "download screen: input cases not guarded ($unguarded < 10)"
+
 echo "== SDL3 names"
 # Every hint set by string literal must be a real SDL3 hint (SDL2 names are silently ignored,
 # e.g. SDL_IOS_ORIENTATIONS -> SDL_ORIENTATIONS).

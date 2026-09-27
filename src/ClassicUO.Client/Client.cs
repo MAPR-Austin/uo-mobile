@@ -98,7 +98,7 @@ namespace ClassicUO
 
         public void Unload()
         {
-            FileManager.Dispose();
+            FileManager?.Dispose(); // null when the game exits during the download screen
             World?.Map?.Destroy();
         }
 
