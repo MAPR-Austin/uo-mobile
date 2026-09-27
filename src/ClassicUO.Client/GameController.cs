@@ -115,6 +115,12 @@ namespace ClassicUO
             }
 
             FitUiToPhone();
+
+            if (OperatingSystem.IsIOS())
+            {
+                SetVSync(true); // don't render at 250 fps on a phone battery
+            }
+
             _displayScale = DpiScale;
 
             base.Initialize();
@@ -414,8 +420,15 @@ namespace ClassicUO
             }
         }
 
+        private volatile bool _inBackground;
+
         protected override void Update(GameTime gameTime)
         {
+            if (_inBackground)
+            {
+                SuppressDraw();
+            }
+
             if (Profiler.InContext(Profiler.ProfilerContext.OUT_OF_CONTEXT))
             {
                 Profiler.ExitContext(Profiler.ProfilerContext.OUT_OF_CONTEXT);
@@ -665,6 +678,20 @@ namespace ClassicUO
 
             switch ((SDL_EventType)sdlEvent->type)
             {
+                // iOS: no GPU work while backgrounded (the OS may kill the app for it). These
+                // arrive synchronously here, inside the UIKit callback, as SDL recommends.
+                case SDL_EventType.SDL_EVENT_WILL_ENTER_BACKGROUND:
+                case SDL_EventType.SDL_EVENT_DID_ENTER_BACKGROUND:
+                    _inBackground = true;
+
+                    break;
+
+                case SDL_EventType.SDL_EVENT_WILL_ENTER_FOREGROUND:
+                case SDL_EventType.SDL_EVENT_DID_ENTER_FOREGROUND:
+                    _inBackground = false;
+
+                    break;
+
                 case SDL_EventType.SDL_EVENT_AUDIO_DEVICE_ADDED:
                     Console.WriteLine("AUDIO ADDED: {0}", sdlEvent->adevice.which);
 

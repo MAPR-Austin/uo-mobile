@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Controls;
 using ClassicUO.Input;
 using Microsoft.Xna.Framework;
 
@@ -157,16 +158,52 @@ namespace ClassicUO.Touch
 
         // ---------- geometry ----------
 
-        public static Point ButtonCenter(ActionButtonDef b) => new Point((int)(b.X * ScreenW), (int)(b.Y * ScreenH));
+        /// <summary>
+        /// The part of the screen not covered by the notch / Dynamic Island / home indicator, in UI
+        /// units. Layout positions (0..1) are relative to this rectangle. Whole screen on desktop.
+        /// </summary>
+        public static Rectangle Safe
+        {
+            get
+            {
+                Rectangle full = new Rectangle(0, 0, ScreenW, ScreenH);
+
+                if (!HasVirtualKeyboard) // phones/tablets only
+                {
+                    return full;
+                }
+
+                IntPtr window = Client.Game.Window.Handle;
+
+                if (!SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) || ww <= 0 || wh <= 0 ||
+                    !SDL3.SDL.SDL_GetWindowSafeArea(window, out SDL3.SDL.SDL_Rect r) || r.w <= 0 || r.h <= 0)
+                {
+                    return full;
+                }
+
+                float fx = ScreenW / (float)ww, fy = ScreenH / (float)wh;
+
+                return new Rectangle((int)(r.x * fx), (int)(r.y * fy), (int)(r.w * fx), (int)(r.h * fy));
+            }
+        }
+
+        private static Point FromLayout(float x, float y)
+        {
+            Rectangle safe = Safe;
+
+            return new Point(safe.X + (int)(x * safe.Width), safe.Y + (int)(y * safe.Height));
+        }
+
+        public static Point ButtonCenter(ActionButtonDef b) => FromLayout(b.X, b.Y);
 
         public static int ButtonRadius(ActionButtonDef b) => Math.Max(14, (int)(b.Size * ScreenMin * 0.5f));
 
-        public static Point JoystickCenter => Current == null ? Point.Zero : new Point((int)(Current.JoystickX * ScreenW), (int)(Current.JoystickY * ScreenH));
+        public static Point JoystickCenter => Current == null ? Point.Zero : FromLayout(Current.JoystickX, Current.JoystickY);
 
         public static int JoystickRadius => Current == null ? 0 : Math.Max(30, (int)(Current.JoystickSize * ScreenMin * 0.5f));
 
         /// <summary>In edit mode an extra "+" button sits at the top centre.</summary>
-        public static Point AddButtonCenter => new Point(ScreenW / 2, (int)(0.07f * ScreenH));
+        public static Point AddButtonCenter => FromLayout(0.5f, 0.07f);
 
         public static int AddButtonRadius => Math.Max(14, (int)(0.05f * ScreenMin));
 
@@ -476,6 +513,25 @@ namespace ClassicUO.Touch
 
             if (_keyboardWanted && !active)
             {
+                // Tell iOS where the text box is, so SDL slides the view up above the keyboard.
+                if (UIManager.KeyboardFocusControl is Control box && !box.IsDisposed)
+                {
+                    IntPtr window = Client.Game.Window.Handle;
+
+                    if (SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) && ww > 0 && wh > 0)
+                    {
+                        float fx = ww / (float)ScreenW, fy = wh / (float)ScreenH;
+                        var area = new SDL3.SDL.SDL_Rect
+                        {
+                            x = (int)(box.ScreenCoordinateX * fx),
+                            y = (int)(box.ScreenCoordinateY * fy),
+                            w = Math.Max(1, (int)(box.Width * fx)),
+                            h = Math.Max(1, (int)(box.Height * fy))
+                        };
+                        SDL3.SDL.SDL_SetTextInputArea(window, ref area, 0);
+                    }
+                }
+
                 Microsoft.Xna.Framework.Input.TextInputEXT.StartTextInput();
             }
             else if (!_keyboardWanted && active)
@@ -567,8 +623,9 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            float nx = MathHelper.Clamp(pos.X / (float)ScreenW, 0.02f, 0.98f);
-            float ny = MathHelper.Clamp(pos.Y / (float)ScreenH, 0.02f, 0.98f);
+            Rectangle safe = Safe;
+            float nx = MathHelper.Clamp((pos.X - safe.X) / (float)Math.Max(1, safe.Width), 0.02f, 0.98f);
+            float ny = MathHelper.Clamp((pos.Y - safe.Y) / (float)Math.Max(1, safe.Height), 0.02f, 0.98f);
 
             if (f.Joystick)
             {
