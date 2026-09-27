@@ -91,7 +91,7 @@ namespace ClassicUO.Game.Scenes
                 Client.Game.RestoreWindow();
             }
 
-            if (OperatingSystem.IsIOS())
+            if (GameController.PhoneFit)
             {
                 // Phone: the screen is the window; the UI is scaled to fit the 640x480 login gump.
                 Client.Game.FillScreenOnPhone();

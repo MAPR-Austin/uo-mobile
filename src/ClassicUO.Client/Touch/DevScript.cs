@@ -160,6 +160,16 @@ namespace ClassicUO.Touch
 
                     break;
 
+                case "window": // window W H: resize the OS window, e.g. to a phone shape (rotation test)
+                    SDL3.SDL.SDL_SetWindowSize(Client.Game.Window.Handle, int.Parse(a[0]), int.Parse(a[1]));
+
+                    break;
+
+                case "zoom":
+                    Log.Info($"[devscript] zoom={(Client.Game.Scene as Game.Scenes.GameScene)?.Camera.Zoom}");
+
+                    break;
+
                 case "log":
                     Log.Info($"[devscript] {rest}");
 

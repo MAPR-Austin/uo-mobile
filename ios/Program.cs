@@ -132,7 +132,8 @@ namespace ClassicUO.iOS
             SDL.SDL_SetHint(SDL.SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
             SDL.SDL_SetHint(SDL.SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
             SDL.SDL_SetHint(SDL.SDL_HINT_PEN_TOUCH_EVENTS, "0");
-            SDL.SDL_SetHint(SDL.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
+            // Portrait too (the HUD has a portrait layout). FNA sets this same list at startup.
+            SDL.SDL_SetHint(SDL.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight Portrait");
             // "ambient" (SDL's default) is muted by the ring/silent switch and mixes under other
             // apps' audio; a game with its own music wants "playback".
             SDL.SDL_SetHint(SDL.SDL_HINT_AUDIO_CATEGORY, "playback");

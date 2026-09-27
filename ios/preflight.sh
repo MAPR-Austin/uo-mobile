@@ -65,6 +65,19 @@ grep -A14 "static ZLib()" src/ClassicUO.Utility/ZLib.cs | grep -q "new DotNetZLi
 grep -A14 "static ZLib()" src/ClassicUO.Utility/ZLib.cs | grep -q "UOM_DOTNET_ZLIB" \
   && ok "zlib substitute can be forced on desktop (UOM_DOTNET_ZLIB=1)" || bad "zlib substitute needs a desktop test flag"
 
+echo "== Orientation / screen fit"
+# Info.plist (the iPhone array, not ~ipad) is the real gate: FNA overrides the SDL_ORIENTATIONS hint
+# at startup with its own list, which must include every orientation the plist allows.
+p1=$(sed -n '/<key>UISupportedInterfaceOrientations<\/key>/,/<\/array>/p' ios/Info.plist | grep -c "UIInterfaceOrientationPortrait<")
+p2=$(grep -A3 "SDL_HINT_ORIENTATIONS," external/FNA/src/FNAPlatform/SDL3_FNAPlatform.cs | grep -c "Portrait")
+if [ "$p1" -eq 0 ] || [ "$p2" -gt 0 ]; then ok "portrait in Info.plist is allowed by FNA's SDL_ORIENTATIONS"; else bad "Info.plist allows portrait but FNA's SDL_ORIENTATIONS does not"; fi
+missing="$(grep -rn "new ActionButtonDef *{" src/ClassicUO.Client/Touch --include=*.cs | grep -v "PX =" || true)"
+[ -z "$missing" ] && ok "every new HUD button gets a portrait position (PX/PY)" || { bad "HUD button created without PX/PY (lands off-screen in portrait)"; printf '%s
+' "$missing" | sed 's/^/         /'; }
+need src/ClassicUO.Client/GameController.cs "UOM_PHONE_FIT" "phone screen-fit path can be forced on desktop (UOM_PHONE_FIT=1)"
+need src/ClassicUO.Client/GameController.cs "FollowPhoneRotation();" "backbuffer follows rotation (FNA does not update PreferredBackBuffer*)"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs "FillPortraitFromDefaults(set)" "old layouts get portrait positions (build-31 files have none)"
+
 echo "== SDL3 names"
 # Every hint set by string literal must be a real SDL3 hint (SDL2 names are silently ignored,
 # e.g. SDL_IOS_ORIENTATIONS -> SDL_ORIENTATIONS).

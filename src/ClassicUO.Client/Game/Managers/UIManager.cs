@@ -52,6 +52,14 @@ namespace ClassicUO.Game.Managers
             }
         }
 
+        /// <summary>
+        /// Touch: would a press at <paramref name="p"/> (UI units) land on the world rather than a
+        /// window? Same rule as <see cref="IsMouseOverWorld"/>, for a point the mouse isn't at yet.
+        /// </summary>
+        internal static bool IsWorldAt(Point p) =>
+            !_isDraggingControl && GetMouseOverControl(p) == null && !IsModalOpen &&
+            Client.Game.Scene?.Camera != null && Client.Game.Scene.Camera.Bounds.Contains(p);
+
         public static Control DraggingControl { get; private set; }
 
         public static SystemChatControl SystemChat { get; set; }

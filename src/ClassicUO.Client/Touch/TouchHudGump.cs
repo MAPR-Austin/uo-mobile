@@ -27,6 +27,7 @@ namespace ClassicUO.Touch
         private Label _layoutName;
         private int _builtRevision = -1;
         private int _builtW, _builtH;
+        private Rectangle _builtSafe;
         private bool _builtSuppressed;
         private bool _builtWar;
 
@@ -69,7 +70,7 @@ namespace ClassicUO.Touch
             }
 
             Rectangle safe = TouchInput.Safe;
-            TargetPanel = new Rectangle(safe.X + 6, safe.Y + 6, PANEL_W, PANEL_H);
+            TargetPanel = new Rectangle(safe.X + 6, TopRowY, PANEL_W, PANEL_H);
 
             string text = $"{target.Name}  ({target.Distance})";
             ushort hue = Notoriety.GetHue(target.NotorietyFlag);
@@ -92,6 +93,14 @@ namespace ClassicUO.Touch
             _targetHpPercent = target.HitsMax > 0 ? Math.Clamp(target.Hits * 100 / target.HitsMax, 0, 100) : 0;
             _targetPoisoned = target.IsPoisoned;
         }
+
+        /// <summary>
+        /// Top of the target panel / layout name. Landscape: the top-left corner. Portrait: the
+        /// system buttons run across the top, so drop below them.
+        /// </summary>
+        private static int TopRowY => TouchInput.IsPortrait
+            ? TouchInput.FromLayout(0f, 0.035f).Y + (int)(0.05f * TouchInput.ScreenMin) + 6
+            : TouchInput.Safe.Y + 6;
 
         private bool _targetPoisoned;
         private uint _statusRequestedFor;
@@ -136,7 +145,8 @@ namespace ClassicUO.Touch
 
             UpdateTargetPanel();
 
-            if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH || _builtSuppressed != TouchInput.Suppressed || _builtWar != InWar)
+            // Safe too: iOS can deliver the new insets a frame after a rotation's resize.
+            if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH || _builtSuppressed != TouchInput.Suppressed || _builtWar != InWar || _builtSafe != TouchInput.Safe)
             {
                 Rebuild();
             }
@@ -149,6 +159,7 @@ namespace ClassicUO.Touch
             _builtWar = InWar;
             _builtW = TouchInput.ScreenW;
             _builtH = TouchInput.ScreenH;
+            _builtSafe = TouchInput.Safe;
             Width = _builtW;
             Height = _builtH;
 
@@ -186,8 +197,17 @@ namespace ClassicUO.Touch
 
             string title = TouchInput.EditMode ? $"EDITING: {layout.Name}" : layout.Name;
             _layoutName = new Label(title, true, TouchInput.EditMode ? (ushort)0x0035 : (ushort)0x0481, 0, 1, FontStyle.BlackBorder);
-            _layoutName.X = (int)(0.45f * _builtW) - _layoutName.Width / 2;
-            _layoutName.Y = 4;
+            if (TouchInput.IsPortrait)
+            {
+                Rectangle safe = TouchInput.Safe;
+                _layoutName.X = safe.Right - _layoutName.Width - 6;
+                _layoutName.Y = TopRowY + 2;
+            }
+            else
+            {
+                _layoutName.X = (int)(0.45f * _builtW) - _layoutName.Width / 2;
+                _layoutName.Y = 4;
+            }
             Add(_layoutName);
         }
 

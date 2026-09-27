@@ -38,7 +38,14 @@ namespace ClassicUO.Touch
         private const int TAP_SLOP = 12;
         private const int POINTER_FRAME_DELAY = 2; // drawn frames
 
-        private enum Owner { Joystick, Button, Pointer, EditDrag }
+        // Pinch: two world fingers zoom the camera. Ignored: the finger left over when a pinch ends.
+        private enum Owner { Joystick, Button, Pointer, EditDrag, Pinch, Ignored }
+
+        // Camera.Zoom > 1 zooms out. Practical limits for a phone screen (the camera allows 0.5-2.5).
+        private const float PINCH_ZOOM_MIN = 0.6f;
+        private const float PINCH_ZOOM_MAX = 1.6f;
+        private static long _pinchA = long.MinValue, _pinchB = long.MinValue;
+        private static float _pinchStartDistance, _pinchStartZoom;
 
         private sealed class Finger
         {
@@ -49,27 +56,33 @@ namespace ClassicUO.Touch
             public uint DownTime;
             public bool Moved, LongPressFired;
             public bool Joystick; // EditDrag of the joystick itself
+            public bool OnWorld; // Pointer: landed on the world, not on a window (only these may pinch)
+            public bool PinchLeftover; // Ignored: still down after its pinch partner lifted
         }
 
         private enum PointerEventType { Down, Move, Up, RightClick }
 
         private readonly struct PointerEvent
         {
-            public PointerEvent(PointerEventType type, Point pos, long frame)
+            public PointerEvent(PointerEventType type, Point pos, long frame, long finger)
             {
                 Type = type;
                 Pos = pos;
                 ReadyFrame = frame;
+                Finger = finger;
             }
 
             public readonly PointerEventType Type;
             public readonly Point Pos;
             public readonly long ReadyFrame;
+            public readonly long Finger;
         }
 
         private static readonly Dictionary<long, Finger> _fingers = new Dictionary<long, Finger>();
         private static readonly Queue<PointerEvent> _pointerQueue = new Queue<PointerEvent>();
         private static long _pointerFinger = long.MinValue;
+        // The finger whose press has reached the game and not yet been released.
+        private static long _downFinger = long.MinValue;
         // Drawn frames, not Update ticks: the scene re-picks the object under the pointer when it draws.
         private static long _frame => (long)Client.Game.DrawCount;
 
@@ -126,8 +139,72 @@ namespace ClassicUO.Touch
             _fingers.Clear();
             _pointerQueue.Clear();
             _pointerFinger = long.MinValue;
+            _downFinger = long.MinValue;
+            _pinchA = _pinchB = long.MinValue;
             JoystickActive = false;
             PressedButton = -1;
+        }
+
+        /// <summary>
+        /// After a rotation the screen is a different shape: pull every window that now hangs off an
+        /// edge back inside, so nothing ends up out of reach of a finger.
+        /// </summary>
+        public static void KeepGumpsOnScreen()
+        {
+            if (!Enabled)
+            {
+                return;
+            }
+
+            int w = ScreenW, h = ScreenH;
+
+            if (w <= 0 || h <= 0)
+            {
+                return;
+            }
+
+            foreach (Game.UI.Gumps.Gump g in UIManager.Gumps)
+            {
+                if (g.IsDisposed || g is TouchHudGump || g is Game.UI.Gumps.WorldViewportGump)
+                {
+                    continue;
+                }
+
+                int x = Math.Max(0, Math.Min(g.X, w - g.Width));
+                int y = Math.Max(0, Math.Min(g.Y, h - g.Height));
+
+                if (x != g.X || y != g.Y)
+                {
+                    g.X = x;
+                    g.Y = y;
+                }
+            }
+        }
+
+        /// <summary>Screen width in UI units in portrait (the short side; see GameController.FitUiToPhone).</summary>
+        private const int PORTRAIT_UI_WIDTH = 480;
+
+        /// <summary>
+        /// Portrait, in game, with a window open that is wider than the portrait screen (the macro and
+        /// button editors, UO's options): the UI should be fitted wider until it closes.
+        /// </summary>
+        public static bool WantsWideUi()
+        {
+            if (!Enabled || !IsPortrait || !(Client.Game.Scene is Game.Scenes.GameScene))
+            {
+                return false;
+            }
+
+            foreach (Game.UI.Gumps.Gump g in UIManager.Gumps)
+            {
+                if (!g.IsDisposed && g.IsVisible && g.Width > PORTRAIT_UI_WIDTH &&
+                    !(g is TouchHudGump) && !(g is Game.UI.Gumps.WorldViewportGump))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         public static void NextLayout()
@@ -187,23 +264,61 @@ namespace ClassicUO.Touch
             }
         }
 
-        private static Point FromLayout(float x, float y)
+        public static Point FromLayout(float x, float y)
         {
             Rectangle safe = Safe;
 
             return new Point(safe.X + (int)(x * safe.Width), safe.Y + (int)(y * safe.Height));
         }
 
-        public static Point ButtonCenter(ActionButtonDef b) => FromLayout(b.X, b.Y);
+        public static bool IsPortrait => ScreenH > ScreenW;
+
+        /// <summary>Long side / short side of the screen.</summary>
+        private static float Aspect => Math.Max(ScreenW, ScreenH) / (float)Math.Max(1, ScreenMin);
+
+        private static (float X, float Y) Place(float x, float y, float? px, float? py)
+        {
+            if (!IsPortrait)
+            {
+                return (x, y);
+            }
+
+            if (px.HasValue && py.HasValue)
+            {
+                return (px.Value, py.Value);
+            }
+
+            return ActionLayout.Portrait(x, y, Aspect);
+        }
+
+        public static Point ButtonCenter(ActionButtonDef b)
+        {
+            (float x, float y) = Place(b.X, b.Y, b.PX, b.PY);
+
+            return FromLayout(x, y);
+        }
 
         public static int ButtonRadius(ActionButtonDef b) => Math.Max(14, (int)(b.Size * ScreenMin * 0.5f));
 
-        public static Point JoystickCenter => Current == null ? Point.Zero : FromLayout(Current.JoystickX, Current.JoystickY);
+        public static Point JoystickCenter
+        {
+            get
+            {
+                if (Current == null)
+                {
+                    return Point.Zero;
+                }
+
+                (float x, float y) = Place(Current.JoystickX, Current.JoystickY, Current.PJoystickX, Current.PJoystickY);
+
+                return FromLayout(x, y);
+            }
+        }
 
         public static int JoystickRadius => Current == null ? 0 : Math.Max(30, (int)(Current.JoystickSize * ScreenMin * 0.5f));
 
         /// <summary>In edit mode an extra "+" button sits at the top centre.</summary>
-        public static Point AddButtonCenter => FromLayout(0.5f, 0.07f);
+        public static Point AddButtonCenter => IsPortrait ? FromLayout(0.5f, 0.13f) : FromLayout(0.5f, 0.07f);
 
         public static int AddButtonRadius => Math.Max(14, (int)(0.05f * ScreenMin));
 
@@ -323,17 +438,38 @@ namespace ClassicUO.Touch
                 return false; // a real mouse keeps its normal path
             }
 
-            // Only one finger can be the pointer; extra fingers are ignored.
-            if (_pointerFinger != long.MinValue)
+            // One finger is the pointer; a second one turns a world press into a pinch-zoom. A finger
+            // that lands during a pinch never clicks; after one pinch finger lifts, a new finger
+            // resumes the pinch with the one still down.
+            if (_pinchA != long.MinValue)
             {
+                f.Owner = Owner.Ignored;
+                _fingers[id] = f;
+
+                return true;
+            }
+
+            Finger leftover = PinchLeftover();
+
+            if (leftover != null || _pointerFinger != long.MinValue)
+            {
+                bool pinched = leftover != null ? CanPinch() && BeginPinch(leftover, f) : TryStartPinch(f);
+
+                if (!pinched)
+                {
+                    f.Owner = Owner.Ignored;
+                    _fingers[id] = f;
+                }
+
                 return true;
             }
 
             f.Owner = Owner.Pointer;
+            f.OnWorld = Client.Game.Scene is Game.Scenes.GameScene && UIManager.IsWorldAt(pos);
             _fingers[id] = f;
             _pointerFinger = id;
             SetPointer(pos);
-            _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Down, pos, _frame + POINTER_FRAME_DELAY));
+            _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Down, pos, _frame + POINTER_FRAME_DELAY, id));
 
             return true;
         }
@@ -365,13 +501,128 @@ namespace ClassicUO.Touch
                     break;
 
                 case Owner.Pointer:
-                    _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Move, pos, _frame));
+                    _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Move, pos, _frame, id));
+
+                    break;
+
+                case Owner.Pinch:
+                    UpdatePinch();
 
                     break;
             }
 
             return true;
         }
+
+        // ---------- pinch zoom ----------
+
+        private static readonly Point OffScreen = new Point(-10000, -10000);
+
+        /// <summary>Not while editing, over a menu, dragging a window, or holding an item.</summary>
+        private static bool CanPinch() =>
+            !EditMode && !Suppressed && Client.Game.Scene is Game.Scenes.GameScene &&
+            !UIManager.IsDragging && !Client.Game.UO.GameCursor.ItemHold.Enabled;
+
+        private static Finger PinchLeftover()
+        {
+            foreach (Finger f in _fingers.Values)
+            {
+                if (f.Owner == Owner.Ignored && f.PinchLeftover)
+                {
+                    return f;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool TryStartPinch(Finger second)
+        {
+            // Only a press that started on the world: a finger on a window may be dragging it, and
+            // cancelling that press would throw the window off-screen or drop what it carries.
+            if (!CanPinch() || !_fingers.TryGetValue(_pointerFinger, out Finger first) || !first.OnWorld)
+            {
+                return false;
+            }
+
+            // Undo the first finger's click: drop whatever of it hasn't reached the game yet (other
+            // fingers' events stay - dropping a queued release would leave the button held). If its
+            // press already went through, release it off-screen so the release clicks nothing.
+            int queued = _pointerQueue.Count;
+
+            for (int i = 0; i < queued; i++)
+            {
+                PointerEvent e = _pointerQueue.Dequeue();
+
+                if (e.Finger != first.Id)
+                {
+                    _pointerQueue.Enqueue(e);
+                }
+            }
+
+            if (_downFinger == first.Id)
+            {
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Move, OffScreen, _frame, first.Id));
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, OffScreen, _frame + POINTER_FRAME_DELAY, first.Id));
+            }
+            else
+            {
+                _parkPointerAt = _frame + 1; // the pointer was placed under the finger on touch-down
+            }
+
+            _pointerFinger = long.MinValue;
+
+            return BeginPinch(first, second);
+        }
+
+        private static bool BeginPinch(Finger a, Finger b)
+        {
+            a.Owner = Owner.Pinch;
+            b.Owner = Owner.Pinch;
+            a.PinchLeftover = false;
+            _fingers[a.Id] = a;
+            _fingers[b.Id] = b;
+            _pinchA = a.Id;
+            _pinchB = b.Id;
+            _pinchStartDistance = Math.Max(1f, Distance(a.Pos, b.Pos));
+            // A profile zoom outside the pinch range (desktop allows 0.5-2.5) would jump on the first move.
+            _pinchStartZoom = MathHelper.Clamp(((Game.Scenes.GameScene)Client.Game.Scene).Camera.Zoom, PINCH_ZOOM_MIN, PINCH_ZOOM_MAX);
+
+            return true;
+        }
+
+        private static void UpdatePinch()
+        {
+            if (!_fingers.TryGetValue(_pinchA, out Finger a) || !_fingers.TryGetValue(_pinchB, out Finger b) ||
+                !(Client.Game.Scene is Game.Scenes.GameScene scene))
+            {
+                return;
+            }
+
+            // Fingers apart = zoom in (a smaller Camera.Zoom).
+            float zoom = _pinchStartZoom * _pinchStartDistance / Math.Max(1f, Distance(a.Pos, b.Pos));
+            scene.Camera.Zoom = MathHelper.Clamp(zoom, PINCH_ZOOM_MIN, PINCH_ZOOM_MAX);
+        }
+
+        private static void EndPinch(long liftedId)
+        {
+            if (liftedId != _pinchA && liftedId != _pinchB)
+            {
+                return;
+            }
+
+            long other = liftedId == _pinchA ? _pinchB : _pinchA;
+
+            if (_fingers.TryGetValue(other, out Finger f))
+            {
+                f.Owner = Owner.Ignored; // does nothing until it lifts, or a new finger re-pinches with it
+                f.PinchLeftover = true;
+            }
+
+            _pinchA = _pinchB = long.MinValue;
+        }
+
+        private static float Distance(Point a, Point b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
         public static bool OnUp(long id, Point pos)
         {
@@ -445,10 +696,15 @@ namespace ClassicUO.Touch
                 case Owner.Pointer:
                     if (!f.LongPressFired)
                     {
-                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, pos, _frame));
+                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, pos, _frame, id));
                     }
 
                     _pointerFinger = long.MinValue;
+
+                    break;
+
+                case Owner.Pinch:
+                    EndPinch(id);
 
                     break;
             }
@@ -496,6 +752,7 @@ namespace ClassicUO.Touch
                 {
                     case PointerEventType.Down:
                         Client.Game.DispatchMouseDown(MouseButtonType.Left);
+                        _downFinger = e.Finger;
                         _keyboardWanted = UIManager.MouseOverControl is Game.UI.Controls.StbTextBox;
 
                         break;
@@ -507,6 +764,7 @@ namespace ClassicUO.Touch
 
                     case PointerEventType.Up:
                         Client.Game.DispatchMouseUp(MouseButtonType.Left);
+                        _downFinger = long.MinValue;
                         _parkPointerAt = _frame + 2;
 
                         break;
@@ -537,7 +795,7 @@ namespace ClassicUO.Touch
 
             if (Mouse.TouchPosition.HasValue)
             {
-                Mouse.TouchPosition = new Point(-10000, -10000);
+                Mouse.TouchPosition = OffScreen;
                 Mouse.Update();
             }
         }
@@ -631,8 +889,8 @@ namespace ClassicUO.Touch
             if (UIManager.MouseOverControl != null)
             {
                 f.LongPressFired = true;
-                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, f.Pos, _frame));
-                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.RightClick, f.Pos, _frame));
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, f.Pos, _frame, f.Id));
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.RightClick, f.Pos, _frame, f.Id));
             }
         }
 
@@ -701,15 +959,36 @@ namespace ClassicUO.Touch
             float nx = MathHelper.Clamp((pos.X - safe.X) / (float)Math.Max(1, safe.Width), 0.02f, 0.98f);
             float ny = MathHelper.Clamp((pos.Y - safe.Y) / (float)Math.Max(1, safe.Height), 0.02f, 0.98f);
 
+            // Edits apply to the orientation being edited; the other keeps its own positions.
+            bool portrait = IsPortrait;
+
             if (f.Joystick)
             {
-                layout.JoystickX = nx;
-                layout.JoystickY = ny;
+                if (portrait)
+                {
+                    layout.PJoystickX = nx;
+                    layout.PJoystickY = ny;
+                }
+                else
+                {
+                    layout.JoystickX = nx;
+                    layout.JoystickY = ny;
+                }
             }
             else if (f.Button >= 0 && f.Button < layout.Buttons.Count)
             {
-                layout.Buttons[f.Button].X = nx;
-                layout.Buttons[f.Button].Y = ny;
+                ActionButtonDef b = layout.Buttons[f.Button];
+
+                if (portrait)
+                {
+                    b.PX = nx;
+                    b.PY = ny;
+                }
+                else
+                {
+                    b.X = nx;
+                    b.Y = ny;
+                }
             }
 
             Revision++;
@@ -724,7 +1003,7 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            layout.Buttons.Add(new ActionButtonDef { Label = "New", Action = "target_nearest", X = 0.5f, Y = 0.5f, Size = 0.13f });
+            layout.Buttons.Add(new ActionButtonDef { Label = "New", Action = "target_nearest", X = 0.5f, Y = 0.5f, PX = 0.5f, PY = 0.5f, Size = 0.13f });
             Revision++;
             ButtonEditGump.Open(Client.Game.UO.World, layout.Buttons.Count - 1);
         }

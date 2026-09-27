@@ -47,8 +47,21 @@ namespace ClassicUO
 
             GraphicManager.PreparingDeviceSettings += (sender, e) =>
             {
-                e.GraphicsDeviceInformation.PresentationParameters.RenderTargetUsage =
-                    RenderTargetUsage.DiscardContents;
+                PresentationParameters pp = e.GraphicsDeviceInformation.PresentationParameters;
+                pp.RenderTargetUsage = RenderTargetUsage.DiscardContents;
+
+                // Phone: FNA shapes the backbuffer by the last orientation *event* (landscape until
+                // one arrives), so a launch held in portrait got a landscape backbuffer. The window's
+                // own shape is the truth: the app can't resize its window on iOS, and on desktop
+                // (UOM_PHONE_FIT) this keeps the window the size it was dragged/set to.
+                Rectangle bounds = Window.ClientBounds;
+
+                if (PhoneFit && bounds.Width > 0 && bounds.Height > 0)
+                {
+                    pp.BackBufferWidth = bounds.Width;
+                    pp.BackBufferHeight = bounds.Height;
+                    pp.DisplayOrientation = bounds.Height > bounds.Width ? DisplayOrientation.Portrait : DisplayOrientation.LandscapeRight;
+                }
             };
 
             GraphicManager.PreferredDepthStencilFormat = DepthFormat.Depth24Stencil8;
@@ -135,37 +148,85 @@ namespace ClassicUO
         }
 
         /// <summary>
-        /// iOS: UO's windows (the 640x480 login gump, paperdoll, ...) assume at least ~480 UI units of
-        /// height, while a phone in landscape is ~400 points tall. Pick ScreenScale so the UI space is
-        /// exactly 480 units high (UI space = backbuffer / DpiScale). Logged for tuning.
-        /// </summary>
-        /// <summary>
         /// iOS: make the backbuffer the screen (scenes resize the "window" to 640x480 on desktop,
         /// which would squash a 4:3 image onto a phone) and refit the UI scale.
         /// </summary>
+        /// <summary>
+        /// The phone screen-fit path (iOS; on desktop with UOM_PHONE_FIT=1 so it can be tested by
+        /// resizing the window to a phone shape).
+        /// </summary>
+        internal static readonly bool PhoneFit = OperatingSystem.IsIOS() || Environment.GetEnvironmentVariable("UOM_PHONE_FIT") == "1";
+
         internal void FillScreenOnPhone()
         {
-            if (!OperatingSystem.IsIOS())
+            if (!PhoneFit)
             {
                 return;
             }
 
             Rectangle bounds = Window.ClientBounds;
 
-            if (bounds.Width > 0 && bounds.Height > 0 &&
-                (GraphicManager.PreferredBackBufferWidth != bounds.Width || GraphicManager.PreferredBackBufferHeight != bounds.Height))
+            if (bounds.Width > 0 && bounds.Height > 0 && (PreferredDiffers(bounds) || DeviceDiffers(bounds)))
             {
                 GraphicManager.PreferredBackBufferWidth = bounds.Width;
                 GraphicManager.PreferredBackBufferHeight = bounds.Height;
-                GraphicManager.ApplyChanges();
+                GraphicManager.ApplyChanges(); // the setters always mark a change, so this resets
             }
 
             FitUiToPhone();
         }
 
+        private bool PreferredDiffers(Rectangle bounds) =>
+            GraphicManager.PreferredBackBufferWidth != bounds.Width || GraphicManager.PreferredBackBufferHeight != bounds.Height;
+
+        // FNA's orientation handler resets the device itself, shaped by its orientation event.
+        private bool DeviceDiffers(Rectangle bounds)
+        {
+            PresentationParameters pp = GraphicManager.GraphicsDevice?.PresentationParameters;
+
+            return pp != null && (pp.BackBufferWidth != bounds.Width || pp.BackBufferHeight != bounds.Height);
+        }
+
+        // Portrait with a window wider than the 480-unit screen open: fit 640x480 like the login screen.
+        private bool _phoneWideUi;
+
+        /// <summary>
+        /// iOS rotation: FNA flips the device's backbuffer but not the preferred size ClassicUO reads,
+        /// and no resize event reaches the game, so compare every frame and refill the screen. Also
+        /// refits when a too-wide window opens or closes in portrait.
+        /// </summary>
+        private void FollowPhoneRotation()
+        {
+            Rectangle bounds = Window.ClientBounds;
+
+            if (bounds.Width <= 0 || bounds.Height <= 0)
+            {
+                return;
+            }
+
+            bool resized = PreferredDiffers(bounds) || DeviceDiffers(bounds);
+            bool wide = TouchInput.WantsWideUi();
+
+            if (!resized && wide == _phoneWideUi)
+            {
+                return;
+            }
+
+            _phoneWideUi = wide;
+            FillScreenOnPhone();
+            TouchInput.KeepGumpsOnScreen();
+        }
+
+        /// <summary>
+        /// iOS: pick ScreenScale (UI space = backbuffer / DpiScale). UO's windows assume ~480 UI units:
+        /// in game the screen's short side is 480 units (landscape: 480 high; portrait: 480 wide).
+        /// The login/character screens are one 640x480 picture, so there the UI must contain 640x480;
+        /// so must portrait while a window wider than 480 units (macro editor, options) is open.
+        /// Logged for tuning.
+        /// </summary>
         private void FitUiToPhone()
         {
-            if (!OperatingSystem.IsIOS())
+            if (!PhoneFit)
             {
                 return;
             }
@@ -177,15 +238,20 @@ namespace ClassicUO
                 display = 1f;
             }
 
-            int backbufferHeight = GraphicManager.PreferredBackBufferHeight;
+            int w = GraphicManager.PreferredBackBufferWidth;
+            int h = GraphicManager.PreferredBackBufferHeight;
 
-            if (backbufferHeight <= 0)
+            if (w <= 0 || h <= 0)
             {
                 return;
             }
 
-            ScreenScale = Math.Clamp(backbufferHeight / (display * 480f), 0.25f, 8f);
-            Log.Info($"[UOMobile] display scale {display}, window {Window.ClientBounds}, backbuffer {GraphicManager.PreferredBackBufferWidth}x{backbufferHeight}, ScreenScale {ScreenScale}, UI {(int)(GraphicManager.PreferredBackBufferWidth / DpiScale)}x{(int)(backbufferHeight / DpiScale)}");
+            float scale = Scene is GameScene && !_phoneWideUi
+                ? Math.Min(w, h) / (display * 480f)
+                : Math.Min(w / 640f, h / 480f) / display;
+
+            ScreenScale = Math.Clamp(scale, 0.25f, 8f);
+            Log.Info($"[UOMobile] display scale {display}, window {Window.ClientBounds}, backbuffer {w}x{h}, scene {Scene?.GetType().Name}, ScreenScale {ScreenScale}, UI {(int)(w / DpiScale)}x{(int)(h / DpiScale)}");
         }
 
         protected override void LoadContent()
@@ -460,6 +526,11 @@ namespace ClassicUO
             {
                 if (UO.World != null && UO.World.InGame && ProfileManager.CurrentProfile != null && ProfileManager.ProfilePath != null)
                 {
+                    if (Scene is GameScene gs)
+                    {
+                        ProfileManager.CurrentProfile.DefaultScale = gs.Camera.Zoom; // pinch zoom (normally saved on scene unload)
+                    }
+
                     ProfileManager.CurrentProfile.Save(UO.World, ProfileManager.ProfilePath);
                     UO.World.Macros?.Save();
                 }
@@ -495,6 +566,11 @@ namespace ClassicUO
 
             Time.Ticks = (uint)gameTime.TotalGameTime.TotalMilliseconds;
             Time.Delta = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            if (PhoneFit && !_inBackground)
+            {
+                FollowPhoneRotation();
+            }
 
             Mouse.Update();
 
@@ -695,7 +771,13 @@ namespace ClassicUO
 
         private void WindowOnClientSizeChanged(int width, int height)
         {
-            FitUiToPhone();
+            // Phone: no resize event reaches the game on iOS; FollowPhoneRotation handles every size
+            // change. Returning here makes the desktop UOM_PHONE_FIT test take that same path, and
+            // keeps the display-scale handler from refitting with rescaled sizes.
+            if (PhoneFit)
+            {
+                return;
+            }
 
             if (!IsWindowMaximized() && Window.AllowUserResizing)
             {
