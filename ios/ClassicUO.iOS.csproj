@@ -52,7 +52,9 @@
     <FnaLibDir Condition="'$(FnaLibDir)' == ''">$(MSBuildProjectDirectory)/native/iphoneos</FnaLibDir>
     <!-- nativeref (default): <NativeReference> items. mtouch: the exact MtouchExtraArgs line from
          the FNA docs. Switch with -p:FnaLinkMode=mtouch if the default fails to link. -->
-    <FnaLinkMode Condition="'$(FnaLinkMode)' == ''">nativeref</FnaLinkMode>
+    <!-- mtouch by default: with nativeref the libs never reached the link (TestFlight build 17:
+         EntryPointNotFoundException SDL_SetHint, no SDL symbols in the executable). -->
+    <FnaLinkMode Condition="'$(FnaLinkMode)' == ''">mtouch</FnaLinkMode>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(UseNativeAot)' == 'true'">

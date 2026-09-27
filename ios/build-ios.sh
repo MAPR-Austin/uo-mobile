@@ -157,6 +157,12 @@ cmd_build() {
   local ipa; ipa="$(find "$(publish_dir)/publish" -maxdepth 1 -name '*.ipa' 2>/dev/null | head -1 || true)"
   [ -n "$app" ] || die "no .app produced under $(publish_dir)"
   echo "app: $app"
+  # The fnalibs must be inside the executable (P/Invokes resolve against the app itself).
+  local exe="$app/$(basename "$app" .app)"
+  for sym in _SDL_SetHint _SDL_RunApp _FNA3D_CreateDevice _FAudioCreate _tf_fopen; do
+    nm -gU "$exe" 2>/dev/null | grep -q " $sym\$" || die "$sym is missing from $exe: the native libs were not linked"
+  done
+  echo "native libs linked: SDL3, FNA3D, FAudio, Theorafile symbols present"
   [ -n "$ipa" ] && echo "ipa: $ipa"
   du -sh "$app" | awk '{print "app size: " $1}'
 
