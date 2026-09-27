@@ -165,9 +165,14 @@ cmd_build() {
   echo "app: $app"
   # The fnalibs must be inside the executable (P/Invokes resolve against the app itself).
   local exe="$app/$(basename "$app" .app)"
+  # (to a file first: under pipefail, `nm | grep -q` fails when grep stops early and nm gets SIGPIPE)
+  local syms; syms="$(mktemp)"
+  nm -gU "$exe" > "$syms" 2>/dev/null || true
+  echo "global symbols in executable: $(wc -l < "$syms" | tr -d ' ')"
   for sym in _SDL_SetHint _SDL_RunApp _FNA3D_CreateDevice _FAudioCreate _tf_fopen; do
-    nm -gU "$exe" 2>/dev/null | grep -q " $sym\$" || die "$sym is missing from $exe: the native libs were not linked"
+    grep -E " $sym\$" "$syms" || die "$sym is missing from $exe: the native libs were not linked"
   done
+  rm -f "$syms"
   echo "native libs linked: SDL3, FNA3D, FAudio, Theorafile symbols present"
   [ -n "$ipa" ] && echo "ipa: $ipa"
   du -sh "$app" | awk '{print "app size: " $1}'
