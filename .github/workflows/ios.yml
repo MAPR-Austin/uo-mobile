@@ -29,6 +29,10 @@ jobs:
       # Microsoft.iOS.Sdk 26.5.x asks for Xcode 26.6, but on this image 26.6's clang++ lookup
       # fails inside the .NET link step (xcrun ... -find clang++ exit 16384) even though it works
       # from the shell. 26.5 links fine, so use it and skip .NET's exact-version check.
+      # ios/AUDIT.md: static checks for every failure that already cost a TestFlight round trip.
+      - name: iOS preflight
+        run: bash ios/preflight.sh
+
       - name: Select Xcode 26.5
         run: |
           ls -d /Applications/Xcode*.app

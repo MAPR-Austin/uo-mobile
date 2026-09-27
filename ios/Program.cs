@@ -130,7 +130,6 @@ namespace ClassicUO.iOS
             SDL.SDL_SetHint(SDL.SDL_HINT_MOUSE_TOUCH_EVENTS, "0");
             SDL.SDL_SetHint(SDL.SDL_HINT_TOUCH_MOUSE_EVENTS, "0");
             SDL.SDL_SetHint(SDL.SDL_HINT_PEN_TOUCH_EVENTS, "0");
-            SDL.SDL_SetHint("SDL_ACCELEROMETER_AS_JOYSTICK", "0");
             SDL.SDL_SetHint(SDL.SDL_HINT_ORIENTATIONS, "LandscapeLeft LandscapeRight");
             // "ambient" (SDL's default) is muted by the ring/silent switch and mixes under other
             // apps' audio; a game with its own music wants "playback".

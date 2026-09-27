@@ -14,10 +14,12 @@ namespace ClassicUO.Utility
 
         static ZLib()
         {
-            // iOS: no loadable system libz in the sandbox's search path; the managed path is safe.
-            if (OperatingSystem.IsIOS())
+            // iOS: use .NET's own zlib (System.IO.Compression) instead of P/Invoking libz.
+            // (ClassicUO's ZLibManaged fails "CRC mismatch" on real UO data - never used on 64-bit.)
+            // UOM_DOTNET_ZLIB=1 forces it on desktop for testing.
+            if (OperatingSystem.IsIOS() || Environment.GetEnvironmentVariable("UOM_DOTNET_ZLIB") == "1")
             {
-                _compressor = new ManagedUniversal();
+                _compressor = new DotNetZLib();
             }
             else if (Environment.Is64BitProcess)
             {
@@ -202,6 +204,81 @@ namespace ClassicUO.Utility
 
                 [DllImport("libz")]
                 public static extern ZLibError uncompress(IntPtr dest, ref int destLen, IntPtr source, int sourceLen);
+            }
+        }
+
+        /// <summary>zlib via System.IO.Compression.ZLibStream (native zlib inside the .NET runtime).</summary>
+        private sealed unsafe class DotNetZLib : ICompressor
+        {
+            public string Version => "System.IO.Compression";
+
+            public ZLibError Compress(byte[] dest, ref int destLength, byte[] source, int sourceLength)
+            {
+                return Compress(dest, ref destLength, source, sourceLength, ZLibQuality.Default);
+            }
+
+            public ZLibError Compress(byte[] dest, ref int destLength, byte[] source, int sourceLength, ZLibQuality quality)
+            {
+                var level = quality == ZLibQuality.Speed ? System.IO.Compression.CompressionLevel.Fastest
+                          : quality == ZLibQuality.None ? System.IO.Compression.CompressionLevel.NoCompression
+                          : System.IO.Compression.CompressionLevel.Optimal;
+
+                using var output = new System.IO.MemoryStream();
+
+                using (var z = new System.IO.Compression.ZLibStream(output, level, true))
+                {
+                    z.Write(source, 0, sourceLength);
+                }
+
+                if (output.Length > destLength)
+                {
+                    return ZLibError.BufferError;
+                }
+
+                output.Position = 0;
+                destLength = output.Read(dest, 0, (int)output.Length);
+
+                return ZLibError.Ok;
+            }
+
+            public ZLibError Decompress(byte[] dest, ref int destLength, byte[] source, int sourceLength)
+            {
+                fixed (byte* src = source)
+                fixed (byte* dst = dest)
+                {
+                    return Decompress((IntPtr)dst, ref destLength, (IntPtr)src, sourceLength);
+                }
+            }
+
+            public ZLibError Decompress(IntPtr dest, ref int destLength, IntPtr source, int sourceLength)
+            {
+                try
+                {
+                    using var input = new System.IO.UnmanagedMemoryStream((byte*)source, sourceLength);
+                    using var z = new System.IO.Compression.ZLibStream(input, System.IO.Compression.CompressionMode.Decompress);
+                    var output = new Span<byte>((void*)dest, destLength);
+                    int total = 0;
+
+                    while (total < output.Length)
+                    {
+                        int read = z.Read(output.Slice(total));
+
+                        if (read == 0)
+                        {
+                            break;
+                        }
+
+                        total += read;
+                    }
+
+                    destLength = total;
+
+                    return ZLibError.Ok;
+                }
+                catch (System.IO.InvalidDataException)
+                {
+                    return ZLibError.DataError;
+                }
             }
         }
 
