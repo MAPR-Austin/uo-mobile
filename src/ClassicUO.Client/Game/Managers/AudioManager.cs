@@ -158,6 +158,9 @@ namespace ClassicUO.Game.Managers
             }
         }
 
+        private const int MOBILE_AREA_MUSIC = 8; // stones1 in Music/Digital/Config.txt
+        private const int MOBILE_WAR_MUSIC = 75; // GenericCombat
+
         public void PlayMusic(int music, bool iswarmode = false, bool is_login = false)
         {
             if (!_canReproduceAudio)
@@ -168,6 +171,14 @@ namespace ClassicUO.Game.Managers
             if (music >= Constants.MAX_MUSIC_DATA_INDEX_COUNT)
             {
                 return;
+            }
+
+            // UO Mobile: the phone carries only the two tracks the Aetheria project used - Stones1
+            // (music index 8) for areas/login and GenericCombat (75) for war mode. Any other track
+            // that isn't on the device falls back to those instead of going silent.
+            if (Touch.TouchInput.Enabled && music != DeathMusicIndex && !Client.Game.UO.Sounds.HasMusicFile(music))
+            {
+                music = iswarmode ? MOBILE_WAR_MUSIC : MOBILE_AREA_MUSIC;
             }
 
             float volume;

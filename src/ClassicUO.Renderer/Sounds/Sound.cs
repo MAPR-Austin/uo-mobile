@@ -47,6 +47,24 @@ namespace ClassicUO.Renderer.Sounds
             return null;
         }
 
+        /// <summary>True when the music file for <paramref name="index"/> exists on disk.</summary>
+        public bool HasMusicFile(int index)
+        {
+            if (index < 0 || index >= MAX_SOUND_DATA_INDEX_COUNT || !_soundsLoader.TryGetMusicData(index, out string name, out _))
+            {
+                return false;
+            }
+
+            var path = _useDigitalMusicFolder ? $"Music/Digital/{name}" : $"Music/{name}";
+
+            if (!path.EndsWith(".mp3", StringComparison.InvariantCultureIgnoreCase))
+            {
+                path += ".mp3";
+            }
+
+            return System.IO.File.Exists(_soundsLoader.FileManager.GetUOFilePath(path));
+        }
+
         public IO.Audio.Sound GetMusic(int index)
         {
             if (index >= 0 && index < MAX_SOUND_DATA_INDEX_COUNT)
