@@ -18,7 +18,7 @@ and the manual Documents copy stay as fallbacks until the cloud path has been pr
 
 - Google Cloud project `graveyardbattles`, VM `uo-server`, zone `us-south1-a`, `e2-standard-2`,
   Ubuntu 24.04, static IP **34.174.14.240**. Measured from the owner's home: 31 ms average.
-- Game: `34.174.14.240:2593`. Files: `https://34-174-14-240.sslip.io/files/` (Caddy with Let's
+- Game: `34-174-14-240.sslip.io:2593` (a host name, so it works on IPv6-only networks; it resolves to 34.174.14.240). Files: `https://34-174-14-240.sslip.io/files/` (Caddy with Let's
   Encrypt; `files/uo` links to the UO data folder `/srv/uo/client`, and music is in
   `uo/Music/Digital`).
 - Shard: `/srv/uo/servuo`, systemd unit `uo` (Mono 6.8). `uo-ctl save | say <text> |
@@ -132,7 +132,7 @@ with the embedded font.
 - **HTTP:** the managed `SocketsHttpHandler` on every platform (iOS's default handler has a
   response cache).
 - **iOS launcher (ios/Program.cs):**
-  - the default server is `34.174.14.240` and files come from the URL above;
+  - the default server is `34-174-14-240.sslip.io` (a host name, for IPv6-only networks) and files come from the URL above;
   - `Documents/uomobile.txt` overrides both: `ip=192.168.68.91` for the home server,
     `files=off` for a manual copy;
   - downloads go to `Library/Application Support/uo`, excluded from iCloud backup;

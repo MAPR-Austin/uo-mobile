@@ -43,6 +43,14 @@ must be caught here.
      - login goes to the cloud server (34.174.14.240) with no Local Network prompt;
      - music has no static (48 kHz re-encode) and region tracks change as you walk;
      - `ip=192.168.68.91` in uomobile.txt still reaches the home server.
+   - Build 35:
+     - login reaches the cloud shard by host name on Wi-Fi and on cellular, with no Local
+       Network prompt;
+     - the console log shows `Connecting to tcp://34-174-14-240.sslip.io:2593/`;
+     - `ip=192.168.68.91` still reaches the home server.
+     The IPv6-only (NAT64) path itself can't be run from Windows (it needs macOS Internet
+     Sharing's NAT64). It was accepted on the code reading (.NET resolves host names with
+     getaddrinfo, so DNS64 applies) and on the host name's DNS records.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -123,7 +131,9 @@ must be caught here.
 - **Lifecycle**: no GPU work in the background; everything saves on DID_ENTER_BACKGROUND; saves
   are write-then-rename; a corrupt file must not crash every launch.
 - **Network**: connects are bounded (no multi-second block on the main thread); the Local
-  Network permission is requested before the first real connect.
+  Network permission is requested before the first real connect. Server addresses are host
+  names. On IPv6-only NAT64 networks (Apple's review network, some carriers without 464XLAT)
+  only a DNS lookup yields a synthesized IPv6 address; a raw IPv4 literal fails.
 - **Threads**: SDL, UIKit, FNA and gump work happen only on the main thread (FakeMain's thread).
 - **Memory**: no large one-shot allocations (the world map builds a ~120 MB image); UO files
   are memory-mapped.

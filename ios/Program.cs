@@ -37,8 +37,10 @@ namespace ClassicUO.iOS
         //   clientversion=7.0.116.0
         //   files=off               (use a manual copy of the UO files instead of downloading)
         //   args=-fps 30
-        // The cloud shard and its file server: ios/HOSTING.md.
-        private const string DEFAULT_IP = "34.174.14.240";
+        // The cloud shard and its file server: ios/HOSTING.md. A host name, not the IPv4 literal:
+        // on IPv6-only networks (NAT64, e.g. Apple's review network) only a DNS lookup gets a
+        // synthesized IPv6 address; .NET sockets connect to a literal as-is and fail.
+        private const string DEFAULT_IP = "34-174-14-240.sslip.io";
         private const string DEFAULT_PORT = "2593";
         private const string DEFAULT_CLIENT_VERSION = "7.0.116.0";
         private const string DEFAULT_FILES = "https://34-174-14-240.sslip.io/files/";
