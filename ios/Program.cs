@@ -103,6 +103,8 @@ namespace ClassicUO.iOS
 
             Console.WriteLine($"[UOMobile] UO data: {uoPath}");
 
+            MoveLooseMusic(uoPath);
+
             _realArgs = BuildClassicUOArgs(args, uoPath);
             Console.WriteLine("[UOMobile] ClassicUO args: " + string.Join(" ", _realArgs));
 
@@ -161,6 +163,59 @@ namespace ClassicUO.iOS
             {
                 Exception inner = ex is TargetInvocationException tie && tie.InnerException != null ? tie.InnerException : ex;
                 ReportFatal(inner);
+            }
+        }
+
+        /// <summary>
+        /// UO music lives in &lt;uo&gt;/Music/Digital (*.mp3 + Config.txt). Apple Devices can only drop
+        /// loose files into Documents, so move any loose music there on startup.
+        /// </summary>
+        private static void MoveLooseMusic(string uoPath)
+        {
+            try
+            {
+                string target = Path.Combine(uoPath, "Music", "Digital");
+                int moved = 0;
+
+                foreach (string dir in new[] { _documents, uoPath })
+                {
+                    if (!Directory.Exists(dir))
+                    {
+                        continue;
+                    }
+
+                    foreach (string file in Directory.GetFiles(dir))
+                    {
+                        string name = Path.GetFileName(file);
+                        bool isMusic = name.EndsWith(".mp3", StringComparison.OrdinalIgnoreCase)
+                                       || name.Equals("Config.txt", StringComparison.OrdinalIgnoreCase);
+
+                        if (!isMusic)
+                        {
+                            continue;
+                        }
+
+                        Directory.CreateDirectory(target);
+                        string dest = Path.Combine(target, name);
+
+                        if (File.Exists(dest))
+                        {
+                            File.Delete(dest);
+                        }
+
+                        File.Move(file, dest);
+                        moved++;
+                    }
+                }
+
+                if (moved > 0)
+                {
+                    Console.WriteLine($"[UOMobile] moved {moved} music files into {target}");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] could not move music files: {ex.Message}");
             }
         }
 
