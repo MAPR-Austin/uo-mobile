@@ -78,6 +78,16 @@
 	<key>GCSupportsControllerUserInteraction</key>
 	<true/>
 
+	<!-- SDL3 is linked in whole and references camera, microphone and Bluetooth (game
+	     controller) APIs, so App Store Connect requires purpose strings even though the game
+	     never asks for these (upload of build 21 failed with ITMS-90683). -->
+	<key>NSCameraUsageDescription</key>
+	<string>Graveyard Battles does not use the camera.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Graveyard Battles does not use the microphone.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Graveyard Battles uses Bluetooth only to talk to game controllers you pair.</string>
+
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 </dict>
