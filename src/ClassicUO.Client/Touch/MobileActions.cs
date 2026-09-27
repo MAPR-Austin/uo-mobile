@@ -3,6 +3,7 @@
 using System;
 using ClassicUO.Configuration;
 using ClassicUO.Game;
+using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps;
@@ -17,6 +18,7 @@ namespace ClassicUO.Touch
     ///
     /// Action ids:
     ///   attack_nearest   select nearest hostile + attack it (fast melee "target closest")
+    ///   set_target       next tap on a creature/player makes it the target (no attack)
     ///   target_nearest / target_next / target_prev   hostile selection (sets last target)
     ///   attack_last      attack the last target
     ///   last_target / target_self   answer an open target cursor
@@ -56,6 +58,23 @@ namespace ClassicUO.Touch
             {
                 case "attack_nearest":
                     Macro(world, O(MacroType.SelectNearest, MacroSubType.Hostile), O(MacroType.AttackSelectedTarget));
+
+                    break;
+
+                case "set_target": // next tap on a creature/player makes it the current target
+                    if (world.TargetManager.IsTargeting)
+                    {
+                        world.TargetManager.CancelTarget();
+                    }
+
+                    world.TargetManager.SetTargeting(obj =>
+                    {
+                        if (obj is Mobile m && m != world.Player)
+                        {
+                            SetCurrentTarget(world, m);
+                        }
+                    }, CursorType.Target, TargetType.Neutral);
+                    GameActions.Print(world, "Tap a creature or player to target it.", 0x35);
 
                     break;
 
@@ -196,6 +215,39 @@ namespace ClassicUO.Touch
 
                     break;
             }
+        }
+
+        private static uint _seenLastTarget, _seenSelected, _seenAttack, _shown;
+
+        /// <summary>
+        /// The mobile the HUD shows as "your target": whichever changed most recently of the last
+        /// target (Set Target, Next Target, a spell's target), the selected target, or the last
+        /// mobile you attacked (Attack buttons, double-tap in war mode).
+        /// </summary>
+        public static Mobile CurrentTarget(World world)
+        {
+            if (world?.Player == null)
+            {
+                return null;
+            }
+
+            TargetManager tm = world.TargetManager;
+            uint last = tm.LastTargetInfo.IsEntity ? tm.LastTargetInfo.Serial : 0;
+
+            if (last != _seenLastTarget) { _seenLastTarget = last; if (SerialHelper.IsMobile(last)) _shown = last; }
+            if (tm.SelectedTarget != _seenSelected) { _seenSelected = tm.SelectedTarget; if (SerialHelper.IsMobile(_seenSelected)) _shown = _seenSelected; }
+            if (tm.LastAttack != _seenAttack) { _seenAttack = tm.LastAttack; if (SerialHelper.IsMobile(_seenAttack)) _shown = _seenAttack; }
+
+            return SerialHelper.IsMobile(_shown) && world.Mobiles.TryGetValue(_shown, out Mobile m) && m != world.Player ? m : null;
+        }
+
+        /// <summary>Same effect as the client's target-selection macros (MacroManager.SetLastTarget).</summary>
+        public static void SetCurrentTarget(World world, Mobile mobile)
+        {
+            world.TargetManager.NewTargetSystemSerial = mobile.Serial;
+            world.TargetManager.SelectedTarget = mobile.Serial;
+            world.TargetManager.LastTargetInfo.SetEntity(mobile.Serial);
+            GameActions.MessageOverhead(world, $"Target: {mobile.Name}", Notoriety.GetHue(mobile.NotorietyFlag), world.Player);
         }
 
         public static void OpenHealthBar(World world, uint serial)

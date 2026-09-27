@@ -156,7 +156,7 @@ namespace ClassicUO.Touch
                 case "info":
                     var g = Client.Game;
                     var cam = (g.Scene as Game.Scenes.GameScene)?.Camera.Bounds;
-                    Log.Info($"[devscript] dpi={g.DpiScale} client={g.Window.ClientBounds} backbuffer={g.GraphicManager.PreferredBackBufferWidth}x{g.GraphicManager.PreferredBackBufferHeight} ui={TouchInput.ScreenW}x{TouchInput.ScreenH} camera={cam} player={g.UO.World?.Player?.X},{g.UO.World?.Player?.Y},{g.UO.World?.Player?.Z} hp={g.UO.World?.Player?.Hits}/{g.UO.World?.Player?.HitsMax} mana={g.UO.World?.Player?.Mana}/{g.UO.World?.Player?.ManaMax} macro={MobileMacroRunner.RunningName}");
+                    Log.Info($"[devscript] dpi={g.DpiScale} client={g.Window.ClientBounds} backbuffer={g.GraphicManager.PreferredBackBufferWidth}x{g.GraphicManager.PreferredBackBufferHeight} ui={TouchInput.ScreenW}x{TouchInput.ScreenH} camera={cam} player={g.UO.World?.Player?.X},{g.UO.World?.Player?.Y},{g.UO.World?.Player?.Z} hp={g.UO.World?.Player?.Hits}/{g.UO.World?.Player?.HitsMax} mana={g.UO.World?.Player?.Mana}/{g.UO.World?.Player?.ManaMax} macro={MobileMacroRunner.RunningName} war={g.UO.World?.Player?.InWarMode} lastAttack={g.UO.World?.TargetManager.LastAttack:X} selected={g.UO.World?.TargetManager.SelectedTarget:X} underPointer={Game.SelectedObject.Object?.GetType().Name}:{(Game.SelectedObject.Object as Game.GameObjects.Entity)?.Name}");
 
                     break;
 

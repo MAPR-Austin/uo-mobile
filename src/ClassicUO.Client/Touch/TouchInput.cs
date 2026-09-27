@@ -255,6 +255,15 @@ namespace ClassicUO.Touch
             {
                 int button = ButtonAt(pos);
 
+                if (!EditMode && button < 0 && TouchHudGump.TargetPanel.Contains(pos))
+                {
+                    f.Owner = Owner.Button;
+                    f.Button = -3; // the target panel
+                    _fingers[id] = f;
+
+                    return true;
+                }
+
                 if (EditMode)
                 {
                     if (InCircle(pos, AddButtonCenter, AddButtonRadius))
@@ -388,6 +397,13 @@ namespace ClassicUO.Touch
                     if (f.Button == -2)
                     {
                         AddButton();
+                    }
+                    else if (f.Button == -3)
+                    {
+                        if (TouchHudGump.TargetPanel.Contains(pos))
+                        {
+                            MobileActions.Run(Client.Game.UO.World, "healthbar_target");
+                        }
                     }
                     else if (Current != null && f.Button < Current.Buttons.Count && ButtonAt(pos) == f.Button)
                     {

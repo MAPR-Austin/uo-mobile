@@ -34,7 +34,7 @@ namespace ClassicUO.Touch
         /// <summary>The preset catalogue, grouped the way a PvPer thinks about it.</summary>
         private static readonly (string Label, string Action)[] Presets =
         {
-            ("Attack Nearest", "attack_nearest"), ("Target Nearest", "target_nearest"), ("Next Target", "target_next"),
+            ("Set Target", "set_target"), ("Attack Nearest", "attack_nearest"), ("Target Nearest", "target_nearest"), ("Next Target", "target_next"),
             ("Prev Target", "target_prev"), ("Attack Last", "attack_last"), ("Last Target", "last_target"),
             ("Target Self", "target_self"), ("Cancel", "cancel_target"), ("Health Bar", "healthbar_target"),
             ("War/Peace", "war_peace"), ("Bandage Self", "bandage_self"), ("Bandage Tgt", "bandage_target"),

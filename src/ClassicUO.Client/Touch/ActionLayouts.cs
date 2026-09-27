@@ -104,6 +104,7 @@ namespace ClassicUO.Touch
                 B("Attack\nLast", "attack_last", 0.64f, 0.88f),
                 B("Health\nBar", "healthbar_target", 0.95f, 0.40f, 0.11f),
                 B("Bandage", "bandage_self", 0.84f, 0.44f, 0.11f),
+                B("Set\nTarget", "set_target", 0.65f, 0.70f, 0.12f),
             });
 
             ActionLayout mage = new ActionLayout { Name = "Mage" };
@@ -119,6 +120,7 @@ namespace ClassicUO.Touch
                 B("Cure\nSelf", "spell_self:Cure", 0.84f, 0.46f, 0.11f),
                 B("Next\nTarget", "target_next", 0.66f, 0.72f, 0.11f),
                 B("Last\nTarget", "last_target", 0.95f, 0.26f, 0.10f),
+                B("Set\nTarget", "set_target", 0.66f, 0.55f, 0.11f),
             });
 
             ActionLayout utility = new ActionLayout { Name = "Utility" };
