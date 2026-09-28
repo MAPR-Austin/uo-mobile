@@ -135,6 +135,11 @@ must be caught here.
   re-checked on every event, so a drop lands under the finger. Anything new that reads
   `Mouse.Position` to *draw* at the finger (held item, tooltip, target cursor) must use
   `TouchInput.CursorPosition`.
+- **Server-era features** (house designer): the shard runs pre-AOS rules, so the client's
+  feature flags hide anything newer. Touch builds unlock what the shard deliberately allows
+  (every custom-house piece). A piece the client offers must also be in the server's
+  `Data/Components` lists, or the server drops it and it silently vanishes. A number the client
+  estimates locally (the designer's cost label) must match the shard's rules: 1 gold per commit.
 - **Lifecycle**: no GPU work in the background; everything saves on DID_ENTER_BACKGROUND; saves
   are write-then-rename; a corrupt file must not crash every launch.
 - **Network**: connects are bounded (no multi-second block on the main thread); the Local
@@ -175,3 +180,4 @@ must be caught here.
 | desktop | (pre-ship, build 34) | a fresh download install showed "Your UO directory is invalid" and quit | Main's folder check waits for the download screen when a file server is configured |
 | audit | (agent, build 34) | iOS's default HTTP handler caches small files (an update could get a stale copy); UO.Load could run while backgrounded; a leading "/" in a manifest path escaped the folder; a wrong manifest could delete a good install; each app switch used up a retry; quitting during the download crashed in Unload; the console log could hold a password | the managed SocketsHttpHandler everywhere and no-cache on the server; load only in the foreground; full-path confinement; manifest sanity check, deletions after success, re-check by hash after a load failure; progress resets the retry count; `FileManager?.Dispose()`; redacted args |
 | 34 | static behind every sound effect (music fixed) | FAudio linear-upsamples the 22 kHz effects | effects resampled to 48 kHz on load (windowed sinc) |
+| audit | (pre-ship, build 37) | the designer hid every piece on the pre-AOS shard and priced pieces at 500 gold; the client offered Celtic walls the server lacked; server side, a corpse could be stolen whole, stolen spawned chests came back twice (spawner + respawn marker with fresh loot) and 1-gold deeds sold back for their old price | touch builds offer every piece and show 1 gold; Celtic rows added to the server's lists; corpses protected, respawns are plain statics and skip spawned items, deeds sell for 80% of 1 gold (nothing) |
