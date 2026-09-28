@@ -1748,7 +1748,7 @@ namespace ClassicUO.Game.Managers
 
                     if (item.Parse(line))
                     {
-                        if (item.FeatureMask == 0 || ((int)_world.ClientLockedFeatures.Flags & item.FeatureMask) != 0)
+                        if (PieceAvailable(item.FeatureMask))
                         {
                             list.Add(item);
                         }
@@ -1756,6 +1756,14 @@ namespace ClassicUO.Game.Managers
                 }
             }
         }
+
+        /// <summary>
+        /// A design piece is offered when the server's feature flags include its expansion. Touch builds
+        /// only play on the UO Mobile shard, which allows every piece on its pre-AOS rules
+        /// (servuo Custom/UOMobile/HouseRules.cs) without advertising newer expansions to the client.
+        /// </summary>
+        private bool PieceAvailable(int featureMask) =>
+            featureMask == 0 || Touch.TouchInput.Enabled || ((int)_world.ClientLockedFeatures.Flags & featureMask) != 0;
 
         private void ParseFileWithCategory<T, U>(List<U> list, string path) where T : CustomHouseObject, new() where U : CustomHouseObjectCategory<T>, new()
         {
@@ -1781,7 +1789,7 @@ namespace ClassicUO.Game.Managers
 
                     if (item.Parse(line))
                     {
-                        if (item.FeatureMask != 0 && ((int)_world.ClientLockedFeatures.Flags & item.FeatureMask) == 0)
+                        if (!PieceAvailable(item.FeatureMask))
                         {
                             continue;
                         }

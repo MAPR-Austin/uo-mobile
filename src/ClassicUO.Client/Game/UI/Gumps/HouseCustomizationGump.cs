@@ -653,7 +653,8 @@ namespace ClassicUO.Game.UI.Gumps
             _textComponents.SetTooltip(tooltip);
             _textFixtures.SetTooltip(tooltip);
 
-            _textCost.Text = (
+            // UO Mobile: our shard charges 1 gold per commit and nothing per piece (the confirm gump shows the real cost).
+            _textCost.Text = Touch.TouchInput.Enabled ? "1" : (
                 (_customHouseManager.Components + _customHouseManager.Fixtures) * 500
             ).ToString();
         }
