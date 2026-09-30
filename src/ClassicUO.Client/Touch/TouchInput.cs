@@ -45,9 +45,10 @@ namespace ClassicUO.Touch
         // Pinch: two world fingers zoom the camera. Ignored: the finger left over when a pinch ends.
         private enum Owner { Joystick, Button, Pointer, EditDrag, Pinch, Ignored }
 
-        // Camera.Zoom > 1 zooms out. Practical limits for a phone screen (the camera allows 0.5-2.5).
-        private const float PINCH_ZOOM_MIN = 0.6f;
-        private const float PINCH_ZOOM_MAX = 1.6f;
+        // Camera.Zoom > 1 zooms out. Practical limits for a phone screen (the camera allows 0.5-2.5);
+        // build 38: 15% more range each way (was 0.6-1.6).
+        private const float PINCH_ZOOM_MIN = 0.52f;
+        private const float PINCH_ZOOM_MAX = 1.84f;
         private static long _pinchA = long.MinValue, _pinchB = long.MinValue;
         private static float _pinchStartDistance, _pinchStartZoom;
 

@@ -140,6 +140,11 @@ must be caught here.
   (every custom-house piece). A piece the client offers must also be in the server's
   `Data/Components` lists, or the server drops it and it silently vanishes. A number the client
   estimates locally (the designer's cost label) must match the shard's rules: 1 gold per commit.
+- **First-open stalls**: a window that builds many images or labels the first time it opens stalls
+  that one frame (the magery spellbook: 69 images, ~430 ms on desktop). Measure with the dev
+  `perf SECONDS` command, then load its art ahead in Touch/GumpWarmup (drawn frames only, a small
+  per-frame budget, never in the background); leave out single images that cost a visible hitch
+  on their own. Anything that runs from Update must skip the frame limiter's idle ticks.
 - **Lifecycle**: no GPU work in the background; everything saves on DID_ENTER_BACKGROUND; saves
   are write-then-rename; a corrupt file must not crash every launch.
 - **Network**: connects are bounded (no multi-second block on the main thread); the Local
@@ -155,7 +160,9 @@ must be caught here.
   cache key in sync with the lib patches; the symbol check runs; no `nm | grep -q` under
   `pipefail`.
 - **Editing hazards**: a Python or heredoc edit containing `\n` can write a literal newline into
-  a C# string or YAML. Build and YAML-validate after scripted edits.
+  a C# string or YAML, and `\b` can arrive as a backspace character (a regex word boundary
+  became 0x08 in build 38's server work). Build and YAML-validate after scripted edits, grep the
+  changed files for control characters (`grep -P '\x08'`), or write edit scripts with a file tool.
 
 ## Known failures (newest last)
 
@@ -181,3 +188,4 @@ must be caught here.
 | audit | (agent, build 34) | iOS's default HTTP handler caches small files (an update could get a stale copy); UO.Load could run while backgrounded; a leading "/" in a manifest path escaped the folder; a wrong manifest could delete a good install; each app switch used up a retry; quitting during the download crashed in Unload; the console log could hold a password | the managed SocketsHttpHandler everywhere and no-cache on the server; load only in the foreground; full-path confinement; manifest sanity check, deletions after success, re-check by hash after a load failure; progress resets the retry count; `FileManager?.Dispose()`; redacted args |
 | 34 | static behind every sound effect (music fixed) | FAudio linear-upsamples the 22 kHz effects | effects resampled to 48 kHz on load (windowed sinc) |
 | audit | (pre-ship, build 37) | the designer hid every piece on the pre-AOS shard and priced pieces at 500 gold; the client offered Celtic walls the server lacked; server side, a corpse could be stolen whole, stolen spawned chests came back twice (spawner + respawn marker with fresh loot) and 1-gold deeds sold back for their old price | touch builds offer every piece and show 1 gold; Celtic rows added to the server's lists; corpses protected, respawns are plain statics and skip spawned items, deeds sell for 80% of 1 gold (nothing) |
+| audit | (agent, build 38) | the spellbook warm-up ran on every Update tick, including the frame limiter's idle ticks, so the per-frame budget never applied; logging out mid-warm-up skipped the start delay on relogin; the book background alone cost ~47 ms in one frame; at 1.84 zoom-out the screen corners pass the 24-tile view range (objects pop in there) | warm-up only on drawn frames (after the limiter, not in the background), re-armed on every login, 6 ms budget, book background left to the open, totals logged; corner pop-in noted for the owner |

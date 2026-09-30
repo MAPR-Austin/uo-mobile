@@ -707,6 +707,13 @@ namespace ClassicUO
                 }
             }
 
+            // Only on ticks that draw a frame (not the limiter's idle ticks), and never while iOS has us
+            // in the background (GPU uploads).
+            if (!_inBackground && !_suppressedDraw)
+            {
+                GumpWarmup.Update(UO.World);
+            }
+
             UO.GameCursor?.Update();
             Audio?.Update();
 

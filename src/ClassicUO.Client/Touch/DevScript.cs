@@ -35,12 +35,58 @@ namespace ClassicUO.Touch
 
         private static string Dir => Path.Combine(CUOEnviroment.ExecutablePath, "dev");
 
+        // "perf SECONDS": log every stall between updates over 40 ms (listing all open windows when one
+        // opened since the last update), then the worst one.
+        private static long _perfUntil, _lastUpdate;
+        private static double _perfWorst;
+        private static int _lastGumpCount;
+
+        private static void WatchPerf()
+        {
+            long now = System.Diagnostics.Stopwatch.GetTimestamp();
+            double ms = _lastUpdate == 0 ? 0 : (now - _lastUpdate) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            _lastUpdate = now;
+            int gumps = Game.Managers.UIManager.Gumps.Count;
+
+            if (_perfUntil == 0)
+            {
+                _lastGumpCount = gumps;
+                return;
+            }
+
+            if (ms > 40)
+            {
+                string opened = "";
+
+                if (gumps > _lastGumpCount)
+                {
+                    foreach (var gump in Game.Managers.UIManager.Gumps)
+                    {
+                        opened += " " + gump.GetType().Name;
+                    }
+                }
+
+                Log.Info($"[perf] stall {ms:0} ms (windows {_lastGumpCount} -> {gumps}{(opened.Length > 0 ? ":" + opened : "")})");
+            }
+
+            _perfWorst = Math.Max(_perfWorst, ms);
+            _lastGumpCount = gumps;
+
+            if (now >= _perfUntil)
+            {
+                Log.Info($"[perf] done, worst {_perfWorst:0} ms");
+                _perfUntil = 0;
+            }
+        }
+
         public static void Update()
         {
             if (!Active)
             {
                 return;
             }
+
+            WatchPerf();
 
             if (Time.Ticks >= _nextPoll)
             {
@@ -226,6 +272,14 @@ namespace ClassicUO.Touch
 
                 case "zoom":
                     Log.Info($"[devscript] zoom={(Client.Game.Scene as Game.Scenes.GameScene)?.Camera.Zoom}");
+
+                    break;
+
+                case "perf": // perf SECONDS: log stalls over 40 ms for that long
+                    _perfUntil = System.Diagnostics.Stopwatch.GetTimestamp() +
+                        (long)(F(rest) * System.Diagnostics.Stopwatch.Frequency);
+                    _perfWorst = 0;
+                    Log.Info($"[devscript] perf watching for {rest} s");
 
                     break;
 
