@@ -56,7 +56,9 @@ jobs:
 
       - name: .NET iOS workload
         run: |
-          dotnet workload install ios
+          # Pinned: workload set 10.0.401.1 (2026-09-30) moved the iOS SDK to 27.0, which needs an
+          # Xcode 27 this image doesn't have (build 38 failed with MT4162). 10.0.401 = iOS SDK 26.5.10318.
+          dotnet workload install ios --version 10.0.401
           dotnet workload list
 
       - name: Tools
