@@ -872,6 +872,7 @@ namespace ClassicUO.Touch
             CheckLongPress();
             Walk();
             MobileMacroRunner.Update(Client.Game.UO.World);
+            StealthCounter.Update(Client.Game.UO.World);
         }
 
         private static void DrainPointerQueue()

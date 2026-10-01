@@ -105,6 +105,12 @@ namespace ClassicUO.Game.Managers
                 unicode = currentProfile.OverrideAllFontsIsUnicode;
             }
 
+            // UO Mobile: the stealth step counter stays put over your head and out of the journal
+            if (Touch.StealthCounter.TryShow(_world, parent, text, hue, type, font, unicode))
+            {
+                return;
+            }
+
             switch (type)
             {
                 case MessageType.Command:

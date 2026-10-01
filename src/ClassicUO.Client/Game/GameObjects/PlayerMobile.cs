@@ -529,7 +529,8 @@ namespace ClassicUO.Game.GameObjects
 
             run |= ProfileManager.CurrentProfile.AlwaysRun;
 
-            if (SpeedMode >= CharacterSpeedType.CantRun || Stamina <= 1 && !IsDead || IsHidden && ProfileManager.CurrentProfile.AlwaysRunUnlessHidden)
+            // UO Mobile: on the phone a hidden player always walks (running reveals); the joystick runs when pushed far
+            if (SpeedMode >= CharacterSpeedType.CantRun || Stamina <= 1 && !IsDead || IsHidden && (ProfileManager.CurrentProfile.AlwaysRunUnlessHidden || Touch.TouchInput.Enabled))
             {
                 run = false;
             }
