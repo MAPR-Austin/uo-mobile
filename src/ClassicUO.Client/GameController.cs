@@ -553,6 +553,9 @@ namespace ClassicUO
 
         private volatile bool _inBackground;
 
+        /// <summary>iOS has the app in the background (no GPU work then).</summary>
+        internal bool InBackground => _inBackground;
+
         private void SaveForSuspend()
         {
             try

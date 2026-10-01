@@ -312,8 +312,8 @@ namespace ClassicUO.Touch
                     return (0f, 0f, 1f, 1f);
                 }
 
-                // iPhone 15, in points: portrait 390x844 with 47 above and 34 below; landscape 47 each side and 21 below
-                return wh > ww ? (0f, 47f / 844, 1f, (844f - 47 - 34) / 844) : (47f / 844, 0f, (844f - 94) / 844, (390f - 21) / 390);
+                // iPhone 15, in points: portrait 393x852 with 59 above and 34 below; landscape 59 each side and 21 below
+                return wh > ww ? (0f, 59f / 852, 1f, (852f - 59 - 34) / 852) : (59f / 852, 0f, (852f - 118) / 852, (393f - 21) / 393);
             }
 
             if (!SDL3.SDL.SDL_GetWindowSafeArea(window, out SDL3.SDL.SDL_Rect r) || r.w <= 0 || r.h <= 0)
@@ -894,6 +894,7 @@ namespace ClassicUO.Touch
             Walk();
             MobileMacroRunner.Update(Client.Game.UO.World);
             StealthCounter.Update(Client.Game.UO.World);
+            LoginLayout.Update(); // again: a window a tap opened just now is placed before it is drawn
         }
 
         private static void DrainPointerQueue()

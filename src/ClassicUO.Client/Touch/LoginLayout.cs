@@ -33,7 +33,11 @@ namespace ClassicUO.Touch
         // where each login window and moved control stood in the picture (they're moved from there)
         private static readonly Dictionary<Control, Point> _home = new Dictionary<Control, Point>();
         private static readonly Dictionary<Control, int> _homeHeight = new Dictionary<Control, int>();
-        private static string _fitted;
+
+        // what the current fit was made for (backbuffer, safe area, screen), and the result
+        private static (int W, int H, float X, float Y, float SW, float SH, Type Screen)? _fitted;
+        private static Point _offset;
+        private static bool _portrait;
 
         public static bool Active => GameController.PhoneFit && TouchInput.Enabled && Client.Game.Scene is LoginScene;
 
@@ -65,22 +69,24 @@ namespace ClassicUO.Touch
             }
 
             Gump current = Current;
-            bool portrait = TouchInput.IsPortrait;
             (float sx, float sy, float sw, float sh) = TouchInput.SafeFractions();
-            string key = $"{Client.Game.GraphicManager.PreferredBackBufferWidth}x{Client.Game.GraphicManager.PreferredBackBufferHeight} {sx:F3},{sy:F3},{sw:F3},{sh:F3} {current?.GetType().Name}";
+            var key = (Client.Game.GraphicManager.PreferredBackBufferWidth, Client.Game.GraphicManager.PreferredBackBufferHeight, sx, sy, sw, sh, current?.GetType());
 
-            if (key != _fitted)
+            if (!key.Equals(_fitted) && !Hold(key))
             {
                 _fitted = key;
                 Client.Game.FillScreenOnPhone(); // the UI scale for this screen's picture
-                portrait = TouchInput.IsPortrait;
-                Log.Info($"[UOMobile] login layout {key} {(portrait ? "portrait" : "landscape")}, UI {TouchInput.ScreenW}x{TouchInput.ScreenH}, safe {TouchInput.Safe}");
+                _portrait = TouchInput.IsPortrait;
+
+                Rectangle content = Content(current, _portrait);
+                Rectangle safe = TouchInput.Safe;
+                _offset = new Point(safe.X + (safe.Width - content.Width) / 2 - content.X, safe.Y + (safe.Height - content.Height) / 2 - content.Y);
+
+                Log.Info($"[UOMobile] login layout {key} {(_portrait ? "portrait" : "landscape")}, UI {TouchInput.ScreenW}x{TouchInput.ScreenH}, safe {safe}");
             }
 
-            Rectangle content = Content(current, portrait);
-            Rectangle safe = TouchInput.Safe;
-            int offX = safe.X + (safe.Width - content.Width) / 2 - content.X;
-            int offY = safe.Y + (safe.Height - content.Height) / 2 - content.Y;
+            int offX = _offset.X, offY = _offset.Y;
+            bool portrait = _portrait;
 
             foreach (Gump g in UIManager.Gumps)
             {
@@ -121,6 +127,29 @@ namespace ClassicUO.Touch
         }
 
         private static Gump Current => (Client.Game.Scene as LoginScene)?.CurrentGump;
+
+        /// <summary>
+        /// Keep the current fit: in the background (a re-fit resets the graphics device), and while the
+        /// keyboard is up when only the safe area moved - iOS slides the view up for the box being typed
+        /// in and reports a different safe area; re-fitting to it would move the box behind the keyboard.
+        /// A rotation or a new screen still re-fits.
+        /// </summary>
+        private static bool Hold((int W, int H, float X, float Y, float SW, float SH, Type Screen) key)
+        {
+            if (_fitted == null)
+            {
+                return false;
+            }
+
+            if (Client.Game.InBackground)
+            {
+                return true;
+            }
+
+            var was = _fitted.Value;
+
+            return key.W == was.W && key.H == was.H && key.Screen == was.Screen && SDL3.SDL.SDL_TextInputActive(Client.Game.Window.Handle);
+        }
 
         /// <summary>The part of the 640x480 picture a screen needs (portrait leaves out its empty sides).</summary>
         private static Rectangle Content(Gump g, bool portrait)

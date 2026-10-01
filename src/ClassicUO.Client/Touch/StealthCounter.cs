@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
+using System;
+using System.Globalization;
 using ClassicUO.Game;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
@@ -24,8 +26,10 @@ namespace ClassicUO.Touch
         /// <summary>MessageManager.HandleMessage: true when the message was the counter (shown here instead).</summary>
         public static bool TryShow(World world, Entity parent, string text, ushort hue, MessageType type, byte font, bool unicode)
         {
-            if (type != MessageType.Label || parent == null || world?.Player == null || parent.Serial != world.Player.Serial ||
-                text == null || !text.StartsWith(Prefix) || !int.TryParse(text.Substring(Prefix.Length), out _))
+            // (touch only: a desktop client without it would never take the counter down; it gets the plain labels)
+            if (!TouchInput.Enabled || type != MessageType.Label || parent == null || world?.Player == null || parent.Serial != world.Player.Serial ||
+                text == null || !text.StartsWith(Prefix, StringComparison.Ordinal) ||
+                !int.TryParse(text.Substring(Prefix.Length), NumberStyles.None, CultureInfo.InvariantCulture, out _))
             {
                 return false;
             }
