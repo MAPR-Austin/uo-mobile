@@ -138,7 +138,9 @@ namespace ClassicUO.Touch
                     }
                     else
                     {
-                        break;
+                        // hands empty but out of step (a press while dragging, a relog): ask the
+                        // client's own arm/disarm to bring back whatever it remembers for that hand
+                        hand = _armHand;
                     }
 
                     _armHand = hand;

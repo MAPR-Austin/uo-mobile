@@ -184,6 +184,7 @@ namespace ClassicUO.Touch
             _program = null;
             _name = null;
             _loops.Clear();
+            _openBefore.Clear();
         }
 
         /// <summary>Checks a macro without running it. Returns null when it compiles.</summary>
