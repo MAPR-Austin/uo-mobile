@@ -52,8 +52,8 @@ namespace ClassicUO.Touch
                 ("Mine", new[] { "// Face a mountainside or stand in a cave with a pickaxe or shovel. Stops when the spot runs dry or you're heavy.", "clearjournal", "loop", "  if weight >= 95", "    print Too heavy: smelt or bank your ore.", "    stop", "  endif", "  if journal no metal here", "    print This spot is mined out: move and run it again.", "    stop", "  endif", "  if journal can't mine", "    print Face a mountainside or cave floor.", "    stop", "  endif", "  useitem " + Pickaxes, "  waitfortarget 2000", "  target ground front", "  wait 2000", "endloop" }),
                 ("Mine Here", new[] { "// Mines the cave floor you stand on.", "clearjournal", "loop", "  if weight >= 95", "    print Too heavy: smelt or bank your ore.", "    stop", "  endif", "  if journal no metal here", "    print This spot is mined out: move and run it again.", "    stop", "  endif", "  useitem " + Pickaxes, "  waitfortarget 2000", "  target ground here", "  wait 2000", "endloop" }),
                 ("Chop Wood", new[] { "// Stand next to a tree with an axe or hatchet.", "clearjournal", "loop", "  if weight >= 95", "    print Too heavy: drop off your logs.", "    stop", "  endif", "  if journal not enough wood", "    print This tree is done: move to another.", "    stop", "  endif", "  useitem " + Axes, "  waitfortarget 2000", "  target nearby tree 2", "  wait 5000", "endloop" }),
-                ("Fish", new[] { "// Stand within 4 tiles of water with a fishing pole.", "clearjournal", "loop", "  if weight >= 95", "    print Too heavy: drop off your fish.", "    stop", "  endif", "  if journal not seem to be biting", "    print The fish moved on: try another spot.", "    stop", "  endif", "  useitem " + FishingPoles, "  waitfortarget 2000", "  target nearby water 4", "  wait 9000", "endloop" }),
-                ("Smelt Ore", new[] { "// Stand next to a forge; smelts every pile of ore you carry.", "loop", "  if count " + Ore + " < 1", "    print All ore smelted.", "    stop", "  endif", "  useitem " + Ore, "  waitfortarget 2000", "  target nearby forge 2", "  wait 1200", "endloop" }),
+                ("Fish", new[] { "// Stand within 4 tiles of water with a fishing pole.", "clearjournal", "loop", "  if weight >= 95", "    print Too heavy: drop off your fish.", "    stop", "  endif", "  if journal seem to be biting", "    print The fish moved on: try another spot.", "    stop", "  endif", "  useitem " + FishingPoles, "  waitfortarget 2000", "  target nearby water 4", "  wait 9000", "endloop" }),
+                ("Smelt Ore", new[] { "// Stand next to a forge; smelts every pile of ore you carry.", "clearjournal", "loop", "  if count " + Ore + " < 1", "    print All ore smelted.", "    stop", "  endif", "  if journal not enough metal-bearing", "    print A pile is too small to smelt: combine it with another, then run this again.", "    stop", "  endif", "  if journal no idea how to smelt", "    print You can't smelt that ore yet: set it aside, then run this again.", "    stop", "  endif", "  useitem " + Ore, "  waitfortarget 2000", "  target nearby forge 2", "  wait 1200", "endloop" }),
             }),
             ("Craft", new[]
             {
@@ -125,6 +125,20 @@ namespace ClassicUO.Touch
                 "  endif",
                 "  gumpbutton 21",
                 "  waitforgump 8000",
+                "  wait 300",
+                "  if gumptext haven't made",
+                "    print Make the item once from the menu first.",
+                "    stop",
+                "  elseif gumptext not have",
+                "    print Out of materials.",
+                "    stop",
+                "  elseif gumptext don't have",
+                "    print Your skill is too low for that item.",
+                "    stop",
+                "  elseif gumptext must be near",
+                "    print Stand next to the station this craft needs.",
+                "    stop",
+                "  endif",
                 "endloop"
             });
 

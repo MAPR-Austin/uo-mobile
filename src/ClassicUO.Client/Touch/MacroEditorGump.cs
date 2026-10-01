@@ -26,7 +26,7 @@ namespace ClassicUO.Touch
         private const int ID_SCROLL_UP = 6, ID_SCROLL_DOWN = 7, ID_LINE_UP = 8, ID_LINE_DOWN = 9, ID_LINE_DELETE = 10, ID_LINE_APPLY = 11;
         private const int ID_SAVE = 12, ID_RUN = 13, ID_CLOSE = 14, ID_ADD_TO_BAR = 15;
         private const int ID_MODE = 16, ID_PAGE_PREV = 17, ID_PAGE_NEXT = 18;
-        private const int ID_CATEGORY = 50, ID_ROW = 100, ID_TEMPLATE = 200;
+        private const int ID_CATEGORY = 50, ID_ROW = 1000, ID_TEMPLATE = 10000; // rows up to 9000 lines, no overlap
 
         // right-hand panel: two rows of tabs, then the list
         private const int PANEL_X = 318, TAB_W = 76, LIST_Y = 102, LIST_ROWS = 8;

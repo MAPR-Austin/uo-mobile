@@ -42,6 +42,7 @@ namespace ClassicUO.Touch
     internal static class MobileActions
     {
         private static MacroSubType _armHand = MacroSubType.RightHand; // the hand arm_disarm last emptied
+        private static bool _armStashed; // arm_disarm put a weapon away and hasn't brought it back
 
         public static void Run(World world, string action)
         {
@@ -110,21 +111,38 @@ namespace ClassicUO.Touch
 
                 // UOR wrestling moves: each request toggles the move on the server (the client's
                 // ability helper tracks its own toggle and can send the wrong one on a second press).
-                case "stun": NetClient.Socket.Send_StunRequest(); break;
-                case "disarm": NetClient.Socket.Send_DisarmRequest(); break;
+                // ClassicUO's names are swapped against the packets: Send_StunRequest writes 0xBF/0x09,
+                // which ServUO (and OSI) handle as the disarm request, and Send_DisarmRequest writes 0x0A,
+                // the stun request.
+                case "stun": NetClient.Socket.Send_DisarmRequest(); break;
+                case "disarm": NetClient.Socket.Send_StunRequest(); break;
 
                 case "arm_disarm": // weapon to the pack (to drink, cast or bandage) / back in hand
                 {
+                    MacroSubType hand;
+
                     if (world.Player.FindItemByLayer(Layer.OneHanded) != null)
                     {
-                        _armHand = MacroSubType.RightHand;
+                        hand = MacroSubType.RightHand; // a one-hander goes, a shield stays
+                        _armStashed = true;
+                    }
+                    else if (_armStashed)
+                    {
+                        hand = _armHand; // the weapon put away last comes back
+                        _armStashed = false;
                     }
                     else if (world.Player.FindItemByLayer(Layer.TwoHanded) != null)
                     {
-                        _armHand = MacroSubType.LeftHand;
+                        hand = MacroSubType.LeftHand; // a two-hander
+                        _armStashed = true;
+                    }
+                    else
+                    {
+                        break;
                     }
 
-                    Macro(world, O(MacroType.ArmDisarm, _armHand));
+                    _armHand = hand;
+                    Macro(world, O(MacroType.ArmDisarm, hand));
 
                     break;
                 }

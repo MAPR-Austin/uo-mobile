@@ -43,7 +43,8 @@ namespace ClassicUO.Touch
     /// Conditions: hp|mana|stam|targethp|weight  &lt;|&gt;|&lt;=|&gt;=|= N   (percent),
     ///             poisoned, hidden, war, targeting, dead, targetalive, gump (a server menu is open),
     ///             targetrange &lt;= N (tiles), count GRAPHIC[,GRAPHIC...] &gt;= N (items in pack),
-    ///             journal TEXT (a message containing TEXT arrived since the macro started);
+    ///             journal TEXT (a message containing TEXT arrived since the macro started),
+    ///             gumptext TEXT (the macro's server menu shows TEXT, e.g. a craft menu notice);
     ///             prefix "not " to negate.
     /// Graphics are hex (0x0E21) or decimal.
     /// </summary>
@@ -110,6 +111,7 @@ namespace ClassicUO.Touch
         private static uint _targetDeadline;
         private static uint _gumpDeadline;
         private static DateTime _journalSince;
+        private static readonly HashSet<Gump> _openBefore = new HashSet<Gump>(); // server menus open when the macro started
         private static readonly Stack<(int Loop, int Remaining)> _loops = new Stack<(int, int)>();
 
         public static MobileMacroSet Macros { get; private set; }
@@ -166,6 +168,15 @@ namespace ClassicUO.Touch
             _gumpDeadline = 0;
             _journalSince = DateTime.Now;
             _loops.Clear();
+            _openBefore.Clear();
+
+            foreach (Gump g in UIManager.Gumps)
+            {
+                if (IsServerMenu(g))
+                {
+                    _openBefore.Add(g);
+                }
+            }
         }
 
         public static void Stop()
@@ -620,11 +631,19 @@ namespace ClassicUO.Touch
         /// <summary>The land tile ahead of the player (or under them): a mountainside or a cave floor to mine.</summary>
         private static void TargetGround(World world, bool here)
         {
+            if (world.TargetManager.TargetingState == CursorTarget.Object)
+            {
+                GameActions.Print(world, "Macro: this cursor wants an object, not the ground.", 0x21);
+                world.TargetManager.CancelTarget();
+
+                return;
+            }
+
             PlayerMobile p = world.Player;
             (int dx, int dy) = here ? (0, 0) : Ahead[(int)(p.Direction & Direction.Mask)];
             int x = p.X + dx, y = p.Y + dy;
 
-            for (GameObject o = world.Map.GetTile(x, y); o != null; o = o.TNext)
+            for (GameObject o = world.Map.GetTile(x, y, false); o != null; o = o.TNext)
             {
                 if (o is Land land)
                 {
@@ -639,11 +658,14 @@ namespace ClassicUO.Touch
         }
 
         /// <summary>
-        /// The closest item, static or land tile within RANGE whose tiledata name contains NAME
-        /// ("tree", "water", "forge", "anvil", ...). Statics and items win ties over land.
+        /// The closest item, static or land tile within RANGE (at most 12) whose tiledata name
+        /// contains NAME ("tree", "water", "forge", "anvil", ...). A tile named exactly NAME wins
+        /// over one that only contains it (real water over a water trough), then items and statics
+        /// over land, then the closest.
         /// </summary>
         private static void TargetNearby(World world, string name, int range)
         {
+            range = Math.Clamp(range, 0, 12);
             PlayerMobile p = world.Player;
             GameObject best = null;
             int bestDistance = int.MaxValue, bestRank = int.MaxValue;
@@ -654,21 +676,30 @@ namespace ClassicUO.Touch
                 {
                     int distance = Math.Max(Math.Abs(dx), Math.Abs(dy));
 
-                    for (GameObject o = world.Map.GetTile(p.X + dx, p.Y + dy); o != null; o = o.TNext)
+                    for (GameObject o = world.Map.GetTile(p.X + dx, p.Y + dy, false); o != null; o = o.TNext)
                     {
                         string tileName;
                         int rank;
 
                         switch (o)
                         {
-                            case Item it when it.OnGround && !it.IsMulti: tileName = it.ItemData.Name; rank = 0; break;
-                            case Static st: tileName = st.Name; rank = 0; break;
-                            case Land land: tileName = land.TileData.Name; rank = 1; break;
+                            case Item it when it.OnGround && !it.IsMulti: tileName = it.ItemData.Name; rank = 1; break;
+                            case Static st: tileName = st.Name; rank = 1; break;
+                            case Land land: tileName = land.TileData.Name; rank = 2; break;
                             default: continue;
                         }
 
-                        if (tileName != null && tileName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0 &&
-                            (distance < bestDistance || (distance == bestDistance && rank < bestRank)))
+                        if (tileName == null || tileName.IndexOf(name, StringComparison.OrdinalIgnoreCase) < 0)
+                        {
+                            continue;
+                        }
+
+                        if (tileName.Trim().Equals(name, StringComparison.OrdinalIgnoreCase))
+                        {
+                            rank = 0;
+                        }
+
+                        if (rank < bestRank || (rank == bestRank && distance < bestDistance))
                         {
                             best = o;
                             bestDistance = distance;
@@ -693,18 +724,53 @@ namespace ClassicUO.Touch
             }
         }
 
-        /// <summary>The server menu (gump) on top, if any: a craft menu, a vendor list, a house sign...</summary>
+        private static bool IsServerMenu(Gump g) => !g.IsDisposed && g.GetType() == typeof(Gump) && g.LocalSerial != 0 && g.ServerSerial != 0;
+
+        /// <summary>
+        /// The server menu (gump) on top that this macro's run brought up: a craft menu, a vendor
+        /// list... Menus already open when the macro started (a house sign, a bulletin board) are
+        /// not its menus, so a craft loop never presses buttons on them.
+        /// </summary>
         private static Gump NewestServerGump()
         {
             foreach (Gump g in UIManager.Gumps)
             {
-                if (!g.IsDisposed && g.GetType() == typeof(Gump) && g.LocalSerial != 0 && g.ServerSerial != 0)
+                if (IsServerMenu(g) && !_openBefore.Contains(g))
                 {
                     return g;
                 }
             }
 
             return null;
+        }
+
+        /// <summary>The macro's server menu shows TEXT (its labels and HTML: a craft notice, a price...).</summary>
+        private static bool MenuSays(string text)
+        {
+            Gump menu = NewestServerGump();
+
+            if (menu == null)
+            {
+                return false;
+            }
+
+            foreach (Game.UI.Controls.HtmlControl html in menu.FindControls<Game.UI.Controls.HtmlControl>())
+            {
+                if (html.Text != null && html.Text.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            foreach (Game.UI.Controls.Label label in menu.FindControls<Game.UI.Controls.Label>())
+            {
+                if (label.Text != null && label.Text.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool JournalSays(string text)
@@ -755,6 +821,9 @@ namespace ClassicUO.Touch
                 case "journal":
                     return args.Length > i + 1 ? null : "'journal' needs the text to look for, e.g. 'journal no metal here'";
 
+                case "gumptext":
+                    return args.Length > i + 1 ? null : "'gumptext' needs the text to look for, e.g. 'gumptext haven't made'";
+
                 case "hp": case "mana": case "stam": case "targethp": case "targetrange": case "weight":
                     return args.Length >= i + 3 && Array.IndexOf(Comparators, args[i + 1]) >= 0 && int.TryParse(args[i + 2], out _)
                         ? null
@@ -789,6 +858,7 @@ namespace ClassicUO.Touch
                 case "targetalive": result = target != null && !target.IsDead && !target.IsDestroyed; break;
                 case "gump": result = NewestServerGump() != null; break;
                 case "journal": result = JournalSays(string.Join(" ", args, i + 1, args.Length - i - 1)); break;
+                case "gumptext": result = MenuSays(string.Join(" ", args, i + 1, args.Length - i - 1)); break;
                 case "weight": result = Compare(Percent(p.Weight, p.WeightMax), args[i + 1], args[i + 2]); break;
                 case "hp": result = Compare(Percent(p.Hits, p.HitsMax), args[i + 1], args[i + 2]); break;
                 case "mana": result = Compare(Percent(p.Mana, p.ManaMax), args[i + 1], args[i + 2]); break;
