@@ -11,7 +11,13 @@ namespace ClassicUO.Configuration
 {
     internal static class ConfigurationResolver
     {
-        public static T Load<T>(string file, JsonTypeInfo<T> ctx) where T : class
+        /// <param name="escapeBackslashes">
+        /// Doubles lone backslashes first, so hand-edited profiles with Windows paths still parse.
+        /// Pass false for files only this client writes: the rewrite turns the serializer's own
+        /// escapes (backslash-u003C for &lt;, backslash-u0027 for ') into literal text, so a saved
+        /// "hp &lt; 70" came back as "hp < 70". Files already saved that way are repaired.
+        /// </param>
+        public static T Load<T>(string file, JsonTypeInfo<T> ctx, bool escapeBackslashes = true) where T : class
         {
             if (!File.Exists(file))
             {
@@ -22,15 +28,24 @@ namespace ClassicUO.Configuration
 
             var text = File.ReadAllText(file);
 
-            text = Regex.Replace
-            (
-                text,
-                @"(?<!\\)  # lookbehind: Check that previous character isn't a \
-                                                \\         # match a \
-                                                (?!\\)     # lookahead: Check that the following character isn't a \",
-                @"\\",
-                RegexOptions.IgnorePatternWhitespace
-            );
+            if (!escapeBackslashes)
+            {
+                // undo the old rewrite: an escaped backslash before uXXXX (a literal "<" in the
+                // string) becomes the escape it should have stayed
+                text = Regex.Replace(text, @"(?<!\\)\\\\u([0-9A-Fa-f]{4})", @"\u$1");
+            }
+            else
+            {
+                text = Regex.Replace
+                (
+                    text,
+                    @"(?<!\\)  # lookbehind: Check that previous character isn't a \
+                                                    \\         # match a \
+                                                    (?!\\)     # lookahead: Check that the following character isn't a \",
+                    @"\\",
+                    RegexOptions.IgnorePatternWhitespace
+                );
+            }
 
             try
             {

@@ -83,7 +83,7 @@ namespace ClassicUO.Touch
 
             if (File.Exists(FilePath))
             {
-                set = ConfigurationResolver.Load(FilePath, MobileJsonContext.Default.ActionLayoutSet);
+                set = ConfigurationResolver.Load(FilePath, MobileJsonContext.Default.ActionLayoutSet, escapeBackslashes: false);
             }
 
             // Valid JSON can still hold nulls ("layouts": [null], "buttons": null); drop them

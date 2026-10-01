@@ -7,6 +7,7 @@ using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Gumps;
+using ClassicUO.Network;
 using ClassicUO.Utility;
 
 namespace ClassicUO.Touch
@@ -25,6 +26,8 @@ namespace ClassicUO.Touch
     ///   cancel_target    cancel an open target cursor
     ///   healthbar_target pull a health bar for the selected target
     ///   war_peace, all_names, bandage_self, bandage_target, last_spell, last_object
+    ///   stun, disarm     toggle the UOR wrestling stun punch / disarm (empty hands)
+    ///   arm_disarm       weapon to the pack / back in hand (to drink, cast or bandage)
     ///   spell:Name       cast (cursor stays up for a tap)
     ///   spell_lt:Name    cast, wait for cursor, target last target
     ///   spell_self:Name  cast, wait for cursor, target self
@@ -38,6 +41,8 @@ namespace ClassicUO.Touch
     /// </summary>
     internal static class MobileActions
     {
+        private static MacroSubType _armHand = MacroSubType.RightHand; // the hand arm_disarm last emptied
+
         public static void Run(World world, string action)
         {
             if (world == null || !world.InGame || string.IsNullOrEmpty(action))
@@ -102,6 +107,27 @@ namespace ClassicUO.Touch
                 case "bandage_target": Macro(world, O(MacroType.BandageTarget)); break;
                 case "last_spell": Macro(world, O(MacroType.LastSpell)); break;
                 case "last_object": Macro(world, O(MacroType.LastObject)); break;
+
+                // UOR wrestling moves: each request toggles the move on the server (the client's
+                // ability helper tracks its own toggle and can send the wrong one on a second press).
+                case "stun": NetClient.Socket.Send_StunRequest(); break;
+                case "disarm": NetClient.Socket.Send_DisarmRequest(); break;
+
+                case "arm_disarm": // weapon to the pack (to drink, cast or bandage) / back in hand
+                {
+                    if (world.Player.FindItemByLayer(Layer.OneHanded) != null)
+                    {
+                        _armHand = MacroSubType.RightHand;
+                    }
+                    else if (world.Player.FindItemByLayer(Layer.TwoHanded) != null)
+                    {
+                        _armHand = MacroSubType.LeftHand;
+                    }
+
+                    Macro(world, O(MacroType.ArmDisarm, _armHand));
+
+                    break;
+                }
 
                 case "cancel_target":
                     if (world.TargetManager.IsTargeting)

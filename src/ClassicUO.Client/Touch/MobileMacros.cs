@@ -10,6 +10,7 @@ using ClassicUO.Game;
 using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
+using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Utility;
 
 namespace ClassicUO.Touch
@@ -25,16 +26,24 @@ namespace ClassicUO.Touch
     ///   wait MS
     ///   waitfortarget [MS]        wait until a target cursor is up (default 3000 ms)
     ///   target self|last|nearest|next|item GRAPHIC      answer the target cursor
+    ///   target ground [front|here]   the ground ahead of you (or under you): mining
+    ///   target nearby NAME [RANGE]   the closest thing whose name has NAME, within RANGE tiles
+    ///                                (default 2): a tree, water, a forge, an anvil...
     ///   settarget nearest|next    choose the last target without a cursor
-    ///   useitem GRAPHIC [HUE]     double-click the first matching item in the backpack
+    ///   useitem GRAPHIC[,GRAPHIC...] [HUE]   double-click the first match in the pack or in hand
     ///   attack last|nearest
+    ///   waitforgump [MS]          wait until a server menu is open (default 3000 ms)
+    ///   gumpbutton ID             press button ID on the newest server menu (21 = craft Make Last, 0 = close)
+    ///   print TEXT                a message only you see
+    ///   clearjournal              forget what the journal said so far (for "if journal")
     ///   if COND / elseif COND / else / endif
     ///   loop [N]  ...  endloop    N times, or until the macro is stopped
     ///   stop
     ///
-    /// Conditions: hp|mana|stam|targethp  &lt;|&gt;|&lt;=|&gt;=|= N   (percent),
-    ///             poisoned, hidden, war, targeting, dead, targetalive,
-    ///             targetrange &lt;= N (tiles), count GRAPHIC &gt;= N (items in pack);
+    /// Conditions: hp|mana|stam|targethp|weight  &lt;|&gt;|&lt;=|&gt;=|= N   (percent),
+    ///             poisoned, hidden, war, targeting, dead, targetalive, gump (a server menu is open),
+    ///             targetrange &lt;= N (tiles), count GRAPHIC[,GRAPHIC...] &gt;= N (items in pack),
+    ///             journal TEXT (a message containing TEXT arrived since the macro started);
     ///             prefix "not " to negate.
     /// Graphics are hex (0x0E21) or decimal.
     /// </summary>
@@ -55,7 +64,7 @@ namespace ClassicUO.Touch
 
         public static MobileMacroSet Load()
         {
-            MobileMacroSet set = File.Exists(FilePath) ? ConfigurationResolver.Load(FilePath, MobileMacroJsonContext.Default.MobileMacroSet) : null;
+            MobileMacroSet set = File.Exists(FilePath) ? ConfigurationResolver.Load(FilePath, MobileMacroJsonContext.Default.MobileMacroSet, escapeBackslashes: false) : null;
 
             return set ?? CreateDefault();
         }
@@ -99,6 +108,8 @@ namespace ClassicUO.Touch
         private static int _pc;
         private static uint _waitUntil;
         private static uint _targetDeadline;
+        private static uint _gumpDeadline;
+        private static DateTime _journalSince;
         private static readonly Stack<(int Loop, int Remaining)> _loops = new Stack<(int, int)>();
 
         public static MobileMacroSet Macros { get; private set; }
@@ -152,6 +163,8 @@ namespace ClassicUO.Touch
             _pc = 0;
             _waitUntil = 0;
             _targetDeadline = 0;
+            _gumpDeadline = 0;
+            _journalSince = DateTime.Now;
             _loops.Clear();
         }
 
@@ -230,6 +243,7 @@ namespace ClassicUO.Touch
 
                     case "action": case "cast": case "skill": case "say": case "wait": case "waitfortarget":
                     case "target": case "settarget": case "useitem": case "attack": case "stop":
+                    case "waitforgump": case "gumpbutton": case "print": case "clearjournal":
                         break;
 
                     default:
@@ -304,6 +318,18 @@ namespace ClassicUO.Touch
                     if (world.TargetManager.IsTargeting || Time.Ticks >= _targetDeadline)
                     {
                         _targetDeadline = 0;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
+                if (_gumpDeadline != 0)
+                {
+                    if (NewestServerGump() != null || Time.Ticks >= _gumpDeadline)
+                    {
+                        _gumpDeadline = 0;
                     }
                     else
                     {
@@ -399,16 +425,50 @@ namespace ClassicUO.Touch
                     break;
 
                 case "useitem":
-                    Item item = FindInPack(world, Graphic(s.Args, 0), s.Args.Length > 1 ? Graphic(s.Args, 1) : (ushort)0xFFFF);
+                    Item item = FindUsable(world, Graphics(s.Args, 0), s.Args.Length > 1 ? Graphic(s.Args, 1) : (ushort)0xFFFF);
 
-                    if (item != null)
+                    if (item == null)
                     {
-                        GameActions.DoubleClick(world, item.Serial);
+                        // out of potions, bandages, ore or the tool broke: a loop can't go on without it
+                        GameActions.Print(world, $"Macro '{_name}' stopped: no {arg} in your pack or hands.", 0x21);
+                        Stop();
+
+                        return false;
+                    }
+
+                    GameActions.DoubleClick(world, item.Serial);
+
+                    break;
+
+                case "waitforgump":
+                    if (NewestServerGump() == null)
+                    {
+                        _gumpDeadline = Time.Ticks + (uint)Math.Max(1, Int(s.Args, 0, 3000));
+                    }
+
+                    break;
+
+                case "gumpbutton":
+                    Gump menu = NewestServerGump();
+
+                    if (menu != null)
+                    {
+                        menu.OnButtonClick(Int(s.Args, 0, 0)); // replies with the menu's checkboxes and text, then closes it
                     }
                     else
                     {
-                        GameActions.Print(world, $"Macro: no {arg} in your pack.", 0x21);
+                        GameActions.Print(world, "Macro: no menu is open.", 0x21);
                     }
+
+                    break;
+
+                case "print":
+                    GameActions.Print(world, arg, 0x35);
+
+                    break;
+
+                case "clearjournal":
+                    _journalSince = DateTime.Now;
 
                     break;
 
@@ -539,7 +599,134 @@ namespace ClassicUO.Touch
                     }
 
                     break;
+
+                case "ground":
+                    TargetGround(world, args.Length > 1 && args[1].Equals("here", StringComparison.OrdinalIgnoreCase));
+
+                    break;
+
+                case "nearby":
+                    if (args.Length > 1)
+                    {
+                        TargetNearby(world, args[1], Int(args, 2, 2));
+                    }
+
+                    break;
             }
+        }
+
+        private static readonly (int X, int Y)[] Ahead = { (0, -1), (1, -1), (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1) };
+
+        /// <summary>The land tile ahead of the player (or under them): a mountainside or a cave floor to mine.</summary>
+        private static void TargetGround(World world, bool here)
+        {
+            PlayerMobile p = world.Player;
+            (int dx, int dy) = here ? (0, 0) : Ahead[(int)(p.Direction & Direction.Mask)];
+            int x = p.X + dx, y = p.Y + dy;
+
+            for (GameObject o = world.Map.GetTile(x, y); o != null; o = o.TNext)
+            {
+                if (o is Land land)
+                {
+                    world.TargetManager.Target(0, (ushort)x, (ushort)y, land.Z, land.TileData.IsWet);
+
+                    return;
+                }
+            }
+
+            GameActions.Print(world, "Macro: no ground there.", 0x21);
+            world.TargetManager.CancelTarget();
+        }
+
+        /// <summary>
+        /// The closest item, static or land tile within RANGE whose tiledata name contains NAME
+        /// ("tree", "water", "forge", "anvil", ...). Statics and items win ties over land.
+        /// </summary>
+        private static void TargetNearby(World world, string name, int range)
+        {
+            PlayerMobile p = world.Player;
+            GameObject best = null;
+            int bestDistance = int.MaxValue, bestRank = int.MaxValue;
+
+            for (int dy = -range; dy <= range; dy++)
+            {
+                for (int dx = -range; dx <= range; dx++)
+                {
+                    int distance = Math.Max(Math.Abs(dx), Math.Abs(dy));
+
+                    for (GameObject o = world.Map.GetTile(p.X + dx, p.Y + dy); o != null; o = o.TNext)
+                    {
+                        string tileName;
+                        int rank;
+
+                        switch (o)
+                        {
+                            case Item it when it.OnGround && !it.IsMulti: tileName = it.ItemData.Name; rank = 0; break;
+                            case Static st: tileName = st.Name; rank = 0; break;
+                            case Land land: tileName = land.TileData.Name; rank = 1; break;
+                            default: continue;
+                        }
+
+                        if (tileName != null && tileName.IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0 &&
+                            (distance < bestDistance || (distance == bestDistance && rank < bestRank)))
+                        {
+                            best = o;
+                            bestDistance = distance;
+                            bestRank = rank;
+                        }
+                    }
+                }
+            }
+
+            TargetManager tm = world.TargetManager;
+
+            switch (best)
+            {
+                case Item it: tm.Target(it.Serial); break;
+                case Land land: tm.Target(0, (ushort)land.X, (ushort)land.Y, land.Z, land.TileData.IsWet); break;
+                case Static st: tm.Target(st.Graphic, (ushort)st.X, (ushort)st.Y, st.Z); break;
+                default:
+                    GameActions.Print(world, $"Macro: no {name} within {range} tiles.", 0x21);
+                    tm.CancelTarget();
+
+                    break;
+            }
+        }
+
+        /// <summary>The server menu (gump) on top, if any: a craft menu, a vendor list, a house sign...</summary>
+        private static Gump NewestServerGump()
+        {
+            foreach (Gump g in UIManager.Gumps)
+            {
+                if (!g.IsDisposed && g.GetType() == typeof(Gump) && g.LocalSerial != 0 && g.ServerSerial != 0)
+                {
+                    return g;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool JournalSays(string text)
+        {
+            var entries = JournalManager.Entries;
+
+            for (int i = entries.Count - 1; i >= 0; i--)
+            {
+                JournalEntry e = entries[i];
+
+                if (e == null || e.Time < _journalSince)
+                {
+                    break;
+                }
+
+                if (e.Text != null && e.Text.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         // ---------- conditions ----------
@@ -562,10 +749,13 @@ namespace ClassicUO.Touch
 
             switch (args[i].ToLowerInvariant())
             {
-                case "poisoned": case "hidden": case "war": case "targeting": case "dead": case "targetalive":
+                case "poisoned": case "hidden": case "war": case "targeting": case "dead": case "targetalive": case "gump":
                     return null;
 
-                case "hp": case "mana": case "stam": case "targethp": case "targetrange":
+                case "journal":
+                    return args.Length > i + 1 ? null : "'journal' needs the text to look for, e.g. 'journal no metal here'";
+
+                case "hp": case "mana": case "stam": case "targethp": case "targetrange": case "weight":
                     return args.Length >= i + 3 && Array.IndexOf(Comparators, args[i + 1]) >= 0 && int.TryParse(args[i + 2], out _)
                         ? null
                         : $"'{args[i]}' needs a comparison, e.g. '{args[i]} < 50'";
@@ -597,12 +787,15 @@ namespace ClassicUO.Touch
                 case "targeting": result = tm.IsTargeting; break;
                 case "dead": result = p.IsDead; break;
                 case "targetalive": result = target != null && !target.IsDead && !target.IsDestroyed; break;
+                case "gump": result = NewestServerGump() != null; break;
+                case "journal": result = JournalSays(string.Join(" ", args, i + 1, args.Length - i - 1)); break;
+                case "weight": result = Compare(Percent(p.Weight, p.WeightMax), args[i + 1], args[i + 2]); break;
                 case "hp": result = Compare(Percent(p.Hits, p.HitsMax), args[i + 1], args[i + 2]); break;
                 case "mana": result = Compare(Percent(p.Mana, p.ManaMax), args[i + 1], args[i + 2]); break;
                 case "stam": result = Compare(Percent(p.Stamina, p.StaminaMax), args[i + 1], args[i + 2]); break;
                 case "targethp": result = target != null && Compare(Percent(target.Hits, target.HitsMax), args[i + 1], args[i + 2]); break;
                 case "targetrange": result = target != null && Compare(target.Distance, args[i + 1], args[i + 2]); break;
-                case "count": result = Compare(CountInPack(world, Graphic(args, i + 1)), args[i + 2], args[i + 3]); break;
+                case "count": result = Compare(CountInPack(world, Graphics(args, i + 1)), args[i + 2], args[i + 3]); break;
                 default: result = false; break;
             }
 
@@ -641,6 +834,25 @@ namespace ClassicUO.Touch
                 : ushort.Parse(s, CultureInfo.InvariantCulture);
         }
 
+        /// <summary>One graphic or several separated by commas: "0x0E86,0x0E85,0x0F39".</summary>
+        private static ushort[] Graphics(string[] args, int index)
+        {
+            if (index >= args.Length)
+            {
+                throw new FormatException("missing item graphic");
+            }
+
+            string[] parts = args[index].Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var list = new ushort[parts.Length];
+
+            for (int i = 0; i < parts.Length; i++)
+            {
+                list[i] = Graphic(parts, i);
+            }
+
+            return list;
+        }
+
         private static int Int(string[] args, int index, int fallback) =>
             index < args.Length && int.TryParse(args[index], NumberStyles.Integer, CultureInfo.InvariantCulture, out int v) ? v : fallback;
 
@@ -648,11 +860,46 @@ namespace ClassicUO.Touch
 
         private static Item FindInPack(World world, ushort graphic, ushort hue) => Backpack(world)?.FindItem(graphic, hue);
 
-        private static int CountInPack(World world, ushort graphic)
+        /// <summary>The first of the graphics found in the pack (any depth), else held in a hand: a tool or a weapon.</summary>
+        private static Item FindUsable(World world, ushort[] graphics, ushort hue)
+        {
+            foreach (ushort g in graphics)
+            {
+                Item found = FindInPack(world, g, hue);
+
+                if (found != null)
+                {
+                    return found;
+                }
+            }
+
+            foreach (Layer hand in new[] { Layer.OneHanded, Layer.TwoHanded })
+            {
+                Item held = world.Player.FindItemByLayer(hand);
+
+                if (held != null && Array.IndexOf(graphics, held.Graphic) >= 0 && (hue == 0xFFFF || held.Hue == hue))
+                {
+                    return held;
+                }
+            }
+
+            return null;
+        }
+
+        private static int CountInPack(World world, ushort[] graphics)
         {
             Item pack = Backpack(world);
+            int total = 0;
 
-            return pack == null ? 0 : Count(pack, graphic);
+            if (pack != null)
+            {
+                foreach (ushort g in graphics)
+                {
+                    total += Count(pack, g);
+                }
+            }
+
+            return total;
         }
 
         private static int Count(Item container, ushort graphic)

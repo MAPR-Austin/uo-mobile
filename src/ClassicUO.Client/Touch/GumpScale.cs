@@ -108,7 +108,7 @@ namespace ClassicUO.Touch
             {
                 if (path != null && File.Exists(path))
                 {
-                    _scales = ConfigurationResolver.Load(path, MobileJsonContext.Default.DictionaryStringSingle);
+                    _scales = ConfigurationResolver.Load(path, MobileJsonContext.Default.DictionaryStringSingle, escapeBackslashes: false);
                 }
             }
             catch (Exception e)

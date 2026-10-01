@@ -25,22 +25,29 @@ namespace ClassicUO.Touch
         private const int ID_PREV_MACRO = 1, ID_NEXT_MACRO = 2, ID_NEW = 3, ID_DELETE_MACRO = 4, ID_RENAME = 5;
         private const int ID_SCROLL_UP = 6, ID_SCROLL_DOWN = 7, ID_LINE_UP = 8, ID_LINE_DOWN = 9, ID_LINE_DELETE = 10, ID_LINE_APPLY = 11;
         private const int ID_SAVE = 12, ID_RUN = 13, ID_CLOSE = 14, ID_ADD_TO_BAR = 15;
+        private const int ID_MODE = 16, ID_PAGE_PREV = 17, ID_PAGE_NEXT = 18;
         private const int ID_CATEGORY = 50, ID_ROW = 100, ID_TEMPLATE = 200;
+
+        // right-hand panel: two rows of tabs, then the list
+        private const int PANEL_X = 318, TAB_W = 76, LIST_Y = 102, LIST_ROWS = 8;
 
         private static readonly (string Name, string[] Lines)[] Templates =
         {
             ("Flow", new[] { "if hp < 50", "if mana < 30", "if poisoned", "if not hidden", "if targethp < 30", "if targetrange <= 1", "if not targetalive", "if count 0x0E21 < 5", "elseif hp < 70", "else", "endif", "loop", "loop 3", "endloop", "wait 500", "wait 1000", "waitfortarget 3000", "stop" }),
-            ("Target", new[] { "target last", "target self", "target nearest", "target next", "settarget nearest", "settarget next", "attack nearest", "attack last", "action healthbar_target", "action cancel_target" }),
-            ("Spells", new[] { "cast MagicArrow", "cast Harm", "cast Fireball", "cast Lightning", "cast MindBlast", "cast EnergyBolt", "cast Explosion", "cast FlameStrike", "cast Paralyze", "cast Poison", "cast Curse", "cast Heal", "cast GreaterHeal", "cast Cure", "cast ArchCure", "cast MagicReflection", "cast Teleport", "cast Recall", "cast Invisibility", "cast Dispel" }),
-            ("Items/Skills", new[] { "useitem 0x0E21", "useitem 0x0F0C", "useitem 0x0F07", "useitem 0x0F0B", "useitem 0x0F09", "action bandage_self", "action bandage_target", "skill Hiding", "skill Stealth", "skill Meditation", "skill DetectingHidden", "skill Anatomy", "skill EvaluatingIntelligence" }),
-            ("Actions", new[] { "action attack_nearest", "action target_next", "action war_peace", "action last_spell", "action last_object", "action all_names", "action open:Backpack", "action open:Paperdoll", "action open:Skills", "action layout_next", "say Guards!", "say I will aid thee" }),
+            ("Target", new[] { "target last", "target self", "target nearest", "target next", "settarget nearest", "settarget next", "attack nearest", "attack last", "target ground front", "target ground here", "target nearby tree 2", "target nearby water 4", "target nearby forge 2", "action healthbar_target", "action cancel_target" }),
+            ("Spells", new[] { "cast MagicArrow", "cast Harm", "cast Fireball", "cast Lightning", "cast MindBlast", "cast EnergyBolt", "cast Explosion", "cast FlameStrike", "cast Paralyze", "cast Poison", "cast Curse", "cast Heal", "cast GreaterHeal", "cast Cure", "cast ArchCure", "cast MagicReflection", "cast ReactiveArmor", "cast Bless", "cast Teleport", "cast Recall", "cast GateTravel", "cast Mark", "cast Invisibility", "cast Dispel" }),
+            ("Items", new[] { "useitem 0x0E21", "useitem 0x0F0C", "useitem 0x0F07", "useitem 0x0F0B", "useitem 0x0F09", "useitem 0x0F08", "useitem 0x0F0D", "action bandage_self", "action bandage_target", "action arm_disarm", "skill Hiding", "skill Stealth", "skill Meditation", "skill DetectingHidden", "skill Anatomy", "skill EvaluatingIntelligence" }),
+            ("Actions", new[] { "action attack_nearest", "action target_next", "action war_peace", "action stun", "action disarm", "action last_spell", "action last_object", "action all_names", "action open:Backpack", "action open:Paperdoll", "action open:Skills", "action layout_next" }),
+            ("Speech", new[] { "say I wish to lock this down", "say I wish to release this", "say I wish to secure this", "say I ban thee", "say Remove thyself", "say bank", "say balance", "say vendor buy", "say vendor sell", "say guards", "say stable", "say claim", "say all kill", "say all follow me", "say all guard me", "say all come", "say all stay", "say all stop" }),
+            ("Menus", new[] { "waitforgump 3000", "gumpbutton 21", "gumpbutton 0", "if gump", "if not gump", "if weight >= 95", "if journal no metal here", "clearjournal", "print Done!" }),
         };
 
         private readonly List<Control> _dynamic = new List<Control>();
         private readonly StbTextBox _nameBox, _lineBox;
         private readonly Label _status;
         private MobileMacroSet _set;
-        private int _macro, _selected = -1, _scroll, _category;
+        private int _macro, _selected = -1, _scroll, _category, _page;
+        private bool _presets; // the right-hand panel lists ready-made macros instead of steps
 
         private MacroEditorGump(World world) : base(world, 0, 0)
         {
@@ -158,18 +165,35 @@ namespace ClassicUO.Touch
                 }
             }
 
-            // template categories + templates
-            for (int c = 0; c < Templates.Length; c++)
+            // the Steps/Presets switch, the categories, then a page of steps or ready-made macros
+            AddDynamic(Btn(PANEL_X, 44, TAB_W - 2, 26, _presets ? "Steps" : "Presets", ID_MODE, 0x0044));
+
+            string[] tabs = CategoryNames();
+
+            for (int c = 0; c < tabs.Length; c++)
             {
-                AddDynamic(Btn(318 + c * 64, 44, 62, 26, Templates[c].Name, ID_CATEGORY + c, c == _category ? (ushort)0x0035 : (ushort)0xFFFF));
+                int slot = c + 1;
+                AddDynamic(Btn(PANEL_X + slot % 4 * TAB_W, 44 + slot / 4 * 28, TAB_W - 2, 26, tabs[c], ID_CATEGORY + c, c == _category ? (ushort)0x0035 : (ushort)0xFFFF));
             }
 
-            string[] lines = Templates[_category].Lines;
+            string[] items = CategoryItems();
+            int cols = Array.Exists(items, t => t.Length > 20) ? 1 : 2; // long phrases get the full width
+            int perPage = items.Length <= LIST_ROWS * cols ? LIST_ROWS * cols : (LIST_ROWS - 1) * cols;
+            int pages = Math.Max(1, (items.Length + perPage - 1) / perPage);
+            _page = Math.Clamp(_page, 0, pages - 1);
+            int colW = cols == 1 ? 312 : 154;
 
-            for (int i = 0; i < lines.Length; i++)
+            for (int i = _page * perPage, n = 0; i < items.Length && n < perPage; i++, n++)
             {
-                int col = i % 2, row = i / 2;
-                AddDynamic(Btn(318 + col * 158, 76 + row * 28, 154, 26, lines[i], ID_TEMPLATE + i));
+                AddDynamic(Btn(PANEL_X + n % cols * 158, LIST_Y + n / cols * 28, colW, 26, items[i], ID_TEMPLATE + i));
+            }
+
+            if (pages > 1)
+            {
+                int y = LIST_Y + (LIST_ROWS - 1) * 28;
+                AddDynamic(Btn(PANEL_X, y, 74, 26, "< Prev", ID_PAGE_PREV));
+                AddDynamic(new Label($"{_page + 1} / {pages}", true, 0x0481, 80, 1) { X = PANEL_X + 120, Y = y + 5 });
+                AddDynamic(Btn(PANEL_X + 238, y, 74, 26, "Next >", ID_PAGE_NEXT));
             }
 
             _lineBox.SetText(_selected >= 0 && _selected < m.Lines.Count ? m.Lines[_selected].Trim() : "");
@@ -185,6 +209,43 @@ namespace ClassicUO.Touch
             Add(c);
         }
 
+        private string[] CategoryNames() =>
+            _presets ? Array.ConvertAll(MobileMacroPresets.Library, c => c.Category) : Array.ConvertAll(Templates, c => c.Name);
+
+        private string[] CategoryItems()
+        {
+            if (!_presets)
+            {
+                return Templates[Math.Clamp(_category, 0, Templates.Length - 1)].Lines;
+            }
+
+            var macros = MobileMacroPresets.Library[Math.Clamp(_category, 0, MobileMacroPresets.Library.Length - 1)].Macros;
+
+            return Array.ConvertAll(macros, m => m.Name);
+        }
+
+        /// <summary>Adds a copy of a ready-made macro and shows it; its "//" note goes to the journal.</summary>
+        private void AddPreset(int index)
+        {
+            var macros = MobileMacroPresets.Library[Math.Clamp(_category, 0, MobileMacroPresets.Library.Length - 1)].Macros;
+
+            if (index < 0 || index >= macros.Length)
+            {
+                return;
+            }
+
+            (string name, string[] lines) = macros[index];
+            var copy = new MobileMacro { Name = UniqueName(name), Lines = new List<string>(lines) };
+            _set.Macros.Add(copy);
+            _set.Save();
+            _macro = _set.Macros.Count - 1;
+            _selected = -1;
+            _scroll = 0;
+
+            string note = lines.Length > 0 && lines[0].StartsWith("//") ? " - " + lines[0].Substring(2).Trim() : "";
+            GameActions.Print(World, $"Added '{copy.Name}'. Tap Run, or On Bar for a button{note}", 0x35);
+        }
+
         private static string FirstWord(string line)
         {
             line = (line ?? "").Trim();
@@ -197,9 +258,17 @@ namespace ClassicUO.Touch
         {
             MobileMacro m = Current;
 
+            if (buttonID >= ID_TEMPLATE && _presets)
+            {
+                AddPreset(buttonID - ID_TEMPLATE);
+                Rebuild();
+
+                return;
+            }
+
             if (buttonID >= ID_TEMPLATE)
             {
-                string[] lines = Templates[_category].Lines;
+                string[] lines = CategoryItems();
                 int t = buttonID - ID_TEMPLATE;
 
                 if (t < lines.Length)
@@ -231,6 +300,7 @@ namespace ClassicUO.Touch
             if (buttonID >= ID_CATEGORY)
             {
                 _category = buttonID - ID_CATEGORY;
+                _page = 0;
                 Rebuild();
 
                 return;
@@ -238,6 +308,23 @@ namespace ClassicUO.Touch
 
             switch (buttonID)
             {
+                case ID_MODE:
+                    _presets = !_presets;
+                    _category = 0;
+                    _page = 0;
+
+                    break;
+
+                case ID_PAGE_PREV:
+                    _page--;
+
+                    break;
+
+                case ID_PAGE_NEXT:
+                    _page++;
+
+                    break;
+
                 case ID_PREV_MACRO:
                 case ID_NEXT_MACRO:
                     _macro = (_macro + (buttonID == ID_NEXT_MACRO ? 1 : -1) + _set.Macros.Count) % _set.Macros.Count;
