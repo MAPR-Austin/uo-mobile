@@ -194,7 +194,7 @@ namespace ClassicUO.Touch
 
             int w = ScreenW, h = ScreenH;
 
-            if (w <= 0 || h <= 0)
+            if (w <= 0 || h <= 0 || LoginLayout.Active) // the login screens are placed by LoginLayout
             {
                 return;
             }
@@ -286,26 +286,45 @@ namespace ClassicUO.Touch
         {
             get
             {
-                Rectangle full = new Rectangle(0, 0, ScreenW, ScreenH);
+                (float x, float y, float w, float h) = SafeFractions();
 
-                if (!HasVirtualKeyboard) // phones/tablets only
-                {
-                    return full;
-                }
-
-                IntPtr window = Client.Game.Window.Handle;
-
-                if (!SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) || ww <= 0 || wh <= 0 ||
-                    !SDL3.SDL.SDL_GetWindowSafeArea(window, out SDL3.SDL.SDL_Rect r) || r.w <= 0 || r.h <= 0)
-                {
-                    return full;
-                }
-
-                float fx = ScreenW / (float)ww, fy = ScreenH / (float)wh;
-
-                return new Rectangle((int)(r.x * fx), (int)(r.y * fy), (int)(r.w * fx), (int)(r.h * fy));
+                return new Rectangle((int)(x * ScreenW), (int)(y * ScreenH), (int)(w * ScreenW), (int)(h * ScreenH));
             }
         }
+
+        /// <summary>
+        /// The safe area as shares (0..1) of the window: SDL's on phones, the whole window on desktop -
+        /// where UOM_SAFE_INSETS=iphone fakes an iPhone 15's notch and home indicator for testing.
+        /// </summary>
+        public static (float X, float Y, float W, float H) SafeFractions()
+        {
+            IntPtr window = Client.Game.Window.Handle;
+
+            if (!SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) || ww <= 0 || wh <= 0)
+            {
+                return (0f, 0f, 1f, 1f);
+            }
+
+            if (!HasVirtualKeyboard) // phones/tablets only
+            {
+                if (!FakeIphoneInsets)
+                {
+                    return (0f, 0f, 1f, 1f);
+                }
+
+                // iPhone 15, in points: portrait 390x844 with 47 above and 34 below; landscape 47 each side and 21 below
+                return wh > ww ? (0f, 47f / 844, 1f, (844f - 47 - 34) / 844) : (47f / 844, 0f, (844f - 94) / 844, (390f - 21) / 390);
+            }
+
+            if (!SDL3.SDL.SDL_GetWindowSafeArea(window, out SDL3.SDL.SDL_Rect r) || r.w <= 0 || r.h <= 0)
+            {
+                return (0f, 0f, 1f, 1f);
+            }
+
+            return (r.x / (float)ww, r.y / (float)wh, r.w / (float)ww, r.h / (float)wh);
+        }
+
+        private static readonly bool FakeIphoneInsets = Environment.GetEnvironmentVariable("UOM_SAFE_INSETS") == "iphone";
 
         public static Point FromLayout(float x, float y)
         {
@@ -854,6 +873,8 @@ namespace ClassicUO.Touch
             {
                 return;
             }
+
+            LoginLayout.Update();
 
             if (Client.Game.UO.World != null && Client.Game.UO.World.InGame)
             {

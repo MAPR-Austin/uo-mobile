@@ -40,6 +40,9 @@ namespace ClassicUO.Game.Scenes
     internal sealed class LoginScene : Scene
     {
         private Gump _currentGump;
+
+        /// <summary>The window for the current login step (UO Mobile: Touch/LoginLayout places it on a phone).</summary>
+        internal Gump CurrentGump => _currentGump;
         private LoginSteps _lastLoginStep;
         private uint _pingTime;
         private long _reconnectTime;

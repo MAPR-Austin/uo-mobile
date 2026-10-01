@@ -248,7 +248,9 @@ namespace ClassicUO
 
             float scale = Scene is GameScene && !_phoneWideUi
                 ? Math.Min(w, h) / (display * 480f)
-                : Math.Min(w / 640f, h / 480f) / display;
+                : LoginLayout.Active
+                    ? LoginLayout.FitScale(w, h, display) // the login screens' picture inside the safe area
+                    : Math.Min(w / 640f, h / 480f) / display;
 
             ScreenScale = Math.Clamp(scale, 0.25f, 8f);
             Log.Info($"[UOMobile] display scale {display}, window {Window.ClientBounds}, backbuffer {w}x{h}, scene {Scene?.GetType().Name}, ScreenScale {ScreenScale}, UI {(int)(w / DpiScale)}x{(int)(h / DpiScale)}");
