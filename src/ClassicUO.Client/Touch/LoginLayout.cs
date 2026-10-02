@@ -90,7 +90,7 @@ namespace ClassicUO.Touch
 
             foreach (Gump g in UIManager.Gumps)
             {
-                if (g.IsDisposed)
+                if (g.IsDisposed || !IsLoginWindow(g))
                 {
                     continue;
                 }
@@ -127,6 +127,18 @@ namespace ClassicUO.Touch
         }
 
         private static Gump Current => (Client.Game.Scene as LoginScene)?.CurrentGump;
+
+        /// <summary>
+        /// The login flow's own windows. Nothing else is moved: entering the world, the touch HUD comes up
+        /// while the scene is still the login scene, and it must stay where it is.
+        /// </summary>
+        private static bool IsLoginWindow(Gump g)
+        {
+            string ns = g.GetType().Namespace;
+
+            return ns == "ClassicUO.Game.UI.Gumps.Login" || ns == "ClassicUO.Game.UI.Gumps.CharCreation" ||
+                   g is CreditsGump || g is MessageBoxGump || g is ColorPickerBox;
+        }
 
         /// <summary>
         /// Keep the current fit: in the background (a re-fit resets the graphics device), and while the

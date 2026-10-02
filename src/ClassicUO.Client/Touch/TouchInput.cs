@@ -894,6 +894,7 @@ namespace ClassicUO.Touch
             Walk();
             MobileMacroRunner.Update(Client.Game.UO.World);
             StealthCounter.Update(Client.Game.UO.World);
+            ScreenKeyboard.Update();
             LoginLayout.Update(); // again: a window a tap opened just now is placed before it is drawn
         }
 
@@ -1057,14 +1058,17 @@ namespace ClassicUO.Touch
 
         private static void SyncKeyboard()
         {
+            Control box = UIManager.KeyboardFocusControl is Control c && !c.IsDisposed ? c : null;
+
             if (!HasVirtualKeyboard)
             {
+                ScreenKeyboard.FakeFor(_keyboardWanted, box); // desktop test of the speech line's keyboard
+
                 return;
             }
 
             IntPtr window = Client.Game.Window.Handle;
             bool active = SDL3.SDL.SDL_TextInputActive(window);
-            Control box = UIManager.KeyboardFocusControl is Control c && !c.IsDisposed ? c : null;
 
             // Focus moved to another box (account -> password) while the keyboard is up:
             // restart it so the keyboard type/capitalisation match the new box.
@@ -1078,21 +1082,26 @@ namespace ClassicUO.Touch
             {
                 if (box != null)
                 {
-                    // Tell iOS where the text box is, so SDL slides the view up above the keyboard.
+                    // Tell iOS where the text box is, so SDL slides the view up above the keyboard -
+                    // except for the speech line, where the view stays put and ScreenKeyboard raises
+                    // the line and the camera instead (an area at the top of the screen: no slide).
                     if (SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) && ww > 0 && wh > 0)
                     {
                         float fx = ww / (float)ScreenW, fy = wh / (float)ScreenH;
-                        var area = new SDL3.SDL.SDL_Rect
-                        {
-                            x = (int)(box.ScreenCoordinateX * fx),
-                            y = (int)(box.ScreenCoordinateY * fy),
-                            w = Math.Max(1, (int)(box.Width * fx)),
-                            h = Math.Max(1, (int)(box.Height * fy))
-                        };
+                        var area = ScreenKeyboard.KeepsViewFor(box)
+                            ? new SDL3.SDL.SDL_Rect { x = 0, y = 0, w = 1, h = 1 }
+                            : new SDL3.SDL.SDL_Rect
+                            {
+                                x = (int)(box.ScreenCoordinateX * fx),
+                                y = (int)(box.ScreenCoordinateY * fy),
+                                w = Math.Max(1, (int)(box.Width * fx)),
+                                h = Math.Max(1, (int)(box.Height * fy))
+                            };
                         SDL3.SDL.SDL_SetTextInputArea(window, ref area, 0);
                     }
                 }
 
+                ScreenKeyboard.Starting(box);
                 StartKeyboard(window, box);
                 _keyboardFor = box;
             }

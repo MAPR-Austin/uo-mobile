@@ -172,9 +172,55 @@ namespace ClassicUO.iOS
 #endif
         private static int FakeMain(int argc, IntPtr argv)
         {
+#if IOS || __IOS__
+            WatchKeyboard();
+#endif
             RealMain(_realArgs);
             return 0;
         }
+
+#if IOS || __IOS__
+        private static Foundation.NSObject _keyboardFrameObserver;
+
+        /// <summary>
+        /// Report every keyboard frame change to the game (Touch/ScreenKeyboard: the speech line rises
+        /// above the keyboard and the camera keeps the character in sight, instead of SDL sliding the
+        /// whole view up). Arrives at the start of the keyboard's slide, with its length.
+        /// </summary>
+        private static void WatchKeyboard()
+        {
+            try
+            {
+                _keyboardFrameObserver = Foundation.NSNotificationCenter.DefaultCenter.AddObserver(UIKit.UIKeyboard.WillChangeFrameNotification, n =>
+                {
+                    try
+                    {
+                        CoreGraphics.CGRect end = UIKit.UIKeyboard.FrameEndFromNotification(n);
+                        double seconds = UIKit.UIKeyboard.AnimationDurationFromNotification(n);
+                        CoreGraphics.CGRect screen = UIKit.UIScreen.MainScreen.Bounds;
+                        double screenH = (double)screen.Height, top = (double)end.Y, kbW = (double)end.Width, kbH = (double)end.Height;
+
+                        // docked keyboards only (a floating or split iPad keyboard leaves the view alone)
+                        double covered = screenH > 0 && kbH > 0 && kbW >= 0.9 * (double)screen.Width
+                            ? Math.Max(0.0, Math.Min(1.0, (screenH - top) / screenH))
+                            : 0.0;
+
+                        ClassicUO.Touch.ScreenKeyboard.OnFrame((float)covered, seconds);
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[UOMobile] keyboard frame: {ex.Message}");
+                    }
+                });
+
+                ClassicUO.Touch.ScreenKeyboard.HostReports = true;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[UOMobile] keyboard watch: {ex.Message}");
+            }
+        }
+#endif
 
         // Keep ClassicUO.Bootstrap and its methods alive under trimming / NativeAOT.
         [DynamicDependency(DynamicallyAccessedMemberTypes.PublicMethods | DynamicallyAccessedMemberTypes.NonPublicMethods, "ClassicUO.Bootstrap", "cuo")]

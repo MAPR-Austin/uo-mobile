@@ -19,6 +19,7 @@ namespace ClassicUO.Renderer
         private float _lerpZoom;
         private float _zoom;
         private Vector2 _lerpOffset;
+        private Vector2 _screenShift;
 
 
         public Camera(float minZoomValue = 1f, float maxZoomValue = 1f, float zoomStep = 0.1f)
@@ -64,6 +65,23 @@ namespace ClassicUO.Renderer
         public Viewport GetViewport() => new Viewport(Bounds.X, Bounds.Y, Bounds.Width, Bounds.Height);
 
         public Vector2 Offset => _lerpOffset;
+
+        /// <summary>
+        ///     Moves the drawn world by this many viewport pixels, after zoom (UO Mobile: up, so the
+        ///     character stays in sight above the phone's keyboard).
+        /// </summary>
+        public Vector2 ScreenShift
+        {
+            get => _screenShift;
+            set
+            {
+                if (_screenShift != value)
+                {
+                    _screenShift = value;
+                    _updateMatrixes = true;
+                }
+            }
+        }
 
         public bool PeekingToMouse;
 
@@ -170,7 +188,7 @@ namespace ClassicUO.Renderer
 
             CalculatePeek(origin);
 
-            Matrix.CreateTranslation(origin.X - _lerpOffset.X, origin.Y - _lerpOffset.Y, 0f, out temp);
+            Matrix.CreateTranslation(origin.X - _lerpOffset.X + _screenShift.X, origin.Y - _lerpOffset.Y + _screenShift.Y, 0f, out temp);
             Matrix.Multiply(ref _transform, ref temp, out _transform);
 
 

@@ -63,6 +63,13 @@ must be caught here.
        counter over your head; a full joystick push walks; the counter goes when you're seen;
      - a hidden guildmate shows in gray. Desktop: `UOM_PHONE_FIT=1 UOM_SAFE_INSETS=iphone` with
        `-touch` fakes an iPhone 15's insets for the login layout and the HUD.
+   - Build 42:
+     - after logging in, the HUD labels sit on their buttons (build 41 could offset the whole HUD);
+     - tap Chat in landscape and in portrait: the view doesn't slide up; the speech line sits just
+       above the keyboard and the camera eases up with the keyboard so your character and what's
+       said stay in sight; closing the keyboard eases it back; rotate with the keyboard up;
+     - other text boxes (a gump's text field, the login boxes) still slide above the keyboard.
+       Desktop: `UOM_FAKE_KEYBOARD=0.5` fakes a keyboard covering half the screen for the speech line.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -200,3 +207,4 @@ must be caught here.
 | audit | (agent, build 38) | the spellbook warm-up ran on every Update tick, including the frame limiter's idle ticks, so the per-frame budget never applied; logging out mid-warm-up skipped the start delay on relogin; the book background alone cost ~47 ms in one frame; at 1.84 zoom-out the screen corners pass the 24-tile view range (objects pop in there) | warm-up only on drawn frames (after the limiter, not in the background), re-armed on every login, 6 ms budget, book background left to the open, totals logged; corner pop-in noted for the owner |
 | CI | (run 38) | MT4162: iOS 27 types "not available in iOS 26.5" | `dotnet workload install ios` took workload set 10.0.401.1 (iOS SDK 27.0, needs Xcode 27; the image tops out at 26.6) | workload set pinned (`--version 10.0.401`); move the pin together with the Xcode selection |
 | audit | (agent, build 41) | the login re-fit followed every safe-area change, so iOS sliding the view up for the keyboard would have re-fitted and put the password box behind it (landscape); the login re-fit could reset the device in the background; the stealth counter never came down on a desktop client without touch; a window opened by a tap drew one frame unplaced | while the keyboard is up only a rotation or a new screen re-fits; nothing re-fits in the background; the counter is touch-only; placement runs again after taps. Server (146052d): auto stealth ran in the house designer (endless AFK gains), outsiders could lift loose items 2 tiles into a house once its contents showed, a guildmate could start a hidden player's Invisibility reveal timer | designer excluded, outsiders keep the old reach (steal 1 tile only), no Invisibility on someone hidden, one Stealth gain per 10 s |
+| desktop | (pre-ship, build 42) | build 41's login layout moved every window in the login scene, and the touch HUD is created there while the world is entering, so the HUD (labels, target panel) kept the login offset | only the login flow's own windows (Login/CharCreation namespaces, credits, message boxes, the colour picker) are placed |
