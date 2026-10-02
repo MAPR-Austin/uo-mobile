@@ -1085,31 +1085,42 @@ namespace ClassicUO.Touch
                     // Tell iOS where the text box is, so SDL slides the view up above the keyboard -
                     // except for the speech line, where the view stays put and ScreenKeyboard raises
                     // the line and the camera instead (an area at the top of the screen: no slide).
-                    if (SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) && ww > 0 && wh > 0)
-                    {
-                        float fx = ww / (float)ScreenW, fy = wh / (float)ScreenH;
-                        var area = ScreenKeyboard.KeepsViewFor(box)
-                            ? new SDL3.SDL.SDL_Rect { x = 0, y = 0, w = 1, h = 1 }
-                            : new SDL3.SDL.SDL_Rect
-                            {
-                                x = (int)(box.ScreenCoordinateX * fx),
-                                y = (int)(box.ScreenCoordinateY * fy),
-                                w = Math.Max(1, (int)(box.Width * fx)),
-                                h = Math.Max(1, (int)(box.Height * fy))
-                            };
-                        SDL3.SDL.SDL_SetTextInputArea(window, ref area, 0);
-                    }
+                    SetInputArea(window, box, ScreenKeyboard.KeepsViewFor(box));
                 }
 
                 ScreenKeyboard.Starting(box);
                 StartKeyboard(window, box);
                 _keyboardFor = box;
             }
+            else if (box != null && ScreenKeyboard.NeedsFallback(active))
+            {
+                SetInputArea(window, box, false); // no keyboard report came: let SDL slide the view after all
+            }
             else if (!_keyboardWanted && active)
             {
                 SDL3.SDL.SDL_StopTextInput(window);
                 _keyboardFor = null;
             }
+        }
+
+        private static void SetInputArea(IntPtr window, Control box, bool keepView)
+        {
+            if (!SDL3.SDL.SDL_GetWindowSize(window, out int ww, out int wh) || ww <= 0 || wh <= 0)
+            {
+                return;
+            }
+
+            float fx = ww / (float)ScreenW, fy = wh / (float)ScreenH;
+            var area = keepView
+                ? new SDL3.SDL.SDL_Rect { x = 0, y = 0, w = 1, h = 1 }
+                : new SDL3.SDL.SDL_Rect
+                {
+                    x = (int)(box.ScreenCoordinateX * fx),
+                    y = (int)(box.ScreenCoordinateY * fy),
+                    w = Math.Max(1, (int)(box.Width * fx)),
+                    h = Math.Max(1, (int)(box.Height * fy))
+                };
+            SDL3.SDL.SDL_SetTextInputArea(window, ref area, 0);
         }
 
         /// <summary>

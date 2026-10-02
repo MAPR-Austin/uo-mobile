@@ -2,6 +2,7 @@
 
 using System;
 using System.Globalization;
+using ClassicUO.Utility.Logging;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI.Controls;
@@ -35,6 +36,12 @@ namespace ClassicUO.Touch
         private static bool _forChat;
         private static bool _fakeUp;
 
+        // no report of the keyboard arrived for the speech line: it goes back to SDL's slide
+        private const uint ReportWaitMs = 700;
+        private static uint _startedAt;
+        private static bool _reported, _fellBack;
+        private static int _logged;
+
         /// <summary>The host reports the keyboard's frame (set by iOS at startup): the speech line can then skip SDL's slide.</summary>
         public static bool HostReports { get; set; }
 
@@ -44,6 +51,17 @@ namespace ClassicUO.Touch
         /// </summary>
         public static void OnFrame(float covered, double seconds)
         {
+            if (covered > 0f)
+            {
+                _reported = true;
+            }
+
+            if (_logged < 6) // the phone's log shows the reports arrive
+            {
+                _logged++;
+                Log.Info($"[UOMobile] keyboard covers {covered:F3} of the screen, slide {seconds:F2} s");
+            }
+
             _from = _now;
             _to = Math.Clamp(covered, 0f, 0.9f);
             _start = Time.Ticks;
@@ -58,12 +76,33 @@ namespace ClassicUO.Touch
         /// <summary>TouchInput is starting the keyboard for box: the view stays put for the speech line when the host reports the keyboard.</summary>
         internal static bool KeepsViewFor(Control box)
         {
-            return (HostReports || Fake > 0) && IsSpeechLine(box);
+            return (HostReports || Fake > 0) && !_fellBack && IsSpeechLine(box);
         }
 
         internal static void Starting(Control box)
         {
             _forChat = KeepsViewFor(box);
+            _startedAt = Time.Ticks;
+            _reported = Fake > 0; // (the fake keyboard reports itself)
+        }
+
+        /// <summary>
+        /// The keyboard is up for the speech line but no report of it arrived: the line would sit under the
+        /// keyboard. True once (TouchInput then gives SDL the line's real area, so SDL slides the view as
+        /// before); the speech line keeps SDL's slide for the rest of the session.
+        /// </summary>
+        internal static bool NeedsFallback(bool keyboardActive)
+        {
+            if (!_forChat || _reported || _fellBack || !keyboardActive || Time.Ticks - _startedAt < ReportWaitMs)
+            {
+                return false;
+            }
+
+            _fellBack = true;
+            _forChat = false;
+            Log.Warn("[UOMobile] no keyboard report from the host: the speech line falls back to SDL's slide");
+
+            return true;
         }
 
         /// <summary>Desktop (no on-screen keyboard): with UOM_FAKE_KEYBOARD, a pretend keyboard for the speech line.</summary>

@@ -268,13 +268,14 @@ namespace ClassicUO.Game.UI.Gumps
 
         public override bool Contains(int x, int y)
         {
+            // (UO Mobile: measured from the speech line's own height - ScreenKeyboard raises it above the
+            // phone's keyboard, and a tap on it must reach it, not the world under it)
             if (
                 x >= BORDER_WIDTH
                 && x < Width - BORDER_WIDTH * 2
                 && y >= BORDER_WIDTH
                 && y
-                    < Height
-                        - BORDER_WIDTH * 2
+                    < (_systemChatControl?.Height ?? Height - BORDER_WIDTH * 2)
                         - (
                             _systemChatControl?.TextBoxControl != null
                             && _systemChatControl.IsActive
