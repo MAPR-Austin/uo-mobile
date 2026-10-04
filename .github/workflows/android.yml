@@ -1,0 +1,116 @@
+# UO Mobile, Android phase 0: prove .NET for Android + FNA + SDL3 + FNA3D + FAudio on GitHub's
+# machines before ClassicUO goes on top (android/hello). Builds the native libs (cached), the
+# hello APK (Release, signed with the SDK's debug key), then runs it in an x86_64 emulator with
+# the GLES and Vulkan drivers and keeps logcat and screenshots.
+# Runs on the "android" branch only, so Android work never starts an iPhone build.
+name: Android
+
+on:
+  push:
+    branches: [android]
+    paths-ignore: ['**.md']
+  workflow_dispatch: {}
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SDL_TAG: release-3.4.18
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          submodules: recursive
+
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: JDK 21, Android workload
+        run: |
+          echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+          dotnet workload install android --version 10.0.401
+          dotnet workload list
+          echo "ANDROID_HOME=$ANDROID_HOME  NDK=$ANDROID_NDK_HOME"
+          ls "$ANDROID_HOME/platforms" "$ANDROID_HOME/build-tools"
+
+      - name: Restore native libs (SDL3, FNA3D, FAudio) and SDL's Java glue
+        id: libcache
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            android/native
+            android/sdl-java
+          key: fnalibs-android-${{ env.SDL_TAG }}-${{ hashFiles('.gitmodules', 'android/build-android-libs.sh') }}-${{ hashFiles('external/FNA/lib/**/CMakeLists.txt') }}
+
+      - name: Build native libs
+        if: steps.libcache.outputs.cache-hit != 'true'
+        run: bash android/build-android-libs.sh
+
+      - name: Save native libs
+        if: steps.libcache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            android/native
+            android/sdl-java
+          key: ${{ steps.libcache.outputs.cache-primary-key }}
+
+      - name: Build hello APK
+        run: |
+          dotnet build android/hello/UOMobile.AndroidHello.csproj -c Release \
+            -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME" \
+            -p:ApplicationVersion=${{ github.run_number }}
+          APK="$(find android/hello/bin/Release -name '*-Signed.apk' | head -1)"
+          [ -n "$APK" ] || { echo "no signed APK"; find android/hello/bin -name '*.apk'; exit 1; }
+          mkdir -p android/out && cp "$APK" android/out/UOMobileHello.apk
+          ls -la android/out
+          unzip -l android/out/UOMobileHello.apk | grep -E '\.so$' || true
+          ZA="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/zipalign"
+          "$ZA" -c -P 16 -v 4 android/out/UOMobileHello.apk | tail -3 || echo "(not 16 KB aligned - fine for a test APK, fix before Play)"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: UOMobileHello-apk
+          path: android/out/UOMobileHello.apk
+          if-no-files-found: error
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: UOMobileHello-apk
+          path: android/out
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run in the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash android/smoke.sh android/out/UOMobileHello.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: smoke-logcat-and-screens
+          path: android/smoke-out

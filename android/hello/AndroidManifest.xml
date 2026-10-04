@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- GLES 3.0: FNA3D's OpenGL driver runs as GLES3 on Android -->
+  <uses-feature android:glEsVersion="0x00030000" android:required="true" />
+  <uses-permission android:name="android.permission.INTERNET" />
+  <application android:allowBackup="false" android:isGame="true" android:hardwareAccelerated="true"
+               android:label="UO Mobile Hello" />
+</manifest>

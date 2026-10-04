@@ -1,0 +1,55 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UO Mobile, Android phase 0: the smallest FNA app that proves the stack before ClassicUO goes
+    on top of it - .NET for Android + FNA + SDL3's Java SDLActivity + FNA3D (GLES or Vulkan) +
+    FAudio. It clears the screen through a cycle of colours, draws a square under each finger,
+    plays a short tone, and logs "UOM-HELLO" lines (frames, driver, touches) for the CI smoke test.
+
+    Pattern from CelesteAndroid (same stack): SDL's Java sources are bound into the app
+    (AndroidJavaSource Bind="true", Transforms/Metadata.xml drops four package-private fields the
+    binding can't expose); MainActivity subclasses SDLActivity and runs the game from Main(), on
+    SDL's thread once the surface exists. Marshal methods off (with them, SDLActivity's onCreate
+    fails with UnsatisfiedLinkError); assemblies embedded so plain `adb install` works.
+
+    Native libs from build-android-libs.sh: ../native/<abi>/libSDL3.so libFNA3D.so libFAudio.so,
+    and the Java glue from the same SDL tag in ../sdl-java/.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UOMobile.AndroidHello</RootNamespace>
+    <AssemblyName>UOMobileHello</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <ApplicationId>com.mapraustin.britgraveyard.hello</ApplicationId>
+    <ApplicationTitle>UO Mobile Hello</ApplicationTitle>
+    <ApplicationDisplayVersion>0.1</ApplicationDisplayVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
+    <PublishTrimmed>false</PublishTrimmed>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <RunAOTCompilation>false</RunAOTCompilation>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\external\FNA\FNA.Core.csproj" />
+
+    <AndroidJavaSource Include="..\sdl-java\*.java" Bind="true" />
+    <TransformFile Include="Transforms\Metadata.xml" />
+
+    <AndroidNativeLibrary Include="..\native\arm64-v8a\*.so" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Include="..\native\x86_64\*.so" Abi="x86_64" />
+  </ItemGroup>
+
+</Project>
