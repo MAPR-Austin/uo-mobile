@@ -45,7 +45,9 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\ClassicUO.Client\ClassicUO.Client.csproj" />
+    <!-- Built RID-less, as a portable library: the SDK would hand cuo (an Exe) this app's
+         RuntimeIdentifier per ABI, which its restore never saw (CI run 4: NETSDK1047). -->
+    <ProjectReference Include="..\..\src\ClassicUO.Client\ClassicUO.Client.csproj" GlobalPropertiesToRemove="RuntimeIdentifier;SelfContained" />
     <ProjectReference Include="..\..\external\FNA\FNA.Core.csproj" />
 
     <AndroidJavaSource Include="..\sdl-java\*.java" Bind="true" />
