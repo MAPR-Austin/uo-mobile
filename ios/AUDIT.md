@@ -70,6 +70,12 @@ must be caught here.
        said stay in sight; closing the keyboard eases it back; rotate with the keyboard up;
      - other text boxes (a gump's text field, the login boxes) still slide above the keyboard.
        Desktop: `UOM_FAKE_KEYBOARD=0.5` fakes a keyboard covering half the screen for the speech line.
+   - Build 43 (needs the server's PlacementCheck):
+     - house placement tool, pick a house: the HUD steps aside, the ghost shows a few steps from you,
+       a finger on the ground drags it; it turns red with a reason where it can't go (town, trees,
+       out of sight) and back to normal where it can; Place on a clear spot brings the warning, and
+       its OKAY works even under the joystick ring; Cancel ends it and brings the HUD back;
+     - a server gump's buttons under the joystick ring take taps; the joystick still works elsewhere.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

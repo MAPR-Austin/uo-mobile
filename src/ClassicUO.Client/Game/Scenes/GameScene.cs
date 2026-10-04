@@ -846,7 +846,10 @@ namespace ClassicUO.Game.Scenes
                     _multi.IsMulti = true;
                 }
 
-                if (SelectedObject.Object is GameObject gobj)
+                // UO Mobile: with no finger on the world the phone's ghost stays where it was left (Touch/HousePlacementGhost)
+                GameObject gobj = SelectedObject.Object as GameObject ?? Touch.HousePlacementGhost.RestingAnchor(_world);
+
+                if (gobj != null)
                 {
                     ushort x,
                         y;
@@ -894,6 +897,19 @@ namespace ClassicUO.Game.Scenes
                             (ushort)(_multi.Y + s.MultiOffsetY),
                             (sbyte)(_multi.Z + s.MultiOffsetZ)
                         );
+                    }
+
+                    Touch.HousePlacementGhost.Moved(gobj);
+                }
+
+                // UO Mobile: red where the server says the house can't go
+                if (_world.HouseManager.TryGetHouse(_multi.Serial, out House ghost))
+                {
+                    ushort ghostHue = Touch.HousePlacementGhost.Hue(_world.TargetManager.MultiTargetInfo.Hue);
+
+                    foreach (Multi s in ghost.Components)
+                    {
+                        s.Hue = ghostHue;
                     }
                 }
             }

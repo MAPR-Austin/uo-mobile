@@ -411,8 +411,16 @@ namespace ClassicUO.Touch
 
         private static bool InGame => Client.Game.UO.World != null && Client.Game.UO.World.InGame && Current != null;
 
-        /// <summary>While an editor window is open the HUD is hidden and every finger is a pointer.</summary>
-        public static bool Suppressed => UIManager.GetGump<MacroEditorGump>() != null || UIManager.GetGump<ButtonEditGump>() != null;
+        private static bool WindowControlAt(Point pos)
+        {
+            Control c = UIManager.ControlAtPhysical(pos);
+
+            return c is Button || c is NiceButton || c is Checkbox || c is StbTextBox;
+        }
+
+        /// <summary>While an editor window is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>
+        public static bool Suppressed => UIManager.GetGump<MacroEditorGump>() != null || UIManager.GetGump<ButtonEditGump>() != null ||
+                                         UIManager.GetGump<HousePlacementBar>() != null;
 
         public static Point ToUi(float nx, float ny) => new Point((int)(nx * ScreenW), (int)(ny * ScreenH));
 
@@ -483,7 +491,9 @@ namespace ClassicUO.Touch
                         return true;
                     }
 
-                    if (!JoystickActive && InCircle(pos, JoystickCenter, (int)(JoystickRadius * 1.25f)))
+                    // (a window's button or box under the joystick's ring takes the tap: e.g. OKAY on the
+                    // house placement warning; the rest of a window there still steers)
+                    if (!JoystickActive && InCircle(pos, JoystickCenter, (int)(JoystickRadius * 1.25f)) && !WindowControlAt(pos))
                     {
                         f.Owner = Owner.Joystick;
                         _fingers[id] = f;
@@ -895,6 +905,7 @@ namespace ClassicUO.Touch
             MobileMacroRunner.Update(Client.Game.UO.World);
             StealthCounter.Update(Client.Game.UO.World);
             ScreenKeyboard.Update();
+            HousePlacementGhost.Update(Client.Game.UO.World);
             LoginLayout.Update(); // again: a window a tap opened just now is placed before it is drawn
         }
 
@@ -908,6 +919,16 @@ namespace ClassicUO.Touch
                 switch (e.Type)
                 {
                     case PointerEventType.Down:
+                        // placing a house: a finger on the world drags its ghost, it doesn't place it (HousePlacementGhost)
+                        if (HousePlacementGhost.Active(Client.Game.UO.World) && UIManager.IsWorldAt(e.Pos))
+                        {
+                            _ghostFinger = e.Finger;
+                            Client.Game.DispatchMouseMotion();
+                            _downFinger = e.Finger;
+
+                            break;
+                        }
+
                         Client.Game.DispatchMouseDown(MouseButtonType.Left);
                         _downFinger = e.Finger;
                         _keyboardWanted = UIManager.MouseOverControl is Game.UI.Controls.StbTextBox;
@@ -920,7 +941,15 @@ namespace ClassicUO.Touch
                         break;
 
                     case PointerEventType.Up:
-                        Client.Game.DispatchMouseUp(MouseButtonType.Left);
+                        if (e.Finger == _ghostFinger)
+                        {
+                            _ghostFinger = long.MinValue; // the ghost stays where the finger left it
+                        }
+                        else
+                        {
+                            Client.Game.DispatchMouseUp(MouseButtonType.Left);
+                        }
+
                         _downFinger = long.MinValue;
                         _parkPointerAt = _frame + 2;
 
@@ -936,6 +965,7 @@ namespace ClassicUO.Touch
         }
 
         private static long _parkPointerAt;
+        private static long _ghostFinger = long.MinValue;
 
         /// <summary>
         /// A lifted finger leaves no pointer behind: once the tap has been handled, move the virtual
@@ -1152,9 +1182,9 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            if (f.Moved || f.LongPressFired || Time.Ticks - f.DownTime < LONG_PRESS_MS)
+            if (f.Moved || f.LongPressFired || Time.Ticks - f.DownTime < LONG_PRESS_MS || f.Id == _ghostFinger)
             {
-                return;
+                return; // (a finger resting on a house ghost is looking, not right-clicking)
             }
 
             // Long press over a gump = right click (UO's "close this window").

@@ -557,6 +557,9 @@ namespace ClassicUO.Game.Managers
             return gump;
         }
 
+        /// <summary>Touch: the control a press at a physical point (UI units) would reach; null over the world.</summary>
+        internal static Control ControlAtPhysical(Point p) => HitTestGumps(p, null, out _, out _);
+
         /// <summary>
         /// Front to back. <paramref name="only"/>: the position is already in that window's own
         /// layout (the touch pointer is mapped onto it), so only it can be hit. Otherwise each

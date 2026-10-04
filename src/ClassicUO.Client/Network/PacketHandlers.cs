@@ -4727,6 +4727,14 @@ namespace ClassicUO.Network
 
                     break;
 
+                case Touch.HousePlacementGhost.Reply: // UO Mobile: the server's word on a house spot (servuo PlacementCheck.cs)
+                    {
+                        ushort seq = p.ReadUInt16BE();
+                        Touch.HousePlacementGhost.OnReply(seq, p.ReadUInt8());
+                    }
+
+                    break;
+
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");
 
