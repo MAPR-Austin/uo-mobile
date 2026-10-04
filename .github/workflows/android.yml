@@ -79,26 +79,34 @@ jobs:
           ZA="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/zipalign"
           "$ZA" -c -P 16 -v 4 android/out/UOMobileHello.apk | tail -3 || echo "(not 16 KB aligned - fine for a test APK, fix before Play)"
 
-      # Signed with the release key (repo secrets ANDROID_KEYSTORE_B64 / _PASS; the original is in
-      # the owner's secrets folder) when it's there, else with the SDK's debug key.
       - name: Build the game APK
-        env:
-          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
-          KP: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
-          SIGN=""
-          if [ -n "$KS" ]; then
-            echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.p12"
-            printf %s "$KP" > "$RUNNER_TEMP/kp"
-            SIGN="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/upload.p12 -p:AndroidSigningKeyAlias=uomobile -p:AndroidSigningKeyPass=file:$RUNNER_TEMP/kp -p:AndroidSigningStorePass=file:$RUNNER_TEMP/kp"
-          fi
-          dotnet build android/app/ClassicUO.Android.csproj -c Release             -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"             -p:ApplicationVersion=${{ github.run_number }} $SIGN
-          rm -f "$RUNNER_TEMP/upload.p12" "$RUNNER_TEMP/kp"
+          dotnet build android/app/ClassicUO.Android.csproj -c Release             -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"             -p:ApplicationVersion=${{ github.run_number }}
           APK="$(find android/app/bin/Release -name '*-Signed.apk' | head -1)"
           [ -n "$APK" ] || { echo "no signed APK"; find android/app/bin -name '*.apk'; exit 1; }
           cp "$APK" android/out/GraveyardBattles.apk
           ls -la android/out
+
+      # Re-signed with the release key (repo secrets ANDROID_KEYSTORE_B64 / _PASS; the original is
+      # in the owner's secrets folder) by apksigner directly, so its errors show (MSBuild's signing
+      # only said "java exited with code 2"). Without the secrets the SDK debug key stays.
+      - name: Sign with the release key
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KP: ${{ secrets.ANDROID_KEYSTORE_PASS }}
+        run: |
+          [ -n "$KS" ] || { echo "no release key: the APK keeps the debug signature"; exit 0; }
+          echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.p12"
+          printf %s "$KP" > "$RUNNER_TEMP/kp"
+          keytool -list -keystore "$RUNNER_TEMP/upload.p12" -storetype PKCS12 -storepass:file "$RUNNER_TEMP/kp" | grep -iE "entry|alias|keystore type" || true
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          set +e
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/upload.p12" --ks-type PKCS12 --ks-key-alias uomobile             --ks-pass "file:$RUNNER_TEMP/kp" --key-pass "file:$RUNNER_TEMP/kp"             --out android/out/GraveyardBattles-release.apk android/out/GraveyardBattles.apk
+          rc=$?
+          set -e
+          rm -f "$RUNNER_TEMP/upload.p12" "$RUNNER_TEMP/kp"
+          [ $rc = 0 ] || exit $rc
+          mv android/out/GraveyardBattles-release.apk android/out/GraveyardBattles.apk
           "$BT/apksigner" verify --print-certs android/out/GraveyardBattles.apk | grep -E "Signer #1 certificate DN|SHA-256" | head -2
 
       - uses: actions/upload-artifact@v4
