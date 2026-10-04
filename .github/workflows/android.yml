@@ -16,7 +16,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  SDL_TAG: release-3.4.18
+  SDL_TAG: release-3.2.x
 
 jobs:
   build:

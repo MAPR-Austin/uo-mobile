@@ -8,7 +8,8 @@
 #                             when the Java and native SDL versions differ.
 #
 # Environment (optional):
-#   SDL_TAG   SDL release tag (default release-3.4.18; iOS stays on release-3.2.x)
+#   SDL_TAG   SDL release branch or tag (default release-3.2.x, as iOS: FNA3D 25.09 does not compile
+#             against SDL 3.4 - FNA3D_Driver_SDL.c frees a stack array that 3.4's SDL_stack_free names)
 #   ABIS      default "arm64-v8a x86_64"
 #   ANDROID_NDK_HOME / ANDROID_NDK_ROOT   the NDK (r27+)
 #
@@ -20,7 +21,7 @@ set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/.." && pwd)"
-SDL_TAG="${SDL_TAG:-release-3.4.18}"
+SDL_TAG="${SDL_TAG:-release-3.2.x}"
 ABIS="${ABIS:-arm64-v8a x86_64}"
 API=26
 NDK="${ANDROID_NDK_HOME:-${ANDROID_NDK_ROOT:-${ANDROID_NDK_LATEST_HOME:-}}}"
