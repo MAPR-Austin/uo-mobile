@@ -897,6 +897,8 @@ namespace ClassicUO.Touch
             {
                 EnsureLoaded();
                 TouchHudGump.Ensure(Client.Game.UO.World);
+                PhoneDefaults.Apply(Client.Game.UO.World);
+                PlayerTimers.Update(Client.Game.UO.World);
             }
             else if (Layouts != null)
             {

@@ -4760,6 +4760,8 @@ namespace ClassicUO.Network
             string name = p.ReadASCII(30);
             string affix = p[0] == 0xCC ? p.ReadASCII() : string.Empty;
 
+            Touch.PlayerTimers.OnCliloc(world, cliloc); // UO Mobile: the bandage timer
+
             string arguments = null;
 
             if (cliloc == 1008092 || cliloc == 1005445) // value for "You notify them you don't want to join the party" || "You have been added to the party"

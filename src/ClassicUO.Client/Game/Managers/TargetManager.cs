@@ -244,6 +244,8 @@ namespace ClassicUO.Game.Managers
                 return;
             }
 
+            Touch.PlayerTimers.OnTargeted(serial); // UO Mobile: bandaging yourself or another
+
             Entity entity = _world.InGame ? _world.Get(serial) : null;
 
             if (entity != null)

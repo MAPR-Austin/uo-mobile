@@ -230,6 +230,9 @@ namespace ClassicUO.Configuration
         public int CounterBarHighlightAmount { get; set; } = 5;
         public int CounterBarCellSize { get; set; } = 40;
 
+        /// <summary>UO Mobile: which version of the phone's defaults this character has had (Touch/PhoneDefaults).</summary>
+        public int TouchDefaultsVersion { get; set; }
+
         public bool ShowSkillsChangedMessage { get; set; } = true;
         public int ShowSkillsChangedDeltaValue { get; set; } = 1;
         public bool ShowStatsChangedMessage { get; set; } = true;

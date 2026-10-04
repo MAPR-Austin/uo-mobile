@@ -816,7 +816,7 @@ namespace ClassicUO.Touch
 
             switch (args[i].ToLowerInvariant())
             {
-                case "poisoned": case "hidden": case "war": case "targeting": case "dead": case "targetalive": case "gump":
+                case "poisoned": case "hidden": case "war": case "targeting": case "dead": case "targetalive": case "gump": case "bandaging":
                     return null;
 
                 case "journal":
@@ -833,7 +833,7 @@ namespace ClassicUO.Touch
                 case "count":
                     return args.Length >= i + 4 && Array.IndexOf(Comparators, args[i + 2]) >= 0 && int.TryParse(args[i + 3], out _)
                         ? null
-                        : "'count' needs a graphic and comparison, e.g. 'count 0x0E21 >= 5'";
+                        : "'count' needs an item and comparison, e.g. 'count bandages >= 5' or 'count 0x0E21 >= 5'";
 
                 default:
                     return $"unknown condition '{args[i]}'";
@@ -852,6 +852,7 @@ namespace ClassicUO.Touch
             switch (args[i].ToLowerInvariant())
             {
                 case "poisoned": result = p.IsPoisoned; break;
+                case "bandaging": result = PlayerTimers.Bandaging; break;
                 case "hidden": result = p.IsHidden; break;
                 case "war": result = p.InWarMode; break;
                 case "targeting": result = tm.IsTargeting; break;
@@ -905,7 +906,10 @@ namespace ClassicUO.Touch
                 : ushort.Parse(s, CultureInfo.InvariantCulture);
         }
 
-        /// <summary>One graphic or several separated by commas: "0x0E86,0x0E85,0x0F39".</summary>
+        /// <summary>
+        /// One graphic or several separated by commas, each a hex graphic or an item group's name
+        /// (Touch/ItemGroups): "0x0E86,0x0E85", "bandages", "regs", "heal,cure".
+        /// </summary>
         private static ushort[] Graphics(string[] args, int index)
         {
             if (index >= args.Length)
@@ -914,14 +918,21 @@ namespace ClassicUO.Touch
             }
 
             string[] parts = args[index].Split(',', StringSplitOptions.RemoveEmptyEntries);
-            var list = new ushort[parts.Length];
+            var list = new List<ushort>(parts.Length);
 
             for (int i = 0; i < parts.Length; i++)
             {
-                list[i] = Graphic(parts, i);
+                if (ItemGroups.TryGet(parts[i], out ushort[] group))
+                {
+                    list.AddRange(group);
+                }
+                else
+                {
+                    list.Add(Graphic(parts, i));
+                }
             }
 
-            return list;
+            return list.ToArray();
         }
 
         private static int Int(string[] args, int index, int fallback) =>

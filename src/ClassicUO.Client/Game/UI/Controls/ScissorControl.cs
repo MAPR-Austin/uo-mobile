@@ -26,15 +26,19 @@ namespace ClassicUO.Game.UI.Controls
 
         public bool DoScissor;
 
+        // whether each open begin really pushed a clip (ClipBegin refuses an empty or off-screen area;
+        // its end must not pop then - an empty scissor stack threw and closed the game)
+        private static readonly System.Collections.Generic.Stack<bool> _pushed = new System.Collections.Generic.Stack<bool>();
+
         public override bool AddToRenderLists(RenderLists renderLists, int x, int y, ref float layerDepthRef)
         {
             bool clipIt(Renderer.UltimaBatcher2D batcher)
             {
                 if (DoScissor)
                 {
-                    batcher.ClipBegin(x, y, Width, Height);
+                    _pushed.Push(batcher.ClipBegin(x, y, Width, Height));
                 }
-                else
+                else if (_pushed.Count == 0 || _pushed.Pop())
                 {
                     batcher.ClipEnd();
                 }
