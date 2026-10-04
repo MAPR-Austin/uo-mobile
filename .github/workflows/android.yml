@@ -9,7 +9,12 @@ on:
   push:
     branches: [android]
     paths-ignore: ['**.md']
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      live:
+        description: 'Also download the game files and log in on the LIVE server as ciandroid (~2.1 GB from the VM)'
+        type: boolean
+        default: false
 
 concurrency:
   group: android-${{ github.ref }}
@@ -133,3 +138,45 @@ jobs:
         with:
           name: smoke-logcat-and-screens
           path: android/smoke-out
+
+  # By hand only (Run workflow > live): the whole path on the live server - download, login,
+  # walking, rotation - as the throwaway account ciandroid (owner-approved, a few runs).
+  live:
+    needs: build
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.live }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: GraveyardBattles-apk
+          path: android/out
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Download, log in and walk in the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        env:
+          CI_PASSWORD: ${{ secrets.ANDROID_CI_PASSWORD }}
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          ram-size: 4096M
+          disk-size: 8G
+          force-avd-creation: false
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
+          disable-animations: true
+          script: bash android/live-test.sh android/out/GraveyardBattles.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: live-screens-and-logs
+          path: android/live-out
