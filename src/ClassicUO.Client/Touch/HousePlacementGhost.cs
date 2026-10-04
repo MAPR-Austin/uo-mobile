@@ -34,7 +34,7 @@ namespace ClassicUO.Touch
         /// <summary>UO's plain red: the house can't go there.</summary>
         private const ushort BadHue = 0x0021;
 
-        private const uint SendEveryMs = 120, ResendAfterMs = 1500;
+        private const uint SendEveryMs = 120, ResendAfterMs = 600; // (the server answers at most every 100 ms)
         private const byte Unknown = 255;
 
         private static GameObject _anchor; // what the ghost stands on: what Place targets
@@ -42,9 +42,17 @@ namespace ClassicUO.Touch
         private static short _z;
         private static bool _dirty;
         private static ushort _seq;
-        private static byte _result = Unknown;
+        private static byte _result = Unknown; // the last answer: kept (and shown) while a newer spot is asked about
+        private static bool _answered; // _result is the answer for the spot the ghost is on now
         private static uint _sentAt;
+        private static ushort _model; // the cursor's house: a new one means new answers
         private static HousePlacementBar _bar;
+
+        /// <summary>
+        /// The server says the house can't go there (a reason the bar names). 6 ("not placing a house")
+        /// and unknown codes are no opinion: a boat's cursor looks the same and its ghost stays plain.
+        /// </summary>
+        private static bool Cannot(byte result) => result >= 1 && result <= 5 || result == 7;
 
         public static bool Active(World world)
         {
@@ -70,10 +78,12 @@ namespace ClassicUO.Touch
             }
 
             // the house a few steps straight down the screen from you (south-east), all of it in view: the
-            // cursor's spot sits at the house's offset from its centre
+            // cursor's spot sits at the house's offset from its centre - but within reach of the cursor
+            // (a keep's or castle's offset would put it out of range)
             MultiTargetInfo info = world.TargetManager.MultiTargetInfo;
+            int dx = Math.Clamp(4 + (short)info.XOff, -9, 9), dy = Math.Clamp(4 + (short)info.YOff, -9, 9);
 
-            return LandAt(world, world.Player.X + 4 + (short)info.XOff, world.Player.Y + 4 + (short)info.YOff);
+            return LandAt(world, world.Player.X + dx, world.Player.Y + dy);
         }
 
         /// <summary>GameScene put the ghost on <paramref name="anchor" />: ask the server about the new spot.</summary>
@@ -82,6 +92,12 @@ namespace ClassicUO.Touch
             if (anchor == null || !TouchInput.Enabled)
             {
                 return;
+            }
+
+            // a mobile, corpse or effect under the finger would carry the ghost off (or vanish): the ground under it
+            if (!(anchor is Land || anchor is Static || anchor is Multi))
+            {
+                anchor = LandAt(anchor.World, anchor.X, anchor.Y) ?? anchor;
             }
 
             (ushort graphic, ushort x, ushort y, short z) = TargetOf(anchor);
@@ -94,13 +110,13 @@ namespace ClassicUO.Touch
             _anchor = anchor;
             (_graphic, _x, _y, _z) = (graphic, x, y, z);
             _dirty = true;
-            _result = Unknown;
+            _answered = false;
         }
 
         /// <summary>The ghost's hue: red when the server says the house can't go there.</summary>
         public static ushort Hue(ushort normal)
         {
-            return _result != Unknown && _result != 0 && TouchInput.Enabled ? BadHue : normal;
+            return Cannot(_result) && TouchInput.Enabled ? BadHue : normal;
         }
 
         /// <summary>PacketHandlers (0xBF 0x7A56): the server's answer.</summary>
@@ -109,6 +125,7 @@ namespace ClassicUO.Touch
             if (seq == _seq)
             {
                 _result = result;
+                _answered = true;
             }
         }
 
@@ -123,10 +140,23 @@ namespace ClassicUO.Touch
                     _bar = null;
                     _anchor = null;
                     _result = Unknown;
+                    _answered = false;
                     _dirty = false;
+                    _model = 0;
                 }
 
                 return;
+            }
+
+            // the server swapped the cursor for another house: the answers so far were for the old one
+            ushort model = world.TargetManager.MultiTargetInfo.Model;
+
+            if (model != _model)
+            {
+                _model = model;
+                _result = Unknown;
+                _answered = false;
+                _dirty = _anchor != null;
             }
 
             if (_bar == null || _bar.IsDisposed)
@@ -134,24 +164,32 @@ namespace ClassicUO.Touch
                 UIManager.Add(_bar = new HousePlacementBar(world));
             }
 
-            if (_anchor != null && (_dirty && Time.Ticks - _sentAt >= SendEveryMs || _result == Unknown && Time.Ticks - _sentAt >= ResendAfterMs))
+            if (_anchor != null && (_dirty && Time.Ticks - _sentAt >= SendEveryMs || !_answered && Time.Ticks - _sentAt >= ResendAfterMs))
             {
                 Ask();
             }
 
-            _bar.Show(_anchor == null ? "Drag on the ground to move the house" : Reason(_result), _result == 0);
+            _bar.Show(_anchor == null ? "Drag on the ground to move the house" : Reason(_result), _answered && _result == 0);
         }
 
         public static void Place(World world)
         {
-            if (!Active(world) || _anchor == null)
+            if (!Active(world))
             {
                 return;
             }
 
-            if (_result != 0 && _result != Unknown)
+            if (_anchor == null)
             {
-                GameActions.Print(world, "The house can't go there: " + Reason(_result).ToLowerInvariant(), 0x0021);
+                GameActions.Print(world, "Drag the house onto the ground first.", 0x0021);
+
+                return;
+            }
+
+            // only a known "no" for this very spot stops it (the server checks the placement anyway)
+            if (_answered && Cannot(_result))
+            {
+                GameActions.Print(world, Reason(_result), 0x0021);
 
                 return;
             }
@@ -180,7 +218,7 @@ namespace ClassicUO.Touch
                 case 7: return "Out of sight: move it where you can see it";
                 case 4: return "Castles and keeps can't go here";
                 case 5: return "No building here right now";
-                default: return "Can't build here";
+                default: return "Drag to choose the spot, then tap Place"; // a boat, or a server without the check
             }
         }
 
@@ -203,7 +241,7 @@ namespace ClassicUO.Touch
             writer.WriteUInt16BE(_graphic);
             writer.WriteUInt16BE(_x);
             writer.WriteUInt16BE(_y);
-            writer.WriteInt16BE(_z);
+            writer.WriteInt16BE(TargetZ(_graphic, _z));
             writer.Seek(1, SeekOrigin.Begin);
             writer.WriteUInt16BE((ushort)writer.BytesWritten);
             NetClient.Socket.Send(writer.BufferWritten);
@@ -226,6 +264,18 @@ namespace ClassicUO.Touch
             Land under = LandAt(o.World, o.X, o.Y) as Land;
 
             return under != null ? ((ushort)0, under.X, under.Y, (short)under.Z) : ((ushort)0, o.X, o.Y, (short)o.Z);
+        }
+
+        /// <summary>The z a target on this static carries (TargetManager.Target adds a surface's height on CV_7090+).</summary>
+        private static short TargetZ(ushort graphic, short z)
+        {
+            if (graphic != 0 && graphic < Client.Game.UO.FileManager.TileData.StaticData.Length &&
+                Client.Game.UO.Version >= Utility.ClientVersion.CV_7090 && Client.Game.UO.FileManager.TileData.StaticData[graphic].IsSurface)
+            {
+                return (short)(z + Client.Game.UO.FileManager.TileData.StaticData[graphic].Height);
+            }
+
+            return z;
         }
 
         private static GameObject LandAt(World world, int x, int y)

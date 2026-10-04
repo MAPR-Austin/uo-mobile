@@ -173,6 +173,7 @@ namespace ClassicUO.Touch
             _downFinger = long.MinValue;
             _pinchA = _pinchB = long.MinValue;
             _pinchGump = null;
+            _ghostFinger = long.MinValue;
             _maps.Clear();
             PointerGump = null;
             _physicalPointer = null;
@@ -411,11 +412,17 @@ namespace ClassicUO.Touch
 
         private static bool InGame => Client.Game.UO.World != null && Client.Game.UO.World.InGame && Current != null;
 
+        /// <summary>
+        /// A server window's button, check box or text field under the finger (the house placement
+        /// warning's OKAY sat under the joystick). The client's own windows - health bars, journal,
+        /// paperdoll, the speech line - don't count: a walk must not turn into a click on them.
+        /// </summary>
         private static bool WindowControlAt(Point pos)
         {
             Control c = UIManager.ControlAtPhysical(pos);
 
-            return c is Button || c is NiceButton || c is Checkbox || c is StbTextBox;
+            return (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable) &&
+                   c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0;
         }
 
         /// <summary>While an editor window is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>
@@ -616,7 +623,7 @@ namespace ClassicUO.Touch
 
         /// <summary>Not while editing, over a menu, dragging a window, or holding an item.</summary>
         private static bool CanPinch() =>
-            !EditMode && !Suppressed && Client.Game.Scene is Game.Scenes.GameScene &&
+            !EditMode && (!Suppressed || UIManager.GetGump<HousePlacementBar>() != null) && Client.Game.Scene is Game.Scenes.GameScene &&
             !UIManager.IsDragging && !Client.Game.UO.GameCursor.ItemHold.Enabled;
 
         private static Finger PinchLeftover()
@@ -927,6 +934,11 @@ namespace ClassicUO.Touch
                             _downFinger = e.Finger;
 
                             break;
+                        }
+
+                        if (e.Finger == _ghostFinger)
+                        {
+                            _ghostFinger = long.MinValue; // (a reused touch id: this press is a normal one)
                         }
 
                         Client.Game.DispatchMouseDown(MouseButtonType.Left);
