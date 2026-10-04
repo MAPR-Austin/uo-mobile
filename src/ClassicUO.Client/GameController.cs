@@ -116,10 +116,10 @@ namespace ClassicUO
             // Android: a fullscreen window puts SDL's activity in immersive mode - the status and
             // navigation bars hide (a swipe from the edge shows them for a moment). Through FNA,
             // which re-applies its own IsFullScreen on every ApplyChanges (a bare
-            // SDL_SetWindowFullscreen was undone at once). iOS has no bars to hide.
+            // SDL_SetWindowFullscreen was undone at once). FNA's fullscreen is the desktop's - no display mode
+            // change. iOS has no bars to hide.
             if (OperatingSystem.IsAndroid())
             {
-                GraphicManager.HardwareModeSwitch = false; // the screen as it is, no display mode change
                 GraphicManager.IsFullScreen = true;
             }
 
