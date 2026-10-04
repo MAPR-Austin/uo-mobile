@@ -115,6 +115,13 @@ namespace ClassicUO
 
             GraphicManager.ApplyChanges();
 
+            // Android: a fullscreen SDL window puts the activity in immersive mode - the status and
+            // navigation bars hide (a swipe from the edge shows them for a moment). iOS has no bars.
+            if (OperatingSystem.IsAndroid())
+            {
+                SDL_SetWindowFullscreen(Window.Handle, true);
+            }
+
             // iOS: the window is the whole screen; FNA starts with its 800x480 default backbuffer.
             FillScreenOnPhone();
 
