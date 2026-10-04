@@ -79,13 +79,27 @@ jobs:
           ZA="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/zipalign"
           "$ZA" -c -P 16 -v 4 android/out/UOMobileHello.apk | tail -3 || echo "(not 16 KB aligned - fine for a test APK, fix before Play)"
 
+      # Signed with the release key (repo secrets ANDROID_KEYSTORE_B64 / _PASS; the original is in
+      # the owner's secrets folder) when it's there, else with the SDK's debug key.
       - name: Build the game APK
+        env:
+          KS: ${{ secrets.ANDROID_KEYSTORE_B64 }}
+          KP: ${{ secrets.ANDROID_KEYSTORE_PASS }}
         run: |
-          dotnet build android/app/ClassicUO.Android.csproj -c Release             -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"             -p:ApplicationVersion=${{ github.run_number }}
+          SIGN=""
+          if [ -n "$KS" ]; then
+            echo "$KS" | base64 -d > "$RUNNER_TEMP/upload.p12"
+            printf %s "$KP" > "$RUNNER_TEMP/kp"
+            SIGN="-p:AndroidKeyStore=true -p:AndroidSigningKeyStore=$RUNNER_TEMP/upload.p12 -p:AndroidSigningKeyAlias=uomobile -p:AndroidSigningKeyPass=file:$RUNNER_TEMP/kp -p:AndroidSigningStorePass=file:$RUNNER_TEMP/kp"
+          fi
+          dotnet build android/app/ClassicUO.Android.csproj -c Release             -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"             -p:ApplicationVersion=${{ github.run_number }} $SIGN
+          rm -f "$RUNNER_TEMP/upload.p12" "$RUNNER_TEMP/kp"
           APK="$(find android/app/bin/Release -name '*-Signed.apk' | head -1)"
           [ -n "$APK" ] || { echo "no signed APK"; find android/app/bin -name '*.apk'; exit 1; }
           cp "$APK" android/out/GraveyardBattles.apk
           ls -la android/out
+          BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
+          "$BT/apksigner" verify --print-certs android/out/GraveyardBattles.apk | grep -E "Signer #1 certificate DN|SHA-256" | head -2
 
       - uses: actions/upload-artifact@v4
         with:

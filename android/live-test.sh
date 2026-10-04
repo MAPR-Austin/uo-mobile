@@ -21,17 +21,19 @@ pullout() {
   adb pull "$D/Logs" "$OUT/cuo-logs" >/dev/null 2>&1 || true
 }
 
+# the screen's size now (a fresh emulator may not have turned yet)
+screen() { adb exec-out screencap -p | python3 -c "import struct,sys; d=sys.stdin.buffer.read(24); print(*struct.unpack('>II', d[16:24]))"; }
+
 [ -n "${CI_PASSWORD:-}" ] || { echo "no CI_PASSWORD"; exit 1; }
 adb install -r "$APK" || { echo "install failed"; exit 1; }
+adb shell settings put secure immersive_mode_confirmations confirmed   # no "Viewing full screen" note
 adb shell settings put system accelerometer_rotation 0
-adb shell settings put system user_rotation 1   # landscape
+adb shell settings put system user_rotation 1   # landscape (if it takes)
 
-# first launch: makes the app's folder; Android's one-time "Viewing full screen" note is dismissed
+# first launch: makes the app's folder
 adb shell am start -W -n "$ACT"
 sleep 10
 shot 0-first-launch
-adb shell input tap 510 190   # "Got it"
-sleep 2
 adb shell am force-stop "$PKG"
 
 # the test account, as uomobile.txt args (the game's log hides -password values)
@@ -43,7 +45,13 @@ adb logcat -c
 adb shell am start -W -n "$ACT"
 sleep 12
 shot 1-download-screen
-adb shell input tap 320 255   # Download
+# Download: the button's centre measured from the CI screenshots (640x320 and 320x640)
+read W H < <(screen)
+if [ "$W" -gt "$H" ]; then XY="$((W / 2)) $((H * 79 / 100))"; else XY="$((W / 2)) $((H * 765 / 1000))"; fi
+echo "screen ${W}x${H}, tapping Download at $XY"
+adb shell input tap $XY
+sleep 20
+shot 1b-after-tap
 start=$(date +%s)
 
 # the download, the login, the world: up to 25 minutes

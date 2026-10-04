@@ -13,6 +13,7 @@ OUT=android/smoke-out
 mkdir -p "$OUT"
 
 adb install -r "$APK" || { echo "install failed"; exit 1; }
+adb shell settings put secure immersive_mode_confirmations confirmed   # no "Viewing full screen" note
 adb logcat -c
 adb shell settings put system accelerometer_rotation 0
 adb shell settings put system user_rotation 1   # landscape
