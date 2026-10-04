@@ -1,7 +1,7 @@
-# UO Mobile, Android phase 0: prove .NET for Android + FNA + SDL3 + FNA3D + FAudio on GitHub's
-# machines before ClassicUO goes on top (android/hello). Builds the native libs (cached), the
-# hello APK (Release, signed with the SDK's debug key), then runs it in an x86_64 emulator with
-# the GLES and Vulkan drivers and keeps logcat and screenshots.
+# UO Mobile on Android, built and tested on GitHub's machines. Builds the native libs (cached),
+# the phase-0 hello APK (android/hello) and the game (android/app), both Release and signed with
+# the SDK's debug key, then runs them in an x86_64 emulator: hello with the GLES and Vulkan
+# drivers, the game up to its download screen. Keeps logcat, logs and screenshots.
 # Runs on the "android" branch only, so Android work never starts an iPhone build.
 name: Android
 
@@ -74,10 +74,24 @@ jobs:
           ZA="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/zipalign"
           "$ZA" -c -P 16 -v 4 android/out/UOMobileHello.apk | tail -3 || echo "(not 16 KB aligned - fine for a test APK, fix before Play)"
 
+      - name: Build the game APK
+        run: |
+          dotnet build android/app/ClassicUO.Android.csproj -c Release             -p:AndroidSdkDirectory="$ANDROID_HOME" -p:JavaSdkDirectory="$JAVA_HOME"             -p:ApplicationVersion=${{ github.run_number }}
+          APK="$(find android/app/bin/Release -name '*-Signed.apk' | head -1)"
+          [ -n "$APK" ] || { echo "no signed APK"; find android/app/bin -name '*.apk'; exit 1; }
+          cp "$APK" android/out/GraveyardBattles.apk
+          ls -la android/out
+
       - uses: actions/upload-artifact@v4
         with:
           name: UOMobileHello-apk
           path: android/out/UOMobileHello.apk
+          if-no-files-found: error
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: GraveyardBattles-apk
+          path: android/out/GraveyardBattles.apk
           if-no-files-found: error
 
   smoke:
@@ -90,6 +104,11 @@ jobs:
       - uses: actions/download-artifact@v4
         with:
           name: UOMobileHello-apk
+          path: android/out
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: GraveyardBattles-apk
           path: android/out
 
       - name: Enable KVM
@@ -107,7 +126,7 @@ jobs:
           force-avd-creation: false
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -no-boot-anim -camera-back none
           disable-animations: true
-          script: bash android/smoke.sh android/out/UOMobileHello.apk
+          script: bash android/smoke.sh android/out/UOMobileHello.apk && bash android/app-smoke.sh android/out/GraveyardBattles.apk
 
       - uses: actions/upload-artifact@v4
         if: always()

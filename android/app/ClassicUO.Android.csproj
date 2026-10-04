@@ -1,0 +1,72 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    UO Mobile: Android host for ClassicUO (FNA + SDL3), the counterpart of ios/ClassicUO.iOS.csproj.
+
+    MainActivity subclasses SDL's SDLActivity (SDL's Java sources bound into the app, as in
+    android/hello, proven on CI by the phase-0 smoke test); its Main() runs on SDL's thread once
+    the surface exists and hands over to ClassicUO.Bootstrap.Main - the normal desktop entry.
+    FNA3D, FAudio and SDL3 are shared libraries in the APK, found by .NET's own library search.
+
+    Bring-up settings: JIT (Mono may JIT on Android, unlike iOS), no trimming (ClassicUO reflects),
+    marshal methods off (SDLActivity's onCreate fails with UnsatisfiedLinkError with them on), and
+    assemblies embedded so a plain `adb install` works. AOT and trimming come later, measured.
+
+    Native libs: ../native/<abi>/ and the SDL Java glue ../sdl-java/ (build-android-libs.sh).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>26</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <RootNamespace>UOMobile.Droid</RootNamespace>
+    <AssemblyName>UOMobile</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <LangVersion>latest</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+
+    <ApplicationId>com.mapraustin.britgraveyard</ApplicationId>
+    <ApplicationTitle>Graveyard Battles</ApplicationTitle>
+    <ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
+    <ApplicationVersion Condition="'$(ApplicationVersion)' == ''">1</ApplicationVersion>
+
+    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
+    <AndroidEnableMarshalMethods>false</AndroidEnableMarshalMethods>
+    <PublishTrimmed>false</PublishTrimmed>
+    <AndroidLinkMode>None</AndroidLinkMode>
+    <RunAOTCompilation>false</RunAOTCompilation>
+
+    <!-- ClassicUO.Client is an Exe project (cuo), referenced here as a library (NETSDK1150/1151). -->
+    <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\ClassicUO.Client\ClassicUO.Client.csproj" />
+    <ProjectReference Include="..\..\external\FNA\FNA.Core.csproj" />
+
+    <AndroidJavaSource Include="..\sdl-java\*.java" Bind="true" />
+    <TransformFile Include="Transforms\Metadata.xml" />
+
+    <AndroidNativeLibrary Include="..\native\arm64-v8a\*.so" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Include="..\native\x86_64\*.so" Abi="x86_64" />
+  </ItemGroup>
+
+  <!-- cuo is an Exe project; its desktop host files (apphost, runtimeconfig, deps) don't belong in
+       the APK. Only cuo.dll is needed (as on iOS). -->
+  <Target Name="UOMobileDropCuoHostFiles" AfterTargets="ComputeResolvedFilesToPublishList">
+    <ItemGroup>
+      <_UOMobileCuoHost Include="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'cuo' Or '%(Filename)%(Extension)' == 'cuo.exe' Or '%(Filename)%(Extension)' == 'cuo.runtimeconfig.json' Or '%(Filename)%(Extension)' == 'cuo.deps.json'" />
+      <ResolvedFileToPublish Remove="@(_UOMobileCuoHost)" />
+    </ItemGroup>
+  </Target>
+
+  <Target Name="UOMobileCheckNativeLibs" BeforeTargets="Build">
+    <Error Condition="!Exists('..\native\arm64-v8a\libSDL3.so') Or !Exists('..\native\arm64-v8a\libFNA3D.so') Or !Exists('..\native\arm64-v8a\libFAudio.so') Or !Exists('..\sdl-java\SDLActivity.java')"
+           Text="Android fnalibs not found in android/native (run android/build-android-libs.sh)." />
+  </Target>
+
+</Project>

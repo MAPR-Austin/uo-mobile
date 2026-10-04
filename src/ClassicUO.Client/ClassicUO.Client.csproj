@@ -8,9 +8,10 @@
     <PublishAot>true</PublishAot>
   </PropertyGroup>
 
-  <!-- UO Mobile: built as a library of ios/ClassicUO.iOS.csproj, whose RuntimeIdentifier flows
-       here. The iOS app does its own AOT; the desktop NativeAOT/apphost settings don't apply. -->
-  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('ios'))">
+  <!-- UO Mobile: built as a library of ios/ClassicUO.iOS.csproj (or android/app), whose
+       RuntimeIdentifier flows here. The phone app does its own AOT; the desktop NativeAOT/apphost
+       settings don't apply. -->
+  <PropertyGroup Condition="$(RuntimeIdentifier.StartsWith('ios')) Or $(RuntimeIdentifier.StartsWith('android'))">
     <PublishAot>false</PublishAot>
     <UseAppHost>false</UseAppHost>
     <SelfContained>false</SelfContained>

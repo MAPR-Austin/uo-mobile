@@ -151,7 +151,7 @@ namespace ClassicUO
                 }
             }
 
-            if (OperatingSystem.IsIOS())
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsAndroid())
             {
                 // The desktop cursor thread drives SDL's OS cursor; phones have none, and UIKit
                 // expects UI calls on the main thread.

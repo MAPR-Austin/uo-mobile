@@ -118,7 +118,7 @@ namespace ClassicUO
             // iOS: the window is the whole screen; FNA starts with its 800x480 default backbuffer.
             FillScreenOnPhone();
 
-            if (OperatingSystem.IsIOS())
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsAndroid())
             {
                 ClassicUO.Utility.Platforms.PlatformHelper.OpenUrlOverride = url => SDL_OpenURL(url);
             }
@@ -137,7 +137,7 @@ namespace ClassicUO
 
             FitUiToPhone();
 
-            if (OperatingSystem.IsIOS())
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsAndroid())
             {
                 SetVSync(true); // don't render at 250 fps on a phone battery
             }
@@ -155,7 +155,7 @@ namespace ClassicUO
         /// The phone screen-fit path (iOS; on desktop with UOM_PHONE_FIT=1 so it can be tested by
         /// resizing the window to a phone shape).
         /// </summary>
-        internal static readonly bool PhoneFit = OperatingSystem.IsIOS() || Environment.GetEnvironmentVariable("UOM_PHONE_FIT") == "1";
+        internal static readonly bool PhoneFit = OperatingSystem.IsIOS() || OperatingSystem.IsAndroid() || Environment.GetEnvironmentVariable("UOM_PHONE_FIT") == "1";
 
         internal void FillScreenOnPhone()
         {

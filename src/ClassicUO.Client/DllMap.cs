@@ -22,8 +22,9 @@ namespace ClassicUO
                 return;
 
             // iOS links the native libs statically and FNA's own module initializer already
-            // registered the resolver for its assembly; a second registration throws.
-            if (OperatingSystem.IsIOS())
+            // registered the resolver for its assembly; a second registration throws. Android
+            // finds the APK's libFNA3D.so etc. with .NET's own library search.
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsAndroid())
                 return;
 
             // Get the platform and architecture

@@ -17,7 +17,7 @@ namespace ClassicUO.Utility
             // iOS: use .NET's own zlib (System.IO.Compression) instead of P/Invoking libz.
             // (ClassicUO's ZLibManaged fails "CRC mismatch" on real UO data - never used on 64-bit.)
             // UOM_DOTNET_ZLIB=1 forces it on desktop for testing.
-            if (OperatingSystem.IsIOS() || Environment.GetEnvironmentVariable("UOM_DOTNET_ZLIB") == "1")
+            if (OperatingSystem.IsIOS() || OperatingSystem.IsAndroid() || Environment.GetEnvironmentVariable("UOM_DOTNET_ZLIB") == "1")
             {
                 _compressor = new DotNetZLib();
             }
