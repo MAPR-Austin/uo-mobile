@@ -114,6 +114,16 @@ namespace ClassicUO.Touch
         private static readonly HashSet<Gump> _openBefore = new HashSet<Gump>(); // server menus open when the macro started
         private static readonly Stack<(int Loop, int Remaining)> _loops = new Stack<(int, int)>();
 
+        // waitforjournal: the text awaited, since when, until when
+        private static string _journalWaitText;
+        private static DateTime _journalWaitSince;
+        private static uint _journalDeadline;
+
+        // call: the macros to go back to (program, name, where to resume, its loops)
+        private const int MaxCallDepth = 8;
+        private static readonly Stack<(List<Step> Program, string Name, int Pc, (int, int)[] Loops)> _calls =
+            new Stack<(List<Step>, string, int, (int, int)[])>();
+
         public static MobileMacroSet Macros { get; private set; }
 
         public static bool IsRunning => _program != null;
@@ -166,8 +176,10 @@ namespace ClassicUO.Touch
             _waitUntil = 0;
             _targetDeadline = 0;
             _gumpDeadline = 0;
+            _journalDeadline = 0;
             _journalSince = DateTime.Now;
             _loops.Clear();
+            _calls.Clear();
             _openBefore.Clear();
 
             foreach (Gump g in UIManager.Gumps)
@@ -184,6 +196,8 @@ namespace ClassicUO.Touch
             _program = null;
             _name = null;
             _loops.Clear();
+            _calls.Clear();
+            _journalDeadline = 0;
             _openBefore.Clear();
         }
 
@@ -196,6 +210,7 @@ namespace ClassicUO.Touch
         {
             program = new List<Step>();
             var open = new Stack<Step>();
+            var breaks = new Dictionary<Step, List<Step>>(); // a loop or while -> the breaks leaving it
 
             for (int i = 0; i < lines.Count; i++)
             {
@@ -215,7 +230,48 @@ namespace ClassicUO.Touch
                 {
                     case "if":
                     case "loop":
+                    case "while":
                         open.Push(s);
+
+                        break;
+
+                    case "endwhile":
+                        if (open.Count == 0 || open.Peek().Op != "while")
+                        {
+                            return $"line {s.Line}: 'endwhile' without 'while'";
+                        }
+
+                        Step whileStep = open.Pop();
+                        whileStep.Jump = index + 1;
+                        s.Jump = program.IndexOf(whileStep);
+                        ResolveBreaks(breaks, whileStep, index + 1);
+
+                        break;
+
+                    case "break":
+                        Step enclosing = null;
+
+                        foreach (Step o in open)
+                        {
+                            if (o.Op is "loop" or "while")
+                            {
+                                enclosing = o;
+                                break;
+                            }
+                        }
+
+                        if (enclosing == null)
+                        {
+                            return $"line {s.Line}: 'break' outside a loop or while";
+                        }
+
+                        if (!breaks.TryGetValue(enclosing, out List<Step> list))
+                        {
+                            breaks[enclosing] = list = new List<Step>();
+                        }
+
+                        list.Add(s);
+                        s.End = enclosing.Op == "loop" ? 1 : 0; // leaving a loop also drops its counter
 
                         break;
 
@@ -250,6 +306,7 @@ namespace ClassicUO.Touch
                         Step loop = open.Pop();
                         loop.Jump = index + 1;
                         s.Jump = program.IndexOf(loop);
+                        ResolveBreaks(breaks, loop, index + 1);
 
                         break;
 
@@ -259,11 +316,27 @@ namespace ClassicUO.Touch
                     case "useonce": case "dress": case "undress":
                         break;
 
+                    case "waitforjournal":
+                        if (s.Args.Length == 0 || s.Args.Length == 1 && int.TryParse(s.Args[0], out _))
+                        {
+                            return $"line {s.Line}: 'waitforjournal' needs the text, e.g. 'waitforjournal 5000 You put'";
+                        }
+
+                        break;
+
+                    case "call":
+                        if (s.Args.Length == 0)
+                        {
+                            return $"line {s.Line}: 'call' needs a macro name";
+                        }
+
+                        break;
+
                     default:
                         return $"line {s.Line}: unknown step '{s.Op}'";
                 }
 
-                if (s.Op is "if" or "elseif")
+                if (s.Op is "if" or "elseif" or "while")
                 {
                     string err = CheckCondition(s.Args);
 
@@ -289,6 +362,15 @@ namespace ClassicUO.Touch
             }
 
             return null;
+        }
+
+        private static void ResolveBreaks(Dictionary<Step, List<Step>> breaks, Step loop, int after)
+        {
+            if (breaks.TryGetValue(loop, out List<Step> list))
+            {
+                list.ForEach(b => b.Jump = after);
+                breaks.Remove(loop);
+            }
         }
 
         private static int FindEndIf(List<Step> program, int from)
@@ -350,8 +432,37 @@ namespace ClassicUO.Touch
                     }
                 }
 
+                if (_journalDeadline != 0)
+                {
+                    if (JournalSays(_journalWaitText, _journalWaitSince) || Time.Ticks >= _journalDeadline)
+                    {
+                        _journalDeadline = 0;
+                    }
+                    else
+                    {
+                        return;
+                    }
+                }
+
                 if (_pc >= _program.Count)
                 {
+                    if (_calls.Count > 0)
+                    {
+                        // the called macro is done: back to the caller
+                        (List<Step> program, string name, int pc, (int, int)[] loops) = _calls.Pop();
+                        _program = program;
+                        _name = name;
+                        _pc = pc;
+                        _loops.Clear();
+
+                        for (int l = loops.Length - 1; l >= 0; l--)
+                        {
+                            _loops.Push(loops[l]);
+                        }
+
+                        continue;
+                    }
+
                     Stop();
 
                     return;
@@ -491,6 +602,74 @@ namespace ClassicUO.Touch
                     Agents.UseOnce(world, arg);
 
                     break;
+
+                case "while":
+                    _pc = Condition(world, s.Args) ? _pc + 1 : s.Jump;
+
+                    return true;
+
+                case "endwhile":
+                    _pc = s.Jump;
+
+                    return false; // one pass per frame at most
+
+                case "break":
+                    if (s.End == 1 && _loops.Count > 0)
+                    {
+                        _loops.Pop();
+                    }
+
+                    _pc = s.Jump;
+
+                    return true;
+
+                case "waitforjournal":
+                    {
+                        int from = 0, ms = 10000;
+
+                        if (s.Args.Length > 1 && int.TryParse(s.Args[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out int given))
+                        {
+                            ms = Math.Max(1, given);
+                            from = 1;
+                        }
+
+                        _journalWaitText = string.Join(" ", s.Args, from, s.Args.Length - from);
+                        _journalWaitSince = DateTime.Now;
+                        _journalDeadline = Time.Ticks + (uint)ms;
+                    }
+
+                    break;
+
+                case "call":
+                    {
+                        MobileMacro called = Macros?.Find(arg);
+
+                        if (called == null || _calls.Count >= MaxCallDepth)
+                        {
+                            GameActions.Print(world, called == null ? $"Macro '{_name}': no macro named '{arg}' to call." : $"Macro '{_name}': calls nested too deep.", 0x21);
+                            Stop();
+
+                            return false;
+                        }
+
+                        string error = Compile(called.Lines, out List<Step> calledProgram);
+
+                        if (error != null)
+                        {
+                            GameActions.Print(world, $"Macro '{called.Name}': {error}", 0x21);
+                            Stop();
+
+                            return false;
+                        }
+
+                        _calls.Push((_program, _name, _pc + 1, _loops.ToArray()));
+                        _program = calledProgram;
+                        _name = called.Name;
+                        _pc = 0;
+                        _loops.Clear();
+                    }
+
+                    return true;
 
                 case "dress":
                     Agents.Dress(world, arg);
@@ -792,7 +971,9 @@ namespace ClassicUO.Touch
             return false;
         }
 
-        private static bool JournalSays(string text)
+        private static bool JournalSays(string text) => JournalSays(text, _journalSince);
+
+        private static bool JournalSays(string text, DateTime since)
         {
             var entries = JournalManager.Entries;
 
@@ -800,7 +981,7 @@ namespace ClassicUO.Touch
             {
                 JournalEntry e = entries[i];
 
-                if (e == null || e.Time < _journalSince)
+                if (e == null || e.Time < since)
                 {
                     break;
                 }
@@ -835,6 +1016,7 @@ namespace ClassicUO.Touch
             switch (args[i].ToLowerInvariant())
             {
                 case "poisoned": case "hidden": case "war": case "targeting": case "dead": case "targetalive": case "gump": case "bandaging":
+                case "paralyzed": case "mounted":
                     return null;
 
                 case "journal":
@@ -843,7 +1025,16 @@ namespace ClassicUO.Touch
                 case "gumptext":
                     return args.Length > i + 1 ? null : "'gumptext' needs the text to look for, e.g. 'gumptext haven't made'";
 
+                case "targetnoto":
+                    return args.Length > i + 1 ? null : "'targetnoto' needs a colour, e.g. 'targetnoto red'";
+
+                case "skill":
+                    return args.Length >= i + 4 && Array.IndexOf(Comparators, args[i + 2]) >= 0 && double.TryParse(args[i + 3], NumberStyles.Float, CultureInfo.InvariantCulture, out _)
+                        ? null
+                        : "'skill' needs a skill and comparison, e.g. 'skill Magery >= 80'";
+
                 case "hp": case "mana": case "stam": case "targethp": case "targetrange": case "weight":
+                case "hits": case "manapoints": case "stampoints":
                     return args.Length >= i + 3 && Array.IndexOf(Comparators, args[i + 1]) >= 0 && int.TryParse(args[i + 2], out _)
                         ? null
                         : $"'{args[i]}' needs a comparison, e.g. '{args[i]} < 50'";
@@ -871,6 +1062,13 @@ namespace ClassicUO.Touch
             {
                 case "poisoned": result = p.IsPoisoned; break;
                 case "bandaging": result = PlayerTimers.Bandaging; break;
+                case "paralyzed": result = p.IsParalyzed; break;
+                case "mounted": result = p.FindItemByLayer(Layer.Mount) != null; break;
+                case "hits": result = Compare(p.Hits, args[i + 1], args[i + 2]); break; // absolute, where hp is a percentage
+                case "manapoints": result = Compare(p.Mana, args[i + 1], args[i + 2]); break;
+                case "stampoints": result = Compare(p.Stamina, args[i + 1], args[i + 2]); break;
+                case "skill": result = SkillValue(p, args[i + 1]) is double v && Compare(v, args[i + 2], args[i + 3]); break;
+                case "targetnoto": result = target != null && NotoIs(target.NotorietyFlag, args[i + 1]); break;
                 case "hidden": result = p.IsHidden; break;
                 case "war": result = p.InWarMode; break;
                 case "targeting": result = tm.IsTargeting; break;
@@ -893,6 +1091,50 @@ namespace ClassicUO.Touch
         }
 
         private static int Percent(int value, int max) => max <= 0 ? 0 : value * 100 / max;
+
+        /// <summary>A skill's value by name ("Magery", "Resisting Spells" written without spaces too), null if none.</summary>
+        private static double? SkillValue(PlayerMobile p, string name)
+        {
+            string want = name.Replace("_", "").Replace(" ", "");
+
+            foreach (Skill s in p.Skills)
+            {
+                if (s != null && s.Name != null && s.Name.Replace(" ", "").StartsWith(want, StringComparison.OrdinalIgnoreCase))
+                {
+                    return s.Value;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool NotoIs(NotorietyFlag n, string colour)
+        {
+            switch (colour.ToLowerInvariant())
+            {
+                case "red": case "murderer": return n == NotorietyFlag.Murderer;
+                case "gray": case "grey": case "criminal": return n == NotorietyFlag.Gray || n == NotorietyFlag.Criminal;
+                case "blue": case "innocent": return n == NotorietyFlag.Innocent;
+                case "orange": return n == NotorietyFlag.Enemy;
+                case "green": case "ally": return n == NotorietyFlag.Ally;
+                case "enemy": return n == NotorietyFlag.Gray || n == NotorietyFlag.Criminal || n == NotorietyFlag.Murderer || n == NotorietyFlag.Enemy;
+                default: return false;
+            }
+        }
+
+        private static bool Compare(double value, string op, string rhs)
+        {
+            double n = double.Parse(rhs, NumberStyles.Float, CultureInfo.InvariantCulture);
+
+            return op switch
+            {
+                "<" => value < n,
+                ">" => value > n,
+                "<=" => value <= n,
+                ">=" => value >= n,
+                _ => Math.Abs(value - n) < 0.05
+            };
+        }
 
         private static bool Compare(int value, string op, string rhs)
         {
