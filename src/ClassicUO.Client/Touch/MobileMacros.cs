@@ -1519,6 +1519,12 @@ namespace ClassicUO.Touch
         // ---------- items ----------
 
         /// <summary>Why an item list (names from ItemGroups, hex or decimal graphics) can't be read; null if it can.</summary>
+        /// <summary>A comma list of item names and graphics ("gold,regs,0x0F3F"): what's wrong with it, or null.</summary>
+        public static string ItemListError(string list) => ItemError(new[] { list.Replace(" ", "") }, 0);
+
+        /// <summary>The graphics a comma list of item names and graphics stands for.</summary>
+        public static ushort[] ItemList(string list) => Graphics(new[] { list.Replace(" ", "") }, 0);
+
         private static string ItemError(string[] args, int index)
         {
             if (index >= args.Length)

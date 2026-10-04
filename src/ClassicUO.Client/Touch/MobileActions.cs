@@ -40,6 +40,7 @@ namespace ClassicUO.Touch
     ///   say:text
     ///   mmacro:Name      run (or stop, if running) a phone macro - see MobileMacros
     ///   triggers[:on|off]   switch the phone macros' triggers ("when ..." macros) on or off
+    ///   autoloot[:on|off|LIST]   auto loot from corpses (Touch/AutoLoot); LIST: "gold,regs,arrows"
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -274,6 +275,11 @@ namespace ClassicUO.Touch
 
                 case "triggers":
                     MobileMacroRunner.SetTriggers(world, arg);
+
+                    break;
+
+                case "autoloot":
+                    AutoLoot.Set(world, arg);
 
                     break;
 

@@ -233,6 +233,10 @@ namespace ClassicUO.Configuration
         /// <summary>UO Mobile: which version of the phone's defaults this character has had (Touch/PhoneDefaults).</summary>
         public int TouchDefaultsVersion { get; set; }
 
+        /// <summary>UO Mobile: auto loot on, and what it takes (Touch/AutoLoot; item names or graphics, comma separated).</summary>
+        public bool TouchAutoLoot { get; set; }
+        public string TouchAutoLootItems { get; set; } = Touch.AutoLoot.DefaultList;
+
         public bool ShowSkillsChangedMessage { get; set; } = true;
         public int ShowSkillsChangedDeltaValue { get; set; } = 1;
         public bool ShowStatsChangedMessage { get; set; } = true;

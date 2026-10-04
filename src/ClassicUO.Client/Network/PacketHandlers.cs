@@ -1312,9 +1312,9 @@ namespace ClassicUO.Network
             uint serial = p.ReadUInt32BE();
             ushort graphic = p.ReadUInt16BE();
 
-            if (Touch.PackPrimer.SwallowOpen(serial))
+            if (Touch.PackPrimer.SwallowOpen(serial) || Touch.AutoLoot.SwallowOpen(serial))
             {
-                return; // UO Mobile: the backpack opened at login for its contents, not to be shown
+                return; // UO Mobile: the backpack opened at login, or a corpse auto loot opened - for their contents, not to be shown
             }
 
             if (graphic == 0xFFFF)
@@ -3712,6 +3712,8 @@ namespace ClassicUO.Network
             {
                 return;
             }
+
+            Touch.AutoLoot.OnDeath(world, owner, corpseSerial); // UO Mobile: the colour the corpse's owner had
 
             serial |= 0x80000000;
 

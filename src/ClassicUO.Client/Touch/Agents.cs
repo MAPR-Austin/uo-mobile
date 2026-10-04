@@ -43,6 +43,9 @@ namespace ClassicUO.Touch
 
         public static bool Busy => _steps.Count > 0;
 
+        /// <summary>A step for the queue (auto loot's lifts): run in turn, at the server's pace.</summary>
+        public static void Enqueue(Action step) => _steps.Enqueue(step);
+
         // ---------- use once ----------
 
         public static void UseOnce(World world, string group)

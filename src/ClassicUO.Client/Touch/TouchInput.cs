@@ -176,6 +176,7 @@ namespace ClassicUO.Touch
             _ghostFinger = long.MinValue;
             PackPrimer.Reset();
             Agents.Reset();
+            AutoLoot.Reset();
             SmartTargeting.Reset();
             _maps.Clear();
             PointerGump = null;
@@ -904,6 +905,7 @@ namespace ClassicUO.Touch
                 PlayerTimers.Update(Client.Game.UO.World);
                 PackPrimer.Update(Client.Game.UO.World);
                 Agents.Update(Client.Game.UO.World);
+                AutoLoot.Update(Client.Game.UO.World);
                 SmartTargeting.Update(Client.Game.UO.World);
             }
             else if (Layouts != null)
