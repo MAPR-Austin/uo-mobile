@@ -42,6 +42,8 @@ namespace ClassicUO.Touch
     ///   triggers[:on|off]   switch the phone macros' triggers ("when ..." macros) on or off
     ///   autoloot[:on|off|LIST]   auto loot from corpses (Touch/AutoLoot); LIST: "gold,regs,arrows"
     ///   record           start recording a phone macro, or stop and save it (Touch/MacroRecorder)
+    ///   restock[:LIST]   top the pack up from the open bank box or chest: "restock:bandages=100,regs=30"
+    ///   organize[:LIST]  move items of LIST (default gold) from the pack into the container opened last
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -301,6 +303,16 @@ namespace ClassicUO.Touch
 
                 case "autoloot":
                     AutoLoot.Set(world, arg);
+
+                    break;
+
+                case "restock":
+                    Agents.Restock(world, arg);
+
+                    break;
+
+                case "organize":
+                    Agents.Organize(world, arg);
 
                     break;
 

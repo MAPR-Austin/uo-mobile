@@ -22,6 +22,12 @@ namespace ClassicUO.Touch
     /// (whatever is in the way goes to the pack first), "undress:NAME" takes it off into the pack -
     /// one item at a time at the server's pace. Saved per character (dress_sets.json beside the
     /// phone macros). Macro "dress NAME" / "undress NAME".</item>
+    /// <item>Restock: with your bank box (or a chest) open, "restock" tops your pack up to set amounts
+    /// from it - bandages 50, each reagent 50, heal, cure and refresh potions 5 unless the action
+    /// says otherwise: "restock:bandages=100,regs=30,arrows=200". A stack in the pack grows rather
+    /// than a new pile landing beside it.</item>
+    /// <item>Organize: "organize[:LIST]" moves every item of LIST (default gold) from your pack into
+    /// the container you opened last - the bank box, a chest, a bag in the pack: "organize:gold,ore".</item>
     /// </list>
     /// </summary>
     internal static class Agents
@@ -249,6 +255,226 @@ namespace ClassicUO.Touch
                     });
                 }
             }
+        }
+
+        // ---------- restock and organize ----------
+
+        public const string DefaultRestock = "bandages=50,regs=50,heal=5,cure=5,refresh=5";
+        public const string DefaultOrganize = "gold";
+
+        public static void Restock(World world, string list)
+        {
+            list = string.IsNullOrWhiteSpace(list) ? DefaultRestock : list;
+            Item pack = world.Player?.FindItemByLayer(Layer.Backpack);
+            Item source = OpenedContainer(world, pack, false);
+
+            if (pack == null || source == null)
+            {
+                GameActions.Print(world, "Restock: open your bank box or a chest first.", 0x21);
+
+                return;
+            }
+
+            int stacks = 0;
+
+            foreach (string part in list.Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                string[] kv = part.Split('=');
+
+                if (kv.Length != 2 || !int.TryParse(kv[1].Trim(), out int want) || want < 0 || MobileMacroRunner.ItemListError(kv[0]) != null)
+                {
+                    GameActions.Print(world, $"Restock: '{part.Trim()}' should look like bandages=50.", 0x21);
+
+                    return;
+                }
+
+                foreach (ushort graphic in MobileMacroRunner.ItemList(kv[0]))
+                {
+                    int need = want - Count(pack, graphic);
+
+                    for (Item stack = Find(source, graphic, null); need > 0 && stack != null; stack = Find(source, graphic, stack))
+                    {
+                        int take = Math.Min(need, Math.Max(1, (int)stack.Amount));
+                        need -= take;
+                        Move(world, stack.Serial, take, pack, graphic);
+                        stacks++;
+                    }
+                }
+            }
+
+            GameActions.Print(world, stacks == 0 ? "Restock: your pack is already stocked (or the container has none)." : $"Restocking {stacks} stacks...", 0x3B2);
+        }
+
+        public static void Organize(World world, string list)
+        {
+            list = string.IsNullOrWhiteSpace(list) ? DefaultOrganize : list;
+            string bad = MobileMacroRunner.ItemListError(list);
+            Item pack = world.Player?.FindItemByLayer(Layer.Backpack);
+            Item dest = OpenedContainer(world, pack, true);
+
+            if (bad != null)
+            {
+                GameActions.Print(world, $"Organize: {bad}", 0x21);
+
+                return;
+            }
+
+            if (pack == null || dest == null)
+            {
+                GameActions.Print(world, "Organize: open the container to fill first (your bank box, a chest or a bag).", 0x21);
+
+                return;
+            }
+
+            ushort[] graphics = MobileMacroRunner.ItemList(list);
+            List<Item> moving = new List<Item>();
+
+            for (LinkedObject o = pack.Items; o != null; o = o.Next)
+            {
+                Item it = (Item)o;
+
+                if (it.Serial != dest.Serial && Array.IndexOf(graphics, it.Graphic) >= 0)
+                {
+                    moving.Add(it);
+                }
+            }
+
+            foreach (Item it in moving)
+            {
+                Move(world, it.Serial, it.Amount, dest, it.Graphic);
+            }
+
+            GameActions.Print(world, moving.Count == 0 ? $"Organize: no {list.Replace(",", ", ")} in your pack." : $"Moving {moving.Count} items...", 0x3B2);
+        }
+
+        /// <summary>The container window opened last, other than the backpack (one in the pack only when <paramref name="inPack"/>).</summary>
+        private static Item OpenedContainer(World world, Item pack, bool inPack)
+        {
+            foreach (Game.UI.Gumps.Gump g in Game.Managers.UIManager.Gumps)
+            {
+                if (g is Game.UI.Gumps.ContainerGump cg && !cg.IsDisposed && world.Items.Get(cg.LocalSerial) is Item c && pack != null && c.Serial != pack.Serial &&
+                    (inPack || !Inside(world, c, pack.Serial)))
+                {
+                    return c;
+                }
+            }
+
+            return null;
+        }
+
+        private static bool Inside(World world, Item it, uint container)
+        {
+            for (uint s = it.Container; SerialHelper.IsValid(s);)
+            {
+                if (s == container)
+                {
+                    return true;
+                }
+
+                Item parent = world.Items.Get(s);
+
+                if (parent == null)
+                {
+                    return false;
+                }
+
+                s = parent.Container;
+            }
+
+            return false;
+        }
+
+        private static int Count(Item container, ushort graphic)
+        {
+            int n = 0;
+
+            for (LinkedObject o = container.Items; o != null; o = o.Next)
+            {
+                Item it = (Item)o;
+                n += it.Graphic == graphic ? Math.Max(1, (int)it.Amount) : 0;
+
+                if (!it.IsEmpty)
+                {
+                    n += Count(it, graphic);
+                }
+            }
+
+            return n;
+        }
+
+        /// <summary>The next stack of <paramref name="graphic"/> in <paramref name="container"/> (top level first, then bags) after <paramref name="after"/>.</summary>
+        private static Item Find(Item container, ushort graphic, Item after)
+        {
+            bool passed = after == null;
+
+            foreach (Item it in Stacks(container, graphic))
+            {
+                if (passed)
+                {
+                    return it;
+                }
+
+                passed = it == after;
+            }
+
+            return null;
+        }
+
+        private static IEnumerable<Item> Stacks(Item container, ushort graphic)
+        {
+            for (LinkedObject o = container.Items; o != null; o = o.Next)
+            {
+                if (((Item)o).Graphic == graphic)
+                {
+                    yield return (Item)o;
+                }
+            }
+
+            for (LinkedObject o = container.Items; o != null; o = o.Next)
+            {
+                Item it = (Item)o;
+
+                if (!it.IsEmpty && it.Graphic != graphic)
+                {
+                    foreach (Item inner in Stacks(it, graphic))
+                    {
+                        yield return inner;
+                    }
+                }
+            }
+        }
+
+        /// <summary>Queues a lift of <paramref name="amount"/> and a drop onto a like stack in <paramref name="into"/>, else into it.</summary>
+        private static void Move(World world, uint serial, int amount, Item into, ushort graphic)
+        {
+            uint intoSerial = into.Serial;
+
+            _steps.Enqueue(() =>
+            {
+                Item target = world.Items.Get(intoSerial);
+
+                if (target == null || world.Items.Get(serial) == null || !GameActions.PickUp(world, serial, 0, 0, amount))
+                {
+                    return;
+                }
+
+                Item stack = null;
+
+                for (LinkedObject o = target.Items; o != null && stack == null; o = o.Next)
+                {
+                    Item it = (Item)o;
+                    stack = it.Graphic == graphic && it.Serial != serial && it.ItemData.IsStackable ? it : null;
+                }
+
+                if (stack != null)
+                {
+                    GameActions.DropItem(serial, stack.X, stack.Y, 0, stack.Serial); // onto the stack: they merge
+                }
+                else
+                {
+                    GameActions.DropItem(serial, 0xFFFF, 0xFFFF, 0, intoSerial);
+                }
+            });
         }
 
         /// <summary>Every frame (TouchInput.Update, in the world): the next queued equip step.</summary>
