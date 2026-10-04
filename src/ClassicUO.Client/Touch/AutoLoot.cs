@@ -19,12 +19,20 @@ namespace ClassicUO.Touch
     /// through the agents' queue.
     /// Never a corpse looting would make you a criminal or that isn't yours to take: blue, green,
     /// yellow or a party member's at death (the death packet tells the colour); a corpse that died out
-    /// of sight is taken only if it isn't a human's (a monster can't be blue; a person might be).
+    /// of sight is taken only if it isn't a human's (a monster can't be blue; a person might be); and
+    /// never once the server warns, on opening it, that looting it is a criminal act or not yours (a
+    /// monster someone else killed: the first two minutes are theirs).
+    /// It waits while you are hidden (a lift reveals you), in war mode (each lift holds your next
+    /// potion or bandage for half a second), and for 2 s after your own taps.
     /// </summary>
     internal static class AutoLoot
     {
         private const int Range = 2;
-        private const uint CheckMs = 400, ScanAfterMs = 700, SwallowMs = 3000;
+        private const uint CheckMs = 400, ScanAfterMs = 700, ContentsWaitMs = 2500, SwallowMs = 3000, PlayerGraceMs = 2000;
+
+        // Corpse.CheckLoot / CanLoot: "did not earn the right", "may not loot", "will be a criminal act" (monster / player)
+        private static readonly uint[] Warnings = { 1005035, 1010049, 1005036, 1005038 };
+        private static bool _warned;
         public const string DefaultList = "gold,regs";
 
         private static readonly Dictionary<uint, (NotorietyFlag Noto, bool Party)> _deaths = new Dictionary<uint, (NotorietyFlag, bool)>();
@@ -100,6 +108,15 @@ namespace ClassicUO.Touch
             _deaths[corpseSerial] = (owner.NotorietyFlag, world.Party.Contains(owner.Serial));
         }
 
+        /// <summary>PacketHandlers: a cliloc message; a warning while a corpse opens leaves it alone.</summary>
+        public static void OnCliloc(uint cliloc)
+        {
+            if (_opening != 0 && Array.IndexOf(Warnings, cliloc) >= 0)
+            {
+                _warned = true;
+            }
+        }
+
         /// <summary>PacketHandlers.OpenContainer: true to skip the window (a corpse this opened).</summary>
         public static bool SwallowOpen(uint serial)
         {
@@ -131,23 +148,32 @@ namespace ClassicUO.Touch
 
             if (_opening != 0)
             {
-                if (Time.Ticks - _openedAt < ScanAfterMs)
+                Item opened = world.Items.Get(_opening);
+
+                // contents can take longer than 0.7 s on a slow link
+                if (Time.Ticks - _openedAt < ScanAfterMs || (opened != null && opened.Items == null && !_warned && Time.Ticks - _openedAt < ContentsWaitMs))
                 {
                     return;
                 }
 
-                Item opened = world.Items.Get(_opening);
                 _opening = 0;
 
-                if (opened != null)
+                if (_warned)
+                {
+                    Log.Trace($"[UOMobile] auto loot: corpse {opened?.Serial:X8} left alone (the server warned)");
+                }
+                else if (opened != null)
                 {
                     Take(world, opened);
                 }
 
+                _warned = false;
+
                 return;
             }
 
-            if (Agents.Busy || Client.Game.UO.GameCursor.ItemHold.Enabled || world.TargetManager.IsTargeting || (p.WeightMax > 0 && p.Weight >= p.WeightMax))
+            if (p.IsHidden || p.InWarMode || Time.Ticks - MobileMacroRunner.PlayerActedAt < PlayerGraceMs ||
+                Agents.Busy || Client.Game.UO.GameCursor.ItemHold.Enabled || world.TargetManager.IsTargeting || (p.WeightMax > 0 && p.Weight >= p.WeightMax))
             {
                 return;
             }
@@ -185,6 +211,7 @@ namespace ClassicUO.Touch
 
             _opening = corpse.Serial;
             _openedAt = Time.Ticks;
+            _warned = false;
             _swallowUntil = Time.Ticks + SwallowMs;
 
             uint lastObject = world.LastObject;
@@ -234,12 +261,13 @@ namespace ClassicUO.Touch
 
                 uint s = it.Serial;
 
-                Agents.Enqueue(() =>
+                Agents.EnqueueLoot(() =>
                 {
                     Item now = world.Items.Get(s);
 
-                    // still in the corpse, and the corpse still in reach
+                    // still in the corpse, the corpse still in reach, and nothing to give away (a lift reveals; war: a fight)
                     if (now != null && now.Container == corpseSerial && world.Items.Get(corpseSerial) is Item c && c.Distance <= Range &&
+                        world.Player is PlayerMobile pm && !pm.IsHidden && !pm.InWarMode &&
                         GameActions.PickUp(world, s, 0, 0, now.Amount))
                     {
                         GameActions.DropItem(s, 0xFFFF, 0xFFFF, 0, packSerial);
@@ -254,6 +282,7 @@ namespace ClassicUO.Touch
             _deaths.Clear();
             _done.Clear();
             _opening = _swallowUntil = 0;
+            _warned = false;
             _wanted = null;
         }
     }

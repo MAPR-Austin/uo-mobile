@@ -177,6 +177,7 @@ namespace ClassicUO.Touch
             PackPrimer.Reset();
             Agents.Reset();
             AutoLoot.Reset();
+            MacroRecorder.Reset();
             SmartTargeting.Reset();
             _maps.Clear();
             PointerGump = null;

@@ -43,14 +43,18 @@ namespace ClassicUO.Touch
 
         private static readonly HashSet<uint> _usedOnce = new HashSet<uint>();
         private static readonly Queue<Action> _steps = new Queue<Action>();
+        private static readonly Queue<Action> _loot = new Queue<Action>(); // auto loot's lifts: after the player's own steps
         private static uint _nextStepAt;
         private static Dictionary<string, List<uint>> _sets;
         private static string _setsFile;
 
-        public static bool Busy => _steps.Count > 0;
+        public static bool Busy => _steps.Count > 0 || _loot.Count > 0;
 
-        /// <summary>A step for the queue (auto loot's lifts): run in turn, at the server's pace.</summary>
-        public static void Enqueue(Action step) => _steps.Enqueue(step);
+        /// <summary>Dressing, restocking or organizing (auto loot's lifts don't count: triggers needn't wait for them).</summary>
+        public static bool Working => _steps.Count > 0;
+
+        /// <summary>An auto loot lift: run after the player's own steps, at the server's pace.</summary>
+        public static void EnqueueLoot(Action step) => _loot.Enqueue(step);
 
         // ---------- use once ----------
 
@@ -347,20 +351,34 @@ namespace ClassicUO.Touch
             GameActions.Print(world, moving.Count == 0 ? $"Organize: no {list.Replace(",", ", ")} in your pack." : $"Moving {moving.Count} items...", 0x3B2);
         }
 
-        /// <summary>The container window opened last, other than the backpack (one in the pack only when <paramref name="inPack"/>).</summary>
+        /// <summary>
+        /// The bank box when it's open, else the container window opened last, other than the backpack
+        /// (one in the pack only when <paramref name="inPack"/>). Never a corpse: gold organized into
+        /// one decays with it, and taking from someone else's can be a criminal act.
+        /// </summary>
         private static Item OpenedContainer(World world, Item pack, bool inPack)
         {
+            Item found = null;
+
             foreach (Game.UI.Gumps.Gump g in Game.Managers.UIManager.Gumps)
             {
                 if (g is Game.UI.Gumps.ContainerGump cg && !cg.IsDisposed && world.Items.Get(cg.LocalSerial) is Item c && pack != null && c.Serial != pack.Serial &&
-                    (inPack || !Inside(world, c, pack.Serial)))
+                    !IsCorpse(c) && (inPack || !Inside(world, c, pack.Serial)))
                 {
-                    return c;
+                    if (c.Layer == Layer.Bank)
+                    {
+                        return c;
+                    }
+
+                    found ??= c;
                 }
             }
 
-            return null;
+            return found;
         }
+
+        /// <summary>A corpse, fresh or gone to bones.</summary>
+        public static bool IsCorpse(Item it) => it.IsCorpse || (it.Graphic >= 0x0ECA && it.Graphic <= 0x0ED2);
 
         private static bool Inside(World world, Item it, uint container)
         {
@@ -480,7 +498,7 @@ namespace ClassicUO.Touch
         /// <summary>Every frame (TouchInput.Update, in the world): the next queued equip step.</summary>
         public static void Update(World world)
         {
-            if (_steps.Count == 0 || Time.Ticks < _nextStepAt)
+            if ((_steps.Count == 0 && _loot.Count == 0) || Time.Ticks < _nextStepAt)
             {
                 return;
             }
@@ -488,6 +506,7 @@ namespace ClassicUO.Touch
             if (world?.Player == null || world.Player.IsDead)
             {
                 _steps.Clear();
+                _loot.Clear();
 
                 return;
             }
@@ -498,7 +517,7 @@ namespace ClassicUO.Touch
             }
 
             _nextStepAt = Time.Ticks + StepMs;
-            _steps.Dequeue()();
+            (_steps.Count > 0 ? _steps : _loot).Dequeue()();
         }
 
         /// <summary>A new login: pouches count afresh, sets come from the new character's file.</summary>
@@ -506,6 +525,7 @@ namespace ClassicUO.Touch
         {
             _usedOnce.Clear();
             _steps.Clear();
+            _loot.Clear();
             _sets = null;
         }
 

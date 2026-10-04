@@ -88,6 +88,14 @@ namespace ClassicUO.Touch
         {
             MobileMacroSet set = File.Exists(FilePath) ? ConfigurationResolver.Load(FilePath, MobileMacroJsonContext.Default.MobileMacroSet, escapeBackslashes: false) : null;
 
+            if (set != null)
+            {
+                // a hand-edited or damaged file: no null macro, name or line list reaches the runner
+                set.Macros ??= new List<MobileMacro>();
+                set.Macros.RemoveAll(m => m == null || string.IsNullOrEmpty(m.Name));
+                set.Macros.ForEach(m => m.Lines ??= new List<string>());
+            }
+
             return set ?? CreateDefault();
         }
 
@@ -147,7 +155,7 @@ namespace ClassicUO.Touch
             new Stack<(List<Step>, string, int, (int, int)[])>();
 
         // triggers: macros whose first line is "when COND [every MS]"
-        private const uint TriggerCheckMs = 250, CastGraceMs = 2500;
+        private const uint TriggerCheckMs = 250, CastGraceMs = 3500, PlayerGraceMs = 1000;
 
         private sealed class TriggerState
         {
@@ -163,6 +171,12 @@ namespace ClassicUO.Touch
 
         /// <summary>When the client last asked to cast (GameActions): a cursor may be on its way.</summary>
         public static uint CastSentAt;
+
+        /// <summary>
+        /// When the player last double-clicked something or tapped a button (GameActions.DoubleClick,
+        /// MobileActions.Run, outside macros): its cursor may be on its way, so triggers wait.
+        /// </summary>
+        public static uint PlayerActedAt;
 
         /// <summary>Everything about a running macro, kept while a trigger runs in its place.</summary>
         private sealed class Paused
@@ -339,6 +353,11 @@ namespace ClassicUO.Touch
             Macros.Save();
             _triggers.Clear();
 
+            if (!on && _inTrigger)
+            {
+                End(); // a trigger running now stops too; the macro it interrupted carries on
+            }
+
             List<string> names = new List<string>();
 
             foreach (MobileMacro m in Macros.Macros)
@@ -358,6 +377,11 @@ namespace ClassicUO.Touch
         {
             condition = null;
             every = 0;
+
+            if (macro?.Lines == null || macro.Name == null)
+            {
+                return false;
+            }
 
             foreach (string line in macro.Lines)
             {
@@ -408,7 +432,7 @@ namespace ClassicUO.Touch
         /// </summary>
         private static void Triggers(World world)
         {
-            if (Macros == null || Macros.TriggersOff || Time.Ticks < _nextTriggerCheck)
+            if (Time.Ticks < _nextTriggerCheck)
             {
                 return;
             }
@@ -416,14 +440,22 @@ namespace ClassicUO.Touch
             _nextTriggerCheck = Time.Ticks + TriggerCheckMs;
             PlayerMobile p = world.Player;
 
-            if (p == null || p.IsDead)
+            // HitsMax 0: the status hasn't come yet (every "hp <" would read true)
+            if (p == null || p.IsDead || p.HitsMax == 0)
             {
                 return;
             }
 
-            bool busy = _inTrigger || world.TargetManager.IsTargeting || SmartTargeting.Pending || Agents.Busy ||
-                        Time.Ticks - CastSentAt < CastGraceMs || (_program != null && _targetDeadline != 0) ||
-                        Client.Game.UO.GameCursor.ItemHold.Enabled;
+            EnsureLoaded(); // from login on, not only once a macro has been run or opened
+
+            if (Macros.TriggersOff)
+            {
+                return;
+            }
+
+            bool busy = _inTrigger || world.TargetManager.IsTargeting || SmartTargeting.Pending || Agents.Working ||
+                        Time.Ticks - CastSentAt < CastGraceMs || Time.Ticks - PlayerActedAt < PlayerGraceMs ||
+                        (_program != null && _targetDeadline != 0) || Client.Game.UO.GameCursor.ItemHold.Enabled;
 
             foreach (MobileMacro macro in Macros.Macros)
             {
@@ -1083,6 +1115,15 @@ namespace ClassicUO.Touch
             switch (kind)
             {
                 case "self":
+                    // never yourself with a harmful cursor (a spell of your own, a cursor some other
+                    // action raised); a trigger answers only a beneficial one - the one it asked for
+                    if (tm.TargetingType == TargetType.Harmful || (_inTrigger && tm.TargetingType != TargetType.Beneficial))
+                    {
+                        GameActions.Print(world, $"Macro '{_name}': not targeting yourself with that cursor.", 0x21);
+
+                        break;
+                    }
+
                     tm.Target(world.Player.Serial);
 
                     break;
@@ -1518,13 +1559,13 @@ namespace ClassicUO.Touch
 
         // ---------- items ----------
 
-        /// <summary>Why an item list (names from ItemGroups, hex or decimal graphics) can't be read; null if it can.</summary>
         /// <summary>A comma list of item names and graphics ("gold,regs,0x0F3F"): what's wrong with it, or null.</summary>
         public static string ItemListError(string list) => ItemError(new[] { list.Replace(" ", "") }, 0);
 
         /// <summary>The graphics a comma list of item names and graphics stands for.</summary>
         public static ushort[] ItemList(string list) => Graphics(new[] { list.Replace(" ", "") }, 0);
 
+        /// <summary>Why an item list (names from ItemGroups, hex or decimal graphics) can't be read; null if it can.</summary>
         private static string ItemError(string[] args, int index)
         {
             if (index >= args.Length)

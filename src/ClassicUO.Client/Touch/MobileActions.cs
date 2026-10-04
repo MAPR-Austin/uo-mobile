@@ -72,6 +72,12 @@ namespace ClassicUO.Touch
             SmartTargeting.ClearQueue(); // any other action: a spell's queued target isn't wanted any more
 
             MacroRecorder.OnAction(action, arg); // recording: the button itself is the step; what it does isn't
+
+            if (MacroRecorder.Quiet == 0)
+            {
+                MobileMacroRunner.PlayerActedAt = Time.Ticks; // a button the player tapped: triggers and auto loot wait a moment
+            }
+
             MacroRecorder.Quiet++;
 
             try

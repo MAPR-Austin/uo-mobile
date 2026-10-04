@@ -4769,6 +4769,7 @@ namespace ClassicUO.Network
 
             Touch.PlayerTimers.OnCliloc(world, cliloc); // UO Mobile: the bandage timer
             Touch.SmartTargeting.OnCliloc(cliloc); // UO Mobile: a fizzle ends a queued spell target
+            Touch.AutoLoot.OnCliloc(cliloc); // UO Mobile: "looting this corpse will be a criminal act" - leave it
 
             string arguments = null;
 

@@ -300,6 +300,11 @@ namespace ClassicUO.Game
         public static void DoubleClick(World world, uint serial)
         {
             Touch.MacroRecorder.OnDoubleClick(world, serial); // UO Mobile
+
+            if (Touch.MacroRecorder.Quiet == 0)
+            {
+                Touch.MobileMacroRunner.PlayerActedAt = Time.Ticks; // UO Mobile: the player's own; triggers and auto loot wait
+            }
             if (serial != world.Player && SerialHelper.IsMobile(serial) && world.Player.InWarMode)
             {
                 RequestMobileStatus(world,serial);

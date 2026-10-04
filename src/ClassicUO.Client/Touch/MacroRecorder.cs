@@ -36,6 +36,13 @@ namespace ClassicUO.Touch
 
         public static bool Recording { get; private set; }
 
+        /// <summary>A new login: a recording in progress is dropped, not saved into the next character's macros.</summary>
+        public static void Reset()
+        {
+            Recording = false;
+            _lines.Clear();
+        }
+
         /// <summary>The "record" action: start, or stop and save.</summary>
         public static void Toggle(World world)
         {

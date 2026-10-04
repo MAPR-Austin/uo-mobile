@@ -87,6 +87,26 @@ must be caught here.
      - Save Dress 1 / Undress 1 / Dress 1, also from sword+shield to a two-handed weapon and back;
      - Trapped Pouch uses a pouch each press;
      - a macro using while / break / call / waitforjournal runs; stopping it from its button works.
+   - Build 45 (helpers, phase 2):
+     - macro editor > Presets > Triggers > Auto Cure; get poisoned: it casts Cure on you by
+       itself (not while hidden); the Triggers button turns triggers off ("Triggers off.") and on
+       (lists them); a looping macro (Mine) pauses while a trigger runs and then carries on;
+     - after going gray and taking a step, "Criminal 1:59" counts down under the counter strip;
+     - Auto Loot button: "Auto loot on"; kill a monster beside you: its gold and reagents come to
+       the pack and no corpse window opens; a blue's corpse is left alone;
+     - Record Macro: tap it, cast a spell and tap a target, use a bandage on yourself, say
+       something, tap it again: "Recorded 1" opens in the editor, reads sensibly and runs;
+     - with the bank box open, Restock tops up bandages and reagents; Organize Gold moves the
+       pack's gold into the bank;
+     - (server) the item teleporter in the owner's bank: Send to bank box, then Choose a secure
+       container and send a bag to it.
+     - after relaunching the app and logging in, get poisoned without opening any macro: Auto Cure
+       still fires;
+     - poisoned and paralyzed with Auto Cure on: break free and cast Magic Arrow from the book -
+       it never lands on you ("not targeting yourself with that cursor" if a trigger saw it);
+     - auto loot: a monster another player killed is left alone ("Looting this monster corpse
+       will be a criminal act!" and nothing taken); nothing is looted while hidden or in war mode;
+     - Organize Gold with a corpse window on top still goes to the bank box (never into the corpse).
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
