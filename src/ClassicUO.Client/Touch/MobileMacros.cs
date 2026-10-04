@@ -48,6 +48,13 @@ namespace ClassicUO.Touch
     ///   break                     leave the innermost loop or while
     ///   call NAME                 run another phone macro, then carry on here
     ///   stop
+    ///   when COND [every MS]      (first line only) makes the macro a trigger: it runs by itself
+    ///                             when COND becomes true - again every MS while it stays true when
+    ///                             "every" is given. Triggers run while "Triggers" is on (the
+    ///                             triggers button; on by default), never while dead, while a target
+    ///                             cursor is up or a spell is on its way, and one at a time; a macro
+    ///                             running when one fires waits and then carries on. Run by hand,
+    ///                             the when line does nothing.
     ///
     /// Conditions: hp|mana|stam|targethp|weight  &lt;|&gt;|&lt;=|&gt;=|= N   (percent),
     ///             poisoned, hidden, war, targeting, dead, targetalive, gump (a server menu is open),
@@ -56,7 +63,8 @@ namespace ClassicUO.Touch
     ///             gumptext TEXT (the macro's server menu shows TEXT, e.g. a craft menu notice),
     ///             hits|manapoints|stampoints &lt; N (points, not percent), skill NAME &gt;= N,
     ///             paralyzed, mounted, bandaging (a bandage is being applied), targetnoto COLOUR;
-    ///             prefix "not " to negate.
+    ///             prefix "not " to negate; join with "and" (hp &lt; 50 and not bandaging) - journal
+    ///             and gumptext take the rest of the line, so put them last.
     /// ITEM is a name from Touch/ItemGroups (bandages, heal, cure, regs, blackpearl, ore, ...), a hex
     /// graphic (0x0E21) or decimal.
     /// </summary>
@@ -69,6 +77,7 @@ namespace ClassicUO.Touch
     internal sealed class MobileMacroSet
     {
         [JsonPropertyName("macros")] public List<MobileMacro> Macros { get; set; } = new List<MobileMacro>();
+        [JsonPropertyName("triggersOff")] public bool TriggersOff { get; set; }
 
         private static string FilePath =>
             Path.Combine(ProfileManager.ProfilePath ?? CUOEnviroment.ExecutablePath, "mobile_macros.json");
@@ -137,6 +146,37 @@ namespace ClassicUO.Touch
         private static readonly Stack<(List<Step> Program, string Name, int Pc, (int, int)[] Loops)> _calls =
             new Stack<(List<Step>, string, int, (int, int)[])>();
 
+        // triggers: macros whose first line is "when COND [every MS]"
+        private const uint TriggerCheckMs = 250, CastGraceMs = 2500;
+
+        private sealed class TriggerState
+        {
+            public bool Fired;      // fired while COND held (an edge trigger waits for it to clear)
+            public uint Next;       // "every": the next time it may fire again
+            public DateTime Since;  // "journal" in a trigger: messages since it last fired
+        }
+
+        private static readonly Dictionary<string, TriggerState> _triggers = new Dictionary<string, TriggerState>(StringComparer.OrdinalIgnoreCase);
+        private static uint _nextTriggerCheck;
+        private static bool _inTrigger;  // the running macro is a trigger
+        private static Paused _paused;   // the macro a trigger interrupted
+
+        /// <summary>When the client last asked to cast (GameActions): a cursor may be on its way.</summary>
+        public static uint CastSentAt;
+
+        /// <summary>Everything about a running macro, kept while a trigger runs in its place.</summary>
+        private sealed class Paused
+        {
+            public List<Step> Program;
+            public string Name, RootName, JournalWaitText;
+            public int Pc;
+            public uint WaitUntil, TargetDeadline, GumpDeadline, JournalDeadline;
+            public DateTime JournalSince, JournalWaitSince;
+            public Gump[] OpenBefore;
+            public (int, int)[] Loops;
+            public (List<Step>, string, int, (int, int)[])[] Calls;
+        }
+
         public static MobileMacroSet Macros { get; private set; }
 
         public static bool IsRunning => _program != null;
@@ -151,6 +191,7 @@ namespace ClassicUO.Touch
         {
             Stop();
             Macros = null;
+            _triggers.Clear();
         }
 
         public static void Run(World world, string name)
@@ -165,10 +206,19 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            // Tapping the running macro's button again stops it (for loops).
+            // Tapping the running macro's button again stops it (for loops); a trigger stopped this way
+            // lets the macro it interrupted carry on.
             if (IsRunning && string.Equals(_rootName, macro.Name, StringComparison.OrdinalIgnoreCase))
             {
-                Stop();
+                End();
+                GameActions.Print(world, $"Macro '{macro.Name}' stopped.", 0x35);
+
+                return;
+            }
+
+            if (_paused != null && string.Equals(_paused.RootName, macro.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                _paused = null; // the macro a trigger interrupted: it won't come back
                 GameActions.Print(world, $"Macro '{macro.Name}' stopped.", 0x35);
 
                 return;
@@ -183,8 +233,14 @@ namespace ClassicUO.Touch
                 return;
             }
 
+            Stop();
+            Start(program, macro.Name);
+        }
+
+        private static void Start(List<Step> program, string name)
+        {
             _program = program;
-            _name = _rootName = macro.Name;
+            _name = _rootName = name;
             _pc = 0;
             _waitUntil = 0;
             _targetDeadline = 0;
@@ -204,6 +260,7 @@ namespace ClassicUO.Touch
             }
         }
 
+        /// <summary>Stops the running macro, a trigger and the macro it interrupted.</summary>
         public static void Stop()
         {
             _program = null;
@@ -212,6 +269,212 @@ namespace ClassicUO.Touch
             _calls.Clear();
             _journalDeadline = 0;
             _openBefore.Clear();
+            _inTrigger = false;
+            _paused = null;
+        }
+
+        /// <summary>The running macro is done: a trigger hands back to the macro it interrupted.</summary>
+        private static void End()
+        {
+            if (_inTrigger && _paused != null)
+            {
+                Resume(_paused);
+
+                return;
+            }
+
+            Stop();
+        }
+
+        private static Paused Pause() => new Paused
+        {
+            Program = _program, Name = _name, RootName = _rootName, Pc = _pc, WaitUntil = _waitUntil,
+            TargetDeadline = _targetDeadline, GumpDeadline = _gumpDeadline, JournalDeadline = _journalDeadline,
+            JournalSince = _journalSince, JournalWaitSince = _journalWaitSince, JournalWaitText = _journalWaitText,
+            OpenBefore = new List<Gump>(_openBefore).ToArray(), Loops = _loops.ToArray(), Calls = _calls.ToArray()
+        };
+
+        private static void Resume(Paused p)
+        {
+            _paused = null;
+            _inTrigger = false;
+            _program = p.Program;
+            _name = p.Name;
+            _rootName = p.RootName;
+            _pc = p.Pc;
+            _waitUntil = p.WaitUntil;
+            _targetDeadline = p.TargetDeadline;
+            _gumpDeadline = p.GumpDeadline;
+            _journalDeadline = p.JournalDeadline;
+            _journalSince = p.JournalSince;
+            _journalWaitSince = p.JournalWaitSince;
+            _journalWaitText = p.JournalWaitText;
+            _openBefore.Clear();
+            _openBefore.UnionWith(p.OpenBefore);
+            _loops.Clear();
+            _calls.Clear();
+
+            // ToArray lists a stack top first: push back bottom first
+            for (int i = p.Loops.Length - 1; i >= 0; i--)
+            {
+                _loops.Push(p.Loops[i]);
+            }
+
+            for (int i = p.Calls.Length - 1; i >= 0; i--)
+            {
+                _calls.Push(p.Calls[i]);
+            }
+        }
+
+        // ---------- triggers ----------
+
+        public static bool TriggersOn => Macros != null && !Macros.TriggersOff;
+
+        /// <summary>The triggers button: "on", "off", or nothing to switch.</summary>
+        public static void SetTriggers(World world, string how)
+        {
+            EnsureLoaded();
+            bool on = how == null || how.Length == 0 ? Macros.TriggersOff : !how.Equals("off", StringComparison.OrdinalIgnoreCase);
+            Macros.TriggersOff = !on;
+            Macros.Save();
+            _triggers.Clear();
+
+            List<string> names = new List<string>();
+
+            foreach (MobileMacro m in Macros.Macros)
+            {
+                if (When(m, out _, out _))
+                {
+                    names.Add(m.Name);
+                }
+            }
+
+            string list = names.Count == 0 ? "none yet - add one from the macro editor's Triggers presets" : string.Join(", ", names);
+            GameActions.Print(world, on ? $"Triggers on: {list}." : "Triggers off.", on ? (ushort)0x44 : (ushort)0x35);
+        }
+
+        /// <summary>The trigger line of a macro: its first line, "when COND [every MS]".</summary>
+        private static bool When(MobileMacro macro, out string[] condition, out int every)
+        {
+            condition = null;
+            every = 0;
+
+            foreach (string line in macro.Lines)
+            {
+                string raw = (line ?? "").Trim();
+
+                if (raw.Length == 0 || raw.StartsWith("//") || raw.StartsWith("#"))
+                {
+                    continue;
+                }
+
+                string[] parts = raw.Split((char[])null, StringSplitOptions.RemoveEmptyEntries);
+
+                if (!parts[0].Equals("when", StringComparison.OrdinalIgnoreCase))
+                {
+                    return false;
+                }
+
+                return SplitWhen(parts[1..], out condition, out every) == null;
+            }
+
+            return false;
+        }
+
+        /// <summary>"COND [every MS]": the condition and the repeat time (0: once each time COND comes true).</summary>
+        private static string SplitWhen(string[] args, out string[] condition, out int every)
+        {
+            condition = args;
+            every = 0;
+
+            if (args.Length >= 2 && args[^2].Equals("every", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!int.TryParse(args[^1], NumberStyles.Integer, CultureInfo.InvariantCulture, out every) || every < 250)
+                {
+                    return "'every' needs a time of at least 250 ms, e.g. 'when poisoned every 3000'";
+                }
+
+                condition = args[..^2];
+            }
+
+            return CheckCondition(condition);
+        }
+
+        /// <summary>
+        /// Every frame, at most every 250 ms: fires the first trigger whose condition came true (or
+        /// whose "every" time is up). Waits while dead, while a target cursor is up, while a spell or
+        /// an item is on its way to one, while dressing, and while a trigger runs - a trigger that
+        /// couldn't fire stays due and fires once it can.
+        /// </summary>
+        private static void Triggers(World world)
+        {
+            if (Macros == null || Macros.TriggersOff || Time.Ticks < _nextTriggerCheck)
+            {
+                return;
+            }
+
+            _nextTriggerCheck = Time.Ticks + TriggerCheckMs;
+            PlayerMobile p = world.Player;
+
+            if (p == null || p.IsDead)
+            {
+                return;
+            }
+
+            bool busy = _inTrigger || world.TargetManager.IsTargeting || SmartTargeting.Pending || Agents.Busy ||
+                        Time.Ticks - CastSentAt < CastGraceMs || (_program != null && _targetDeadline != 0) ||
+                        Client.Game.UO.GameCursor.ItemHold.Enabled;
+
+            foreach (MobileMacro macro in Macros.Macros)
+            {
+                if (!When(macro, out string[] condition, out int every))
+                {
+                    continue;
+                }
+
+                if (!_triggers.TryGetValue(macro.Name, out TriggerState state))
+                {
+                    _triggers[macro.Name] = state = new TriggerState { Since = DateTime.Now };
+                }
+
+                bool holds;
+
+                try
+                {
+                    holds = Condition(world, condition, state.Since);
+                }
+                catch
+                {
+                    holds = false;
+                }
+
+                if (!holds)
+                {
+                    state.Fired = false;
+
+                    continue;
+                }
+
+                if (busy || (state.Fired && (every == 0 || Time.Ticks < state.Next)))
+                {
+                    continue;
+                }
+
+                if (Compile(macro.Lines, out List<Step> program) != null)
+                {
+                    continue;
+                }
+
+                state.Fired = true;
+                state.Next = Time.Ticks + (uint)every;
+                state.Since = DateTime.Now;
+
+                Paused interrupted = _program != null ? Pause() : null;
+                Start(program, macro.Name);
+                _inTrigger = true;
+                _paused = interrupted;
+                busy = true;
+            }
         }
 
         /// <summary>Checks a macro without running it. Returns null when it compiles.</summary>
@@ -355,6 +618,21 @@ namespace ClassicUO.Touch
 
                         break;
 
+                    case "when":
+                        if (index != 0)
+                        {
+                            return $"line {s.Line}: 'when' must be the first line (it makes the macro a trigger)";
+                        }
+
+                        string whenError = SplitWhen(s.Args, out _, out _);
+
+                        if (whenError != null)
+                        {
+                            return $"line {s.Line}: {whenError}";
+                        }
+
+                        break;
+
                     default:
                         return $"line {s.Line}: unknown step '{s.Op}'";
                 }
@@ -412,15 +690,20 @@ namespace ClassicUO.Touch
 
         public static void Update(World world)
         {
-            if (_program == null)
+            if (world == null || !world.InGame || world.Player == null)
             {
+                if (_program != null)
+                {
+                    Stop();
+                }
+
                 return;
             }
 
-            if (world == null || !world.InGame || world.Player == null)
-            {
-                Stop();
+            Triggers(world);
 
+            if (_program == null)
+            {
                 return;
             }
 
@@ -486,7 +769,7 @@ namespace ClassicUO.Touch
                         continue;
                     }
 
-                    Stop();
+                    End();
 
                     return;
                 }
@@ -503,7 +786,7 @@ namespace ClassicUO.Touch
                 catch (Exception e)
                 {
                     GameActions.Print(world, $"Macro '{_name}' line {s.Line}: {e.Message}", 0x21);
-                    Stop();
+                    End();
 
                     return;
                 }
@@ -585,7 +868,7 @@ namespace ClassicUO.Touch
                     {
                         // out of potions, bandages, ore or the tool broke: a loop can't go on without it
                         GameActions.Print(world, $"Macro '{_name}' stopped: no {arg} in your pack or hands.", 0x21);
-                        Stop();
+                        End();
 
                         return false;
                     }
@@ -670,7 +953,7 @@ namespace ClassicUO.Touch
                         if (called == null || _calls.Count >= MaxCallDepth)
                         {
                             GameActions.Print(world, called == null ? $"Macro '{_name}': no macro named '{arg}' to call." : $"Macro '{_name}': calls nested too deep.", 0x21);
-                            Stop();
+                            End();
 
                             return false;
                         }
@@ -680,7 +963,7 @@ namespace ClassicUO.Touch
                         if (error != null)
                         {
                             GameActions.Print(world, $"Macro '{called.Name}': {error}", 0x21);
-                            Stop();
+                            End();
 
                             return false;
                         }
@@ -710,9 +993,12 @@ namespace ClassicUO.Touch
                     break;
 
                 case "stop":
-                    Stop();
+                    End();
 
                     return false;
+
+                case "when":
+                    break; // a trigger's condition: nothing to do when it runs
 
                 case "if":
                     // Walk the chain to the first true branch; land on endif when none is true.
@@ -1022,7 +1308,49 @@ namespace ClassicUO.Touch
 
         private static readonly string[] Comparators = { "<=", ">=", "<", ">", "=" };
 
+        /// <summary>"A and B and C": the clauses; journal / gumptext take the rest of the line.</summary>
+        private static List<string[]> Clauses(string[] args)
+        {
+            List<string[]> clauses = new List<string[]>();
+            int start = 0;
+
+            for (int i = 0; i <= args.Length; i++)
+            {
+                if (i < args.Length && !args[i].Equals("and", StringComparison.OrdinalIgnoreCase))
+                {
+                    int head = args[start].Equals("not", StringComparison.OrdinalIgnoreCase) ? start + 1 : start;
+
+                    if (head < args.Length && i > head && (args[head].Equals("journal", StringComparison.OrdinalIgnoreCase) || args[head].Equals("gumptext", StringComparison.OrdinalIgnoreCase)))
+                    {
+                        i = args.Length - 1; // the text runs to the end
+                    }
+
+                    continue;
+                }
+
+                clauses.Add(args[start..i]);
+                start = i + 1;
+            }
+
+            return clauses;
+        }
+
         private static string CheckCondition(string[] args)
+        {
+            foreach (string[] clause in Clauses(args))
+            {
+                string error = CheckClause(clause);
+
+                if (error != null)
+                {
+                    return error;
+                }
+            }
+
+            return null;
+        }
+
+        private static string CheckClause(string[] args)
         {
             if (args.Length == 0)
             {
@@ -1072,7 +1400,22 @@ namespace ClassicUO.Touch
             }
         }
 
-        private static bool Condition(World world, string[] args)
+        private static bool Condition(World world, string[] args) => Condition(world, args, _journalSince);
+
+        private static bool Condition(World world, string[] args, DateTime journalSince)
+        {
+            foreach (string[] clause in Clauses(args))
+            {
+                if (!Clause(world, clause, journalSince))
+                {
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private static bool Clause(World world, string[] args, DateTime journalSince)
         {
             bool negate = args[0].Equals("not", StringComparison.OrdinalIgnoreCase);
             int i = negate ? 1 : 0;
@@ -1098,7 +1441,7 @@ namespace ClassicUO.Touch
                 case "dead": result = p.IsDead; break;
                 case "targetalive": result = target != null && !target.IsDead && !target.IsDestroyed; break;
                 case "gump": result = NewestServerGump() != null; break;
-                case "journal": result = JournalSays(string.Join(" ", args, i + 1, args.Length - i - 1)); break;
+                case "journal": result = JournalSays(string.Join(" ", args, i + 1, args.Length - i - 1), journalSince); break;
                 case "gumptext": result = MenuSays(string.Join(" ", args, i + 1, args.Length - i - 1)); break;
                 case "weight": result = Compare(Percent(p.Weight, p.WeightMax), args[i + 1], args[i + 2]); break;
                 case "hp": result = Compare(Percent(p.Hits, p.HitsMax), args[i + 1], args[i + 2]); break;

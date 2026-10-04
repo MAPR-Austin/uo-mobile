@@ -2,6 +2,7 @@
 
 using System;
 using ClassicUO.Game;
+using ClassicUO.Game.Data;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
@@ -15,7 +16,11 @@ namespace ClassicUO.Touch
     /// on someone else 3 s at 100+ Dex, 4 s at 40+, else 5 s, 5 s more to resurrect - servuo
     /// Bandage.GetDelay) from "You begin applying the bandages" until a message that ends it. Shown
     /// in a small strip under the counter bar (or at the top left) while one runs; the macro
-    /// condition "bandaging" reads it.
+    /// condition "bandaging" reads it. Also the criminal timer: while you are gray, the 2 minutes the
+    /// server keeps you so (Mobile.ExpireCriminalDelay), counted from when the client learns you
+    /// turned gray (your next step's walk confirmation carries it) - a new criminal act restarts the
+    /// server's clock, so it reads "Criminal" once the 2 minutes are up and you are still gray. Staff
+    /// always read gray to themselves and never see it.
     /// </summary>
     internal static class PlayerTimers
     {
@@ -30,6 +35,8 @@ namespace ClassicUO.Touch
         private const uint Grace = 1500; // past the expected time, in case the end message was missed
 
         private static uint _bandageStart, _bandageEnd;
+        private static uint _criminalSince;
+        private const uint CriminalMs = 120000;
         private static uint _lastTargetAt;
         private static uint _lastTargetSerial;
         private static TimersGump _gump;
@@ -82,6 +89,22 @@ namespace ClassicUO.Touch
                 _bandageEnd = 0;
             }
 
+            if (world?.Player != null && world.Player.NotorietyFlag == NotorietyFlag.Criminal)
+            {
+                if (_criminalSince == 0)
+                {
+                    _criminalSince = Time.Ticks;
+                }
+
+                int left = (int)Math.Ceiling(Math.Max(0, (int)(_criminalSince + CriminalMs - Time.Ticks)) / 1000.0);
+                string crim = left > 0 ? $"Criminal {left / 60}:{left % 60:00}" : "Criminal";
+                text = text == null ? crim : text + "\n" + crim;
+            }
+            else
+            {
+                _criminalSince = 0;
+            }
+
             if (text == null)
             {
                 if (_gump != null)
@@ -125,7 +148,7 @@ namespace ClassicUO.Touch
             {
                 _label.Text = text;
                 _back.Width = Width = _label.Width + 12;
-                Height = 20;
+                _back.Height = Height = _label.Height + 4;
             }
 
             CounterBarGump bar = UIManager.GetGump<CounterBarGump>();

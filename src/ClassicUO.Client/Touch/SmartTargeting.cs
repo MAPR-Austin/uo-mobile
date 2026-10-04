@@ -250,6 +250,9 @@ namespace ClassicUO.Touch
         /// <summary>Another action ran, or the spell fizzled: whatever was waiting isn't wanted any more.</summary>
         public static void ClearQueue() => _queued = Queued.None;
 
+        /// <summary>A spell_lt / spell_self target is waiting for its cursor (triggers hold off).</summary>
+        public static bool Pending => _queued != Queued.None;
+
         private static void Queue(Queued what)
         {
             _queued = what;

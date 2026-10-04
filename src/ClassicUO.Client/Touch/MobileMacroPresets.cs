@@ -36,6 +36,14 @@ namespace ClassicUO.Touch
                 ("Disarm", new[] { "// UOR wrestling disarm (Wrestling + Arms Lore 80, empty hands).", "action disarm", "attack last" }),
                 ("Arm/Disarm", new[] { "// Puts your weapon away (to drink or cast) or takes it back out.", "action arm_disarm" }),
             }),
+            ("Triggers", new[]
+            {
+                ("Auto Cure", new[] { "// Runs by itself while Triggers are on: cures you when poisoned - the Cure spell, or a cure potion without the mana. Not while hidden.", "when poisoned every 3000", "if hidden", "  stop", "endif", "if manapoints >= 6", "  cast Cure", "  waitfortarget 2500", "  target self", "else", "  useitem " + CurePotion, "endif" }),
+                ("Auto Pouch", new[] { "// Runs by itself while Triggers are on: when you're paralyzed, opens a trapped pouch you haven't used yet (its blast breaks the paralyze).", "when paralyzed every 2000", "useonce pouch" }),
+                ("Auto Bandage", new[] { "// Runs by itself while Triggers are on: keeps a bandage going on you while you're under 85% health.", "when hp < 85 and not bandaging every 2000", "if hidden", "  stop", "endif", "useitem bandages", "waitfortarget 1500", "target self" }),
+                ("Auto Heal Pot", new[] { "// Runs by itself while Triggers are on: drinks a heal potion under 40% health (at most every 10 s, the potion's pace).", "when hp < 40 every 10000", "useitem " + HealPotion }),
+                ("Auto Retarget", new[] { "// Runs by itself while Triggers are on: when your target dies, the closest enemy player becomes your target.", "when not targetalive", "settarget closest enemy human" }),
+            }),
             ("Heal", new[]
             {
                 ("Heal Up", new[] { "// Cure first if poisoned, then Greater Heal.", "if poisoned", "  cast Cure", "  waitfortarget 2000", "  target self", "elseif hp < 80", "  cast GreaterHeal", "  waitfortarget 2500", "  target self", "endif" }),

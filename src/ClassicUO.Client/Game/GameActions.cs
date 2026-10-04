@@ -635,6 +635,7 @@ namespace ClassicUO.Game
             if (index >= 0)
             {
                 LastSpellIndex = index;
+                Touch.MobileMacroRunner.CastSentAt = Time.Ticks; // UO Mobile: triggers wait for this cast's cursor
                 Socket.Send_CastSpellFromBook(index, bookSerial);
             }
         }
@@ -644,6 +645,7 @@ namespace ClassicUO.Game
             if (index >= 0)
             {
                 LastSpellIndex = index;
+                Touch.MobileMacroRunner.CastSentAt = Time.Ticks; // UO Mobile: triggers wait for this cast's cursor
                 Socket.Send_CastSpell(index);
             }
         }

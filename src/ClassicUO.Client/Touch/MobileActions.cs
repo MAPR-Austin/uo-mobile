@@ -39,6 +39,7 @@ namespace ClassicUO.Touch
     ///   skill:Name       use a skill (Hiding, Meditation, ...)
     ///   say:text
     ///   mmacro:Name      run (or stop, if running) a phone macro - see MobileMacros
+    ///   triggers[:on|off]   switch the phone macros' triggers ("when ..." macros) on or off
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -268,6 +269,11 @@ namespace ClassicUO.Touch
 
                 case "stop_macro":
                     MobileMacroRunner.Stop();
+
+                    break;
+
+                case "triggers":
+                    MobileMacroRunner.SetTriggers(world, arg);
 
                     break;
 
