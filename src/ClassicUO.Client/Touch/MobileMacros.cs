@@ -25,28 +25,40 @@ namespace ClassicUO.Touch
     ///   say TEXT
     ///   wait MS
     ///   waitfortarget [MS]        wait until a target cursor is up (default 3000 ms)
-    ///   target self|last|nearest|next|item GRAPHIC      answer the target cursor
+    ///   target self|last|item ITEM   answer the target cursor (last: the last harmful or
+    ///                             beneficial target for this cursor, range-checked)
+    ///   target closest|next [COLOUR] [human|monster]   pick by colour and answer it
     ///   target ground [front|here]   the ground ahead of you (or under you): mining
     ///   target nearby NAME [RANGE]   the closest thing whose name has NAME, within RANGE tiles
     ///                                (default 2): a tree, water, a forge, an anvil...
-    ///   settarget nearest|next    choose the last target without a cursor
-    ///   useitem GRAPHIC[,GRAPHIC...] [HUE]   double-click the first match in the pack or in hand
+    ///   settarget closest|next [COLOUR] [human|monster]   choose the target without a cursor;
+    ///                             COLOUR: enemy (default), red, gray, blue, orange, green, any
+    ///   useitem ITEM[,ITEM...] [HUE]   double-click the first match in the pack or in hand
+    ///   useonce [ITEM]            the next one not used yet this session (default: a trapped pouch)
+    ///   dress NAME / undress NAME   a dress set saved with the dress_save:NAME button
     ///   attack last|nearest
     ///   waitforgump [MS]          wait until a server menu is open (default 3000 ms)
     ///   gumpbutton ID             press button ID on the newest server menu (21 = craft Make Last, 0 = close)
     ///   print TEXT                a message only you see
     ///   clearjournal              forget what the journal said so far (for "if journal")
+    ///   waitforjournal [MS] TEXT  wait until a message containing TEXT arrives (default 10000 ms)
     ///   if COND / elseif COND / else / endif
     ///   loop [N]  ...  endloop    N times, or until the macro is stopped
+    ///   while COND  ...  endwhile   as long as COND holds
+    ///   break                     leave the innermost loop or while
+    ///   call NAME                 run another phone macro, then carry on here
     ///   stop
     ///
     /// Conditions: hp|mana|stam|targethp|weight  &lt;|&gt;|&lt;=|&gt;=|= N   (percent),
     ///             poisoned, hidden, war, targeting, dead, targetalive, gump (a server menu is open),
     ///             targetrange &lt;= N (tiles), count GRAPHIC[,GRAPHIC...] &gt;= N (items in pack),
     ///             journal TEXT (a message containing TEXT arrived since the macro started),
-    ///             gumptext TEXT (the macro's server menu shows TEXT, e.g. a craft menu notice);
+    ///             gumptext TEXT (the macro's server menu shows TEXT, e.g. a craft menu notice),
+    ///             hits|manapoints|stampoints &lt; N (points, not percent), skill NAME &gt;= N,
+    ///             paralyzed, mounted, bandaging (a bandage is being applied), targetnoto COLOUR;
     ///             prefix "not " to negate.
-    /// Graphics are hex (0x0E21) or decimal.
+    /// ITEM is a name from Touch/ItemGroups (bandages, heal, cure, regs, blackpearl, ore, ...), a hex
+    /// graphic (0x0E21) or decimal.
     /// </summary>
     internal sealed class MobileMacro
     {
