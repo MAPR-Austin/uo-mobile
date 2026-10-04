@@ -1312,6 +1312,11 @@ namespace ClassicUO.Network
             uint serial = p.ReadUInt32BE();
             ushort graphic = p.ReadUInt16BE();
 
+            if (Touch.PackPrimer.SwallowOpen(serial))
+            {
+                return; // UO Mobile: the backpack opened at login for its contents, not to be shown
+            }
+
             if (graphic == 0xFFFF)
             {
                 Item spellBookItem = world.Items.Get(serial);

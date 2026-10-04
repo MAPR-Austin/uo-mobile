@@ -427,7 +427,14 @@ namespace ClassicUO.Touch
                     break;
 
                 case "settarget":
-                    MobileActions.Run(world, (s.Args.Length > 0 ? s.Args[0].ToLowerInvariant() : "nearest") == "next" ? "target_next" : "target_nearest");
+                    {
+                        // settarget [closest|nearest|next] [colour] [human|monster]: "settarget next red human"
+                        string how = s.Args.Length > 0 ? s.Args[0].ToLowerInvariant() : "closest";
+                        bool next = how == "next";
+                        int from = how is "next" or "closest" or "nearest" ? 1 : 0;
+                        string spec = s.Args.Length > from ? string.Join(",", s.Args, from, s.Args.Length - from) : "enemy";
+                        SmartTargeting.Select(world, spec, next);
+                    }
 
                     break;
 
@@ -577,27 +584,22 @@ namespace ClassicUO.Touch
                     break;
 
                 case "last":
-                    if (tm.LastTargetInfo.IsEntity && SerialHelper.IsValid(tm.LastTargetInfo.Serial))
-                    {
-                        tm.Target(tm.LastTargetInfo.Serial);
-                    }
-                    else
-                    {
-                        tm.TargetLast();
-                    }
+                    SmartTargeting.TargetLast(world); // last harmful or beneficial for this cursor, range-checked
 
                     break;
 
                 case "nearest":
+                case "closest":
                 case "next":
-                    uint serial = kind == "nearest"
-                        ? world.FindNearest(ScanTypeObject.Hostile)
-                        : world.FindNext(ScanTypeObject.Hostile, tm.SelectedTarget, false);
-
-                    if (SerialHelper.IsValid(serial))
                     {
-                        tm.SelectedTarget = serial;
-                        tm.Target(serial);
+                        // target closest|next [colour] [human|monster]: "target closest red"
+                        string spec = args.Length > 1 ? string.Join(",", args, 1, args.Length - 1) : "enemy";
+                        Mobile pick = SmartTargeting.Select(world, spec, kind == "next");
+
+                        if (pick != null)
+                        {
+                            tm.Target(pick.Serial);
+                        }
                     }
 
                     break;

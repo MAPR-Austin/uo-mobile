@@ -18,7 +18,9 @@ namespace ClassicUO.Touch
     /// behave exactly like the desktop client's hotkeys.
     ///
     /// Action ids:
-    ///   attack_nearest   select nearest hostile + attack it (fast melee "target closest")
+    ///   attack_nearest   select nearest enemy + attack it (fast melee "target closest")
+    ///   target_closest:SPEC / target_next:SPEC   the closest / next mobile by colour and kind, e.g.
+    ///                    "red,human", "blue", "enemy,monster" (Touch/SmartTargeting; no SPEC: enemy)
     ///   set_target       next tap on a creature/player makes it the target (no attack)
     ///   target_nearest / target_next / target_prev   hostile selection (sets last target)
     ///   attack_last      attack the last target
@@ -63,7 +65,19 @@ namespace ClassicUO.Touch
             switch (action)
             {
                 case "attack_nearest":
-                    Macro(world, O(MacroType.SelectNearest, MacroSubType.Hostile), O(MacroType.AttackSelectedTarget));
+                    {
+                        Mobile foe = SmartTargeting.Select(world, arg ?? "enemy", false);
+
+                        if (foe != null)
+                        {
+                            GameActions.Attack(world, foe.Serial);
+                        }
+                    }
+
+                    break;
+
+                case "target_closest":
+                    SmartTargeting.Select(world, arg ?? "enemy", false);
 
                     break;
 
@@ -85,12 +99,12 @@ namespace ClassicUO.Touch
                     break;
 
                 case "target_nearest":
-                    Macro(world, O(MacroType.SelectNearest, MacroSubType.Hostile));
+                    SmartTargeting.Select(world, "enemy", false);
 
                     break;
 
                 case "target_next":
-                    Macro(world, O(MacroType.SelectNext, MacroSubType.Hostile));
+                    SmartTargeting.Select(world, arg ?? "enemy", true);
 
                     break;
 
@@ -100,8 +114,8 @@ namespace ClassicUO.Touch
                     break;
 
                 case "attack_last": Macro(world, O(MacroType.AttackLast)); break;
-                case "last_target": Macro(world, O(MacroType.LastTarget)); break;
-                case "target_self": Macro(world, O(MacroType.TargetSelf)); break;
+                case "last_target": SmartTargeting.TargetLast(world); break; // harmful/beneficial memory, queue, range check
+                case "target_self": SmartTargeting.TargetSelf(world); break;
                 case "war_peace": Macro(world, O(MacroType.WarPeace)); break;
                 case "all_names": Macro(world, O(MacroType.AllNames)); break;
                 case "bandage_self": Macro(world, O(MacroType.BandageSelf)); break;
@@ -173,7 +187,8 @@ namespace ClassicUO.Touch
                 case "spell_lt":
                     if (TryParse(arg, out spell))
                     {
-                        Macro(world, O(MacroType.CastSpell, spell), O(MacroType.WaitForTarget), O(MacroType.LastTarget));
+                        Macro(world, O(MacroType.CastSpell, spell));
+                        SmartTargeting.TargetLast(world); // queued until the spell's cursor comes up
                     }
 
                     break;
@@ -181,7 +196,8 @@ namespace ClassicUO.Touch
                 case "spell_self":
                     if (TryParse(arg, out spell))
                     {
-                        Macro(world, O(MacroType.CastSpell, spell), O(MacroType.WaitForTarget), O(MacroType.TargetSelf));
+                        Macro(world, O(MacroType.CastSpell, spell));
+                        SmartTargeting.TargetSelf(world);
                     }
 
                     break;

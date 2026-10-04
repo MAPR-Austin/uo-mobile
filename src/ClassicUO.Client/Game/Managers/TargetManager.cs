@@ -245,6 +245,7 @@ namespace ClassicUO.Game.Managers
             }
 
             Touch.PlayerTimers.OnTargeted(serial); // UO Mobile: bandaging yourself or another
+            Touch.SmartTargeting.OnTargeted(_world, serial, TargetingType); // UO Mobile: last harmful / beneficial
 
             Entity entity = _world.InGame ? _world.Get(serial) : null;
 
