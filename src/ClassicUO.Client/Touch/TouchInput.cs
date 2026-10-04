@@ -175,6 +175,7 @@ namespace ClassicUO.Touch
             _pinchGump = null;
             _ghostFinger = long.MinValue;
             PackPrimer.Reset();
+            Agents.Reset();
             _maps.Clear();
             PointerGump = null;
             _physicalPointer = null;
@@ -901,6 +902,7 @@ namespace ClassicUO.Touch
                 PhoneDefaults.Apply(Client.Game.UO.World);
                 PlayerTimers.Update(Client.Game.UO.World);
                 PackPrimer.Update(Client.Game.UO.World);
+                Agents.Update(Client.Game.UO.World);
                 SmartTargeting.Update(Client.Game.UO.World);
             }
             else if (Layouts != null)

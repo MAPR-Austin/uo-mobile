@@ -19,6 +19,8 @@ namespace ClassicUO.Touch
     ///
     /// Action ids:
     ///   attack_nearest   select nearest enemy + attack it (fast melee "target closest")
+    ///   useonce[:GROUP]  use the next not-yet-used item of a kind (default: a trapped pouch)
+    ///   dress:NAME / undress:NAME / dress_save:NAME   dress sets (Touch/Agents)
     ///   target_closest:SPEC / target_next:SPEC   the closest / next mobile by colour and kind, e.g.
     ///                    "red,human", "blue", "enemy,monster" (Touch/SmartTargeting; no SPEC: enemy)
     ///   set_target       next tap on a creature/player makes it the target (no attack)
@@ -80,6 +82,11 @@ namespace ClassicUO.Touch
                     SmartTargeting.Select(world, arg ?? "enemy", false);
 
                     break;
+
+                case "useonce": Agents.UseOnce(world, arg); break;
+                case "dress": Agents.Dress(world, arg); break;
+                case "undress": Agents.Undress(world, arg); break;
+                case "dress_save": Agents.SaveDress(world, arg); break;
 
                 case "set_target": // next tap on a creature/player makes it the current target
                     if (world.TargetManager.IsTargeting)

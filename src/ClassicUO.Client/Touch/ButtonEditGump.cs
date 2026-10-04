@@ -35,6 +35,10 @@ namespace ClassicUO.Touch
         private static readonly (string Label, string Action)[] Presets =
         {
             ("Set Target", "set_target"), ("Attack Nearest", "attack_nearest"), ("Target Nearest", "target_nearest"), ("Next Target", "target_next"),
+            ("Closest Red", "target_closest:red,human"), ("Closest Gray", "target_closest:gray,human"), ("Closest Blue", "target_closest:blue,human"),
+            ("Next Red", "target_next:red,human"), ("Next Blue", "target_next:blue,human"), ("Closest Monster", "target_closest:enemy,monster"),
+            ("Trapped Pouch", "useonce:pouch"), ("Save Dress 1", "dress_save:1"), ("Dress 1", "dress:1"), ("Undress 1", "undress:1"),
+            ("Save Dress 2", "dress_save:2"), ("Dress 2", "dress:2"), ("Undress 2", "undress:2"),
             ("Prev Target", "target_prev"), ("Attack Last", "attack_last"), ("Last Target", "last_target"),
             ("Target Self", "target_self"), ("Cancel", "cancel_target"), ("Health Bar", "healthbar_target"),
             ("War/Peace", "war_peace"), ("Bandage Self", "bandage_self"), ("Bandage Tgt", "bandage_target"),

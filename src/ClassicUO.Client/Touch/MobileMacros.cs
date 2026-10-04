@@ -256,6 +256,7 @@ namespace ClassicUO.Touch
                     case "action": case "cast": case "skill": case "say": case "wait": case "waitfortarget":
                     case "target": case "settarget": case "useitem": case "attack": case "stop":
                     case "waitforgump": case "gumpbutton": case "print": case "clearjournal":
+                    case "useonce": case "dress": case "undress":
                         break;
 
                     default:
@@ -483,6 +484,21 @@ namespace ClassicUO.Touch
 
                 case "print":
                     GameActions.Print(world, arg, 0x35);
+
+                    break;
+
+                case "useonce":
+                    Agents.UseOnce(world, arg);
+
+                    break;
+
+                case "dress":
+                    Agents.Dress(world, arg);
+
+                    break;
+
+                case "undress":
+                    Agents.Undress(world, arg);
 
                     break;
 
