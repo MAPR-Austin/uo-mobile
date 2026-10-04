@@ -102,10 +102,8 @@ jobs:
           BT="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)"
           set +e
           # apksigner reads both passwords from one file line by line: the store's, then the key's (the same)
-          printf '%s
-%s
-' "$KP" "$KP" > "$RUNNER_TEMP/kp2"
-          "$BT/apksigner" sign --ks "$RUNNER_TEMP/upload.p12" --ks-type PKCS12 --ks-key-alias uomobile             --ks-pass "file:$RUNNER_TEMP/kp2" --key-pass "file:$RUNNER_TEMP/kp2"             --out android/out/GraveyardBattles-release.apk android/out/GraveyardBattles.apk
+          { printf '%s' "$KP"; echo; printf '%s' "$KP"; echo; } > "$RUNNER_TEMP/kp2"
+          "$BT/apksigner" sign --ks "$RUNNER_TEMP/upload.p12" --ks-type PKCS12 --ks-key-alias uomobile --ks-pass "file:$RUNNER_TEMP/kp2" --key-pass "file:$RUNNER_TEMP/kp2" --out android/out/GraveyardBattles-release.apk android/out/GraveyardBattles.apk
           rc=$?
           set -e
           rm -f "$RUNNER_TEMP/upload.p12" "$RUNNER_TEMP/kp" "$RUNNER_TEMP/kp2"
