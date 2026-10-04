@@ -134,30 +134,51 @@ namespace ClassicUO.Touch
             }
 
             Item pack = world.Player?.FindItemByLayer(Layer.Backpack);
-            int queued = 0;
+            int queued = 0, missing = 0;
 
             foreach (uint serial in serials)
             {
                 Item it = world.Items.Get(serial);
 
-                if (it == null || it.Container == world.Player.Serial || pack == null)
+                if (it == null || pack == null)
                 {
-                    continue; // gone, or already worn
+                    missing++; // gone, or in a bag the client hasn't seen opened
+
+                    continue;
                 }
 
-                Layer layer = (Layer)it.ItemData.Layer;
+                if (it.Container == world.Player.Serial)
+                {
+                    continue; // already worn
+                }
+
                 uint s = serial;
 
-                // whatever is in that slot goes to the pack first
-                _steps.Enqueue(() =>
+                // whatever is in the way goes to the pack first
+                foreach (Layer layer in InTheWay(it))
                 {
-                    Item worn = world.Player?.FindItemByLayer(layer);
+                    Layer l = layer;
+                    Item worn = world.Player.FindItemByLayer(l);
 
-                    if (worn != null && worn.Serial != s && GameActions.PickUp(world, worn.Serial, 0, 0, 1))
+                    // a shield stays for a one-handed weapon; only a two-handed weapon in that hand moves
+                    if (l == Layer.TwoHanded && (Layer)it.ItemData.Layer == Layer.OneHanded && worn != null && !worn.ItemData.IsWeapon)
                     {
-                        GameActions.DropItem(worn.Serial, 0xFFFF, 0xFFFF, 0, pack.Serial);
+                        continue;
                     }
-                });
+
+                    if (worn != null && worn.Serial != s && !serials.Contains(worn.Serial))
+                    {
+                        _steps.Enqueue(() =>
+                        {
+                            Item w = world.Player?.FindItemByLayer(l);
+
+                            if (w != null && w.Serial != s && GameActions.PickUp(world, w.Serial, 0, 0, 1))
+                            {
+                                GameActions.DropItem(w.Serial, 0xFFFF, 0xFFFF, 0, pack.Serial);
+                            }
+                        });
+                    }
+                }
 
                 _steps.Enqueue(() =>
                 {
@@ -170,7 +191,31 @@ namespace ClassicUO.Touch
                 queued++;
             }
 
-            GameActions.Print(world, queued == 0 ? $"Already wearing '{name}'." : $"Dressing '{name}'...", 0x3B2);
+            string note = missing > 0 ? $" ({missing} not found - in a bag that hasn't been opened?)" : "";
+            GameActions.Print(world, queued == 0 ? $"Nothing of '{name}' to put on{note}." : $"Dressing '{name}'...{note}", 0x3B2);
+        }
+
+        /// <summary>
+        /// The slots to empty before putting <paramref name="it" /> on: its own; and for the hands, a
+        /// two-handed weapon needs both free, a one-handed weapon pushes out a two-handed one (a shield
+        /// stays), a shield pushes out a two-handed weapon.
+        /// </summary>
+        private static Layer[] InTheWay(Item it)
+        {
+            Layer own = (Layer)it.ItemData.Layer;
+            bool weapon = it.ItemData.IsWeapon;
+
+            if (own == Layer.TwoHanded && weapon)
+            {
+                return new[] { Layer.OneHanded, Layer.TwoHanded };
+            }
+
+            if (own == Layer.OneHanded)
+            {
+                return new[] { Layer.OneHanded, Layer.TwoHanded }; // TwoHanded only if a weapon there (checked below)
+            }
+
+            return new[] { own };
         }
 
         public static void Undress(World world, string name)
@@ -253,7 +298,7 @@ namespace ClassicUO.Touch
             {
                 if (File.Exists(file))
                 {
-                    var loaded = JsonSerializer.Deserialize(File.ReadAllText(file), AgentsJsonContext.Default.DictionaryStringListUInt32);
+                    var loaded = ConfigurationResolver.Load(file, AgentsJsonContext.Default.DictionaryStringListUInt32, escapeBackslashes: false);
 
                     if (loaded != null)
                     {
@@ -276,7 +321,7 @@ namespace ClassicUO.Touch
         {
             try
             {
-                File.WriteAllText(_setsFile, JsonSerializer.Serialize(_sets, AgentsJsonContext.Default.DictionaryStringListUInt32));
+                ConfigurationResolver.Save(_sets, _setsFile, AgentsJsonContext.Default.DictionaryStringListUInt32); // write, then swap in
             }
             catch (Exception e)
             {

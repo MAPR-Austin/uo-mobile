@@ -38,7 +38,10 @@ namespace ClassicUO.Touch
             _primedFor = world.Player.Serial;
             _packSerial = pack.Serial;
             _swallowUntil = Time.Ticks + SwallowWithinMs;
+
+            uint lastObject = world.LastObject;
             GameActions.DoubleClick(world, pack.Serial);
+            world.LastObject = lastObject; // Last Object stays what the player last used
         }
 
         /// <summary>PacketHandlers.OpenContainer: true to skip the window (the backpack this primer opened).</summary>

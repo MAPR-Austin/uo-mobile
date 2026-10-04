@@ -141,6 +141,8 @@ namespace ClassicUO.Touch
                 X = safe.X + 6;
                 Y = safe.Y + (int)(safe.Height * 0.2f);
             }
+
+            Y = Math.Min(Y, TouchInput.ScreenH - Height - 4); // a strip moved low stays on the screen
         }
     }
 }

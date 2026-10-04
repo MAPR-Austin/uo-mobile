@@ -76,6 +76,17 @@ must be caught here.
        out of sight) and back to normal where it can; Place on a clear spot brings the warning, and
        its OKAY works even under the joystick ring; Cancel ends it and brings the HUD back;
      - a server gump's buttons under the joystick ring take taps; the joystick still works elsewhere.
+   - Build 44 (phone helpers; a new character gets the defaults):
+     - the counter strip shows at the top left with real counts at login (no backpack window opens);
+       drag it by its frame to move it; red under 5; double-tap a counter to use it;
+     - bandage yourself: "Bandage Ns" counts down under the strip and goes when done;
+     - Closest Red / Blue / Monster and Next buttons pick the right colours; after a pick,
+       E-Bolt > Last goes to the new pick; a heal button goes to you or your last friend;
+     - out of range: "X is out of range" and the cursor stays up; a fizzle doesn't leave a target
+       waiting for the next cursor (bandage after an interrupted E-Bolt targets normally);
+     - Save Dress 1 / Undress 1 / Dress 1, also from sword+shield to a two-handed weapon and back;
+     - Trapped Pouch uses a pouch each press;
+     - a macro using while / break / call / waitforjournal runs; stopping it from its button works.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -216,3 +227,4 @@ must be caught here.
 | desktop | (pre-ship, build 42) | build 41's login layout moved every window in the login scene, and the touch HUD is created there while the world is entering, so the HUD (labels, target panel) kept the login offset | only the login flow's own windows (Login/CharCreation namespaces, credits, message boxes, the colour picker) are placed |
 | audit | (agent, build 42) | the raised speech line sat in WorldViewportGump.Contains' tap-through area, so a tap on it closed the keyboard and clicked the world; nothing caught a missing keyboard report (the line would sit under the keyboard) | the tap-through area is measured from the speech line's own height; no report within 0.7 s gives the line SDL's slide again (logged), and the first reports are logged |
 | audit | (agent, build 43) | a boat's placement cursor showed the house ghost red and refused Place (the server only judges houses); the joystick exception let health bars, journal and paperdoll controls steal walk presses; surface statics were asked about at the wrong z (false 'blocked'); a disconnect mid-drag left the ghost finger set (a reused touch id lost its release); a mobile under the finger carried the ghost off; big houses started out of range | no-opinion answers keep the ghost plain and Place allowed; only server gumps' buttons/check boxes/text fields beat the joystick; the query adds a surface's height like the real target; the finger resets on unload and on a normal press; anchors become the ground under them; the start is capped at 9 tiles; pinch works while placing |
+| audit | (agent, build 44) | Last Target kept an old harmful/beneficial memory over a new pick (Dump E-Bolt broke after its first kill); the target queue answered any later cursor (a bandage could hit the enemy); dress left a weapon swap half done; the default counter strip was editable so a drag tore counters off; a macro button couldn't stop a macro inside a call; dress sets were written in place | picks feed the memories (harmful for foes, beneficial for friends; dead/missing skipped; reset on logout); only spell buttons queue, only for a harmful/beneficial cursor, cleared by a fizzle or any other action; both hands cleared as needed; the strip is created locked and without explosion potions; the root macro's name decides the stop; ConfigurationResolver.Save; unknown item names fail at validation |

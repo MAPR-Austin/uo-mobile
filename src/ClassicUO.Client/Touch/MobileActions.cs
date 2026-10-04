@@ -64,6 +64,8 @@ namespace ClassicUO.Touch
                 action = action.Substring(0, colon);
             }
 
+            SmartTargeting.ClearQueue(); // any other action: a spell's queued target isn't wanted any more
+
             switch (action)
             {
                 case "attack_nearest":
@@ -194,8 +196,13 @@ namespace ClassicUO.Touch
                 case "spell_lt":
                     if (TryParse(arg, out spell))
                     {
+                        if (world.TargetManager.IsTargeting)
+                        {
+                            world.TargetManager.CancelTarget(); // a stale cursor would take this spell's target
+                        }
+
                         Macro(world, O(MacroType.CastSpell, spell));
-                        SmartTargeting.TargetLast(world); // queued until the spell's cursor comes up
+                        SmartTargeting.QueueLast(); // answered when this spell's cursor comes up
                     }
 
                     break;
@@ -203,8 +210,13 @@ namespace ClassicUO.Touch
                 case "spell_self":
                     if (TryParse(arg, out spell))
                     {
+                        if (world.TargetManager.IsTargeting)
+                        {
+                            world.TargetManager.CancelTarget();
+                        }
+
                         Macro(world, O(MacroType.CastSpell, spell));
-                        SmartTargeting.TargetSelf(world);
+                        SmartTargeting.QueueSelf();
                     }
 
                     break;
@@ -316,6 +328,7 @@ namespace ClassicUO.Touch
             world.TargetManager.NewTargetSystemSerial = mobile.Serial;
             world.TargetManager.SelectedTarget = mobile.Serial;
             world.TargetManager.LastTargetInfo.SetEntity(mobile.Serial);
+            SmartTargeting.Remember(world, mobile); // the last harmful (foe) or beneficial (friend) target
             GameActions.MessageOverhead(world, $"Target: {mobile.Name}", Notoriety.GetHue(mobile.NotorietyFlag), world.Player);
         }
 

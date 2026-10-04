@@ -4766,6 +4766,7 @@ namespace ClassicUO.Network
             string affix = p[0] == 0xCC ? p.ReadASCII() : string.Empty;
 
             Touch.PlayerTimers.OnCliloc(world, cliloc); // UO Mobile: the bandage timer
+            Touch.SmartTargeting.OnCliloc(cliloc); // UO Mobile: a fizzle ends a queued spell target
 
             string arguments = null;
 

@@ -118,6 +118,7 @@ namespace ClassicUO.Touch
 
         private static List<Step> _program;
         private static string _name;
+        private static string _rootName; // the macro its button started (_name changes inside a call)
         private static int _pc;
         private static uint _waitUntil;
         private static uint _targetDeadline;
@@ -165,7 +166,7 @@ namespace ClassicUO.Touch
             }
 
             // Tapping the running macro's button again stops it (for loops).
-            if (IsRunning && string.Equals(_name, macro.Name, StringComparison.OrdinalIgnoreCase))
+            if (IsRunning && string.Equals(_rootName, macro.Name, StringComparison.OrdinalIgnoreCase))
             {
                 Stop();
                 GameActions.Print(world, $"Macro '{macro.Name}' stopped.", 0x35);
@@ -183,7 +184,7 @@ namespace ClassicUO.Touch
             }
 
             _program = program;
-            _name = macro.Name;
+            _name = _rootName = macro.Name;
             _pc = 0;
             _waitUntil = 0;
             _targetDeadline = 0;
@@ -323,9 +324,19 @@ namespace ClassicUO.Touch
                         break;
 
                     case "action": case "cast": case "skill": case "say": case "wait": case "waitfortarget":
-                    case "target": case "settarget": case "useitem": case "attack": case "stop":
+                    case "target": case "settarget": case "attack": case "stop":
                     case "waitforgump": case "gumpbutton": case "print": case "clearjournal":
                     case "useonce": case "dress": case "undress":
+                        break;
+
+                    case "useitem":
+                        string bad = ItemError(s.Args, 0);
+
+                        if (bad != null)
+                        {
+                            return $"line {s.Line}: {bad}";
+                        }
+
                         break;
 
                     case "waitforjournal":
@@ -1053,7 +1064,7 @@ namespace ClassicUO.Touch
 
                 case "count":
                     return args.Length >= i + 4 && Array.IndexOf(Comparators, args[i + 2]) >= 0 && int.TryParse(args[i + 3], out _)
-                        ? null
+                        ? ItemError(args, i + 1)
                         : "'count' needs an item and comparison, e.g. 'count bandages >= 5' or 'count 0x0E21 >= 5'";
 
                 default:
@@ -1163,6 +1174,28 @@ namespace ClassicUO.Touch
         }
 
         // ---------- items ----------
+
+        /// <summary>Why an item list (names from ItemGroups, hex or decimal graphics) can't be read; null if it can.</summary>
+        private static string ItemError(string[] args, int index)
+        {
+            if (index >= args.Length)
+            {
+                return "needs an item, e.g. 'bandages' or 0x0E21";
+            }
+
+            foreach (string part in args[index].Split(',', StringSplitOptions.RemoveEmptyEntries))
+            {
+                bool hex = part.StartsWith("0x", StringComparison.OrdinalIgnoreCase) &&
+                           ushort.TryParse(part.Substring(2), NumberStyles.HexNumber, CultureInfo.InvariantCulture, out _);
+
+                if (!ItemGroups.TryGet(part, out _) && !hex && !ushort.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+                {
+                    return $"unknown item '{part}' (a name like bandages, heal, regs - or a graphic like 0x0E21)";
+                }
+            }
+
+            return null;
+        }
 
         private static ushort Graphic(string[] args, int index)
         {

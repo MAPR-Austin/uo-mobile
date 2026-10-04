@@ -19,7 +19,8 @@ namespace ClassicUO.Touch
     /// <item>Smart last target: separate last harmful and last beneficial targets, chosen by the
     /// kind of cursor the server opened (a heal goes to whom you last healed, an attack spell to
     /// whom you last attacked).</item>
-    /// <item>Target queue: Last Target or Self pressed before the cursor is up waits up to 4 s for it.</item>
+    /// <item>Target queue: a spell button that targets (E-Bolt > Last, Heal Self) answers its own spell's
+    /// cursor when it comes up, up to 4 s later; a fizzle or another action cancels it.</item>
     /// <item>Range check: a mobile out of spell range (12 tiles) isn't sent - the cursor stays up
     /// instead of the spell being lost on "That is too far away".</item>
     /// </list>
@@ -122,6 +123,37 @@ namespace ClassicUO.Touch
 
         // ---------- smart last target ----------
 
+        /// <summary>
+        /// Friendly to you, so a beneficial target: your party, your guild and allies (green), your
+        /// pets, and blues - unless you are red yourself, when blues are prey.
+        /// </summary>
+        private static bool Friendly(World world, Mobile m)
+        {
+            return m.NotorietyFlag == NotorietyFlag.Ally || world.Party.Contains(m.Serial) || m.IsRenamable ||
+                   m.NotorietyFlag == NotorietyFlag.Innocent && world.Player.NotorietyFlag != NotorietyFlag.Murderer;
+        }
+
+        /// <summary>
+        /// MobileActions.SetCurrentTarget: picking a mobile (Closest Red, Set Target, Next...) makes it the
+        /// last target of its kind - harmful for a foe, beneficial for a friend.
+        /// </summary>
+        public static void Remember(World world, Mobile m)
+        {
+            if (m == null || world?.Player == null || m == world.Player)
+            {
+                return;
+            }
+
+            if (Friendly(world, m))
+            {
+                _lastBeneficial = m.Serial;
+            }
+            else
+            {
+                _lastHarmful = m.Serial;
+            }
+        }
+
         /// <summary>TargetManager.Target: a mobile went to a harmful or beneficial cursor.</summary>
         public static void OnTargeted(World world, uint serial, TargetType type)
         {
@@ -140,44 +172,56 @@ namespace ClassicUO.Touch
             }
         }
 
-        /// <summary>Last Target, smart: by the open cursor's kind; with no cursor up, wait for one.</summary>
+        /// <summary>A remembered mobile still worth targeting: present and alive (a ghost would just eat the spell).</summary>
+        private static Mobile Alive(World world, uint serial)
+        {
+            Mobile m = serial == 0 ? null : world.Mobiles.Get(serial);
+
+            return m != null && !m.IsDestroyed && !m.IsDead ? m : null;
+        }
+
+        /// <summary>Last Target, smart: by the open cursor's kind. Without a cursor up it does nothing (as UO's own).</summary>
         public static void TargetLast(World world)
         {
             TargetManager tm = world.TargetManager;
 
             if (!tm.IsTargeting)
             {
-                Queue(Queued.Last);
-
                 return;
             }
 
-            uint serial = tm.TargetingType == TargetType.Beneficial && _lastBeneficial != 0 ? _lastBeneficial
-                : tm.TargetingType == TargetType.Harmful && _lastHarmful != 0 ? _lastHarmful
-                : tm.LastTargetInfo.IsEntity ? tm.LastTargetInfo.Serial : 0;
+            uint serial;
+
+            if (tm.TargetingType == TargetType.Beneficial)
+            {
+                // the last friend helped; else the current target if it's a friend; else yourself
+                Mobile last = Alive(world, tm.LastTargetInfo.IsEntity ? tm.LastTargetInfo.Serial : 0);
+                serial = Alive(world, _lastBeneficial)?.Serial ?? (last != null && Friendly(world, last) ? last.Serial : world.Player.Serial);
+            }
+            else if (tm.TargetingType == TargetType.Harmful)
+            {
+                serial = Alive(world, _lastHarmful)?.Serial ?? (tm.LastTargetInfo.IsEntity ? tm.LastTargetInfo.Serial : 0);
+            }
+            else
+            {
+                serial = tm.LastTargetInfo.IsEntity ? tm.LastTargetInfo.Serial : 0;
+            }
 
             if (serial == 0)
             {
-                if (tm.TargetingType == TargetType.Beneficial)
-                {
-                    tm.Target(world.Player.Serial); // nobody healed yet: yourself
-                }
-                else
-                {
-                    tm.TargetLast();
-                }
+                tm.TargetLast();
 
                 return;
             }
 
-            if (tm.TargetingType != TargetType.Neutral && SerialHelper.IsMobile(serial))
+            if (tm.TargetingType != TargetType.Neutral && SerialHelper.IsMobile(serial) && serial != world.Player.Serial)
             {
-                Mobile m = world.Mobiles.Get(serial);
+                Mobile m = Alive(world, serial);
 
                 if (m == null || m.Distance > SpellRange)
                 {
                     // keep the cursor (and the spell): out of range it would be lost
-                    GameActions.Print(world, m == null ? "Your last target is out of sight." : $"{m.Name} is out of range ({m.Distance} tiles).", 0x21);
+                    GameActions.Print(world, m == null ? "Your last target is gone." : $"{m.Name} is out of range ({m.Distance} tiles).", 0x21);
 
                     return;
                 }
@@ -188,15 +232,23 @@ namespace ClassicUO.Touch
 
         public static void TargetSelf(World world)
         {
-            if (!world.TargetManager.IsTargeting)
+            if (world.TargetManager.IsTargeting)
             {
-                Queue(Queued.Self);
-
-                return;
+                world.TargetManager.Target(world.Player.Serial);
             }
-
-            world.TargetManager.Target(world.Player.Serial);
         }
+
+        /// <summary>
+        /// spell_lt / spell_self: the spell just cast will open a cursor; answer that one when it comes
+        /// (a harmful or beneficial cursor only - never a crafting, bandage or placement one - and
+        /// yourself never on a harmful one). A fizzle, another action or 4 s end the wait.
+        /// </summary>
+        public static void QueueLast() => Queue(Queued.Last);
+
+        public static void QueueSelf() => Queue(Queued.Self);
+
+        /// <summary>Another action ran, or the spell fizzled: whatever was waiting isn't wanted any more.</summary>
+        public static void ClearQueue() => _queued = Queued.None;
 
         private static void Queue(Queued what)
         {
@@ -204,7 +256,23 @@ namespace ClassicUO.Touch
             _queuedAt = Time.Ticks;
         }
 
-        /// <summary>Every frame: a queued Last Target / Self fires when the cursor comes up, or lapses.</summary>
+        /// <summary>PacketHandlers (via PlayerTimers): the spell fizzled or was disturbed - its cursor won't come.</summary>
+        public static void OnCliloc(uint cliloc)
+        {
+            if (cliloc == 502632 || cliloc == 500641) // The spell fizzles. / Your concentration is disturbed...
+            {
+                _queued = Queued.None;
+            }
+        }
+
+        /// <summary>A new login: nothing remembered from the last character.</summary>
+        public static void Reset()
+        {
+            _lastHarmful = _lastBeneficial = _cycledSerial = 0;
+            _queued = Queued.None;
+        }
+
+        /// <summary>Every frame: a queued Last Target / Self fires when the spell's cursor comes up, or lapses.</summary>
         public static void Update(World world)
         {
             if (_queued == Queued.None)
@@ -219,19 +287,26 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            if (world.TargetManager.IsTargeting)
-            {
-                Queued what = _queued;
-                _queued = Queued.None;
+            TargetManager tm = world.TargetManager;
 
-                if (what == Queued.Self)
+            if (!tm.IsTargeting || tm.TargetingType == TargetType.Neutral)
+            {
+                return; // not the spell's cursor (yet)
+            }
+
+            Queued what = _queued;
+            _queued = Queued.None;
+
+            if (what == Queued.Self)
+            {
+                if (tm.TargetingType == TargetType.Beneficial)
                 {
-                    world.TargetManager.Target(world.Player.Serial);
+                    tm.Target(world.Player.Serial);
                 }
-                else
-                {
-                    TargetLast(world);
-                }
+            }
+            else
+            {
+                TargetLast(world);
             }
         }
     }

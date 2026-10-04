@@ -12,7 +12,9 @@ namespace ClassicUO.Touch
     /// What a phone player gets out of the box (once per character; everything stays changeable in
     /// UO's options and on the windows themselves): doors open as you walk into them, and a counter
     /// strip near the top left shows bandages, the main potions and the eight reagents - red under 5,
-    /// a tap uses one, items dragged onto it add counters, a long press on one sets it up.
+    /// a double tap uses one; it is locked (a drag moves the strip; a double tap on its frame unlocks
+    /// it to add counters by dropping items on it, a long press on one sets it up). No explosion
+    /// potion: a stray double tap would arm one in the pack.
     /// </summary>
     internal static class PhoneDefaults
     {
@@ -21,18 +23,20 @@ namespace ClassicUO.Touch
 
         private static readonly string[] Counters =
         {
-            "bandages", "heal", "cure", "refresh", "explosion", "strength", "agility",
+            "bandages", "heal", "cure", "refresh", "strength", "agility",
             "blackpearl", "bloodmoss", "garlic", "ginseng", "mandrake", "nightshade", "ash", "silk"
         };
 
-        private const int Cell = 36, Columns = 8;
+        private const int Cell = 36, Columns = 7;
 
         /// <summary>TouchInput.Update, in the world: set the character up once.</summary>
         public static void Apply(World world)
         {
             Profile p = ProfileManager.CurrentProfile;
 
-            if (p == null || p.TouchDefaultsVersion >= Version || world?.Player == null)
+            // in the game scene only: the world is "in game" a moment earlier, still in the login scene
+            // (its UI units, and before the saved windows are restored)
+            if (p == null || p.TouchDefaultsVersion >= Version || world?.Player == null || !(Client.Game.Scene is Game.Scenes.GameScene))
             {
                 return;
             }
@@ -63,6 +67,7 @@ namespace ClassicUO.Touch
             }
 
             bar.SizeTo(Columns, rows);
+            bar.ReadOnly = true; // a drag moves the strip instead of pulling a counter off it
             UIManager.Add(bar);
         }
     }
