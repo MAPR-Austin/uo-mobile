@@ -105,6 +105,21 @@ namespace ClassicUO.Touch
             UIManager.Add(new MacroEditorGump(world));
         }
 
+        /// <summary>Opens the editor on the macro called <paramref name="name"/> (a recording just saved).</summary>
+        public static void Open(World world, string name)
+        {
+            Open(world);
+            MacroEditorGump g = UIManager.GetGump<MacroEditorGump>();
+            int index = g?._set.Macros.FindIndex(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase)) ?? -1;
+
+            if (index >= 0)
+            {
+                g._macro = index;
+                g._selected = -1;
+                g.Rebuild();
+            }
+        }
+
         private MobileMacro Current => _set.Macros[Math.Clamp(_macro, 0, _set.Macros.Count - 1)];
 
         private static NiceButton Btn(int x, int y, int w, int h, string text, int id, ushort hue = 0xFFFF) =>

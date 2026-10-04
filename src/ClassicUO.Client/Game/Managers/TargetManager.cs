@@ -244,6 +244,7 @@ namespace ClassicUO.Game.Managers
                 return;
             }
 
+            Touch.MacroRecorder.OnTarget(_world, serial); // UO Mobile: the macro recorder
             Touch.PlayerTimers.OnTargeted(serial); // UO Mobile: bandaging yourself or another
             Touch.SmartTargeting.OnTargeted(_world, serial, TargetingType); // UO Mobile: last harmful / beneficial
 
@@ -413,6 +414,8 @@ namespace ClassicUO.Game.Managers
             {
                 return;
             }
+
+            Touch.MacroRecorder.OnTargetGround(_world, graphic, x, y); // UO Mobile: the macro recorder
 
             switch (TargetingState)
             {

@@ -41,6 +41,7 @@ namespace ClassicUO.Touch
     ///   mmacro:Name      run (or stop, if running) a phone macro - see MobileMacros
     ///   triggers[:on|off]   switch the phone macros' triggers ("when ..." macros) on or off
     ///   autoloot[:on|off|LIST]   auto loot from corpses (Touch/AutoLoot); LIST: "gold,regs,arrows"
+    ///   record           start recording a phone macro, or stop and save it (Touch/MacroRecorder)
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -68,8 +69,28 @@ namespace ClassicUO.Touch
 
             SmartTargeting.ClearQueue(); // any other action: a spell's queued target isn't wanted any more
 
+            MacroRecorder.OnAction(action, arg); // recording: the button itself is the step; what it does isn't
+            MacroRecorder.Quiet++;
+
+            try
+            {
+                Dispatch(world, action, arg);
+            }
+            finally
+            {
+                MacroRecorder.Quiet--;
+            }
+        }
+
+        private static void Dispatch(World world, string action, string arg)
+        {
             switch (action)
             {
+                case "record":
+                    MacroRecorder.Toggle(world);
+
+                    break;
+
                 case "attack_nearest":
                     {
                         Mobile foe = SmartTargeting.Select(world, arg ?? "enemy", false);

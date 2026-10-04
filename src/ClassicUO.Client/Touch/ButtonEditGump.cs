@@ -59,7 +59,7 @@ namespace ClassicUO.Touch
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),
             ("Macro Editor", "macro_editor"), ("Next Layout", "layout_next"),
-            ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("Triggers", "triggers"), ("Auto Loot", "autoloot"), ("Chat", "chat"), ("UO Macros", "uo_macros"),
+            ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("Triggers", "triggers"), ("Auto Loot", "autoloot"), ("Record Macro", "record"), ("Chat", "chat"), ("UO Macros", "uo_macros"),
         };
 
         private ButtonEditGump(World world, int index) : base(world, 0, 0)

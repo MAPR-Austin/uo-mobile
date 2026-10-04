@@ -812,7 +812,16 @@ namespace ClassicUO.Game.Scenes
                 }
             }
 
-            _world.Macros.Update();
+            Touch.MacroRecorder.Quiet++; // UO Mobile: a desktop macro's steps aren't the player's taps
+
+            try
+            {
+                _world.Macros.Update();
+            }
+            finally
+            {
+                Touch.MacroRecorder.Quiet--;
+            }
 
             if (
                 (currentProfile.CorpseOpenOptions == 1 || currentProfile.CorpseOpenOptions == 3)

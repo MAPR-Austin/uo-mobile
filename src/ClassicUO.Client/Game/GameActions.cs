@@ -288,6 +288,7 @@ namespace ClassicUO.Game
 
             world.TargetManager.NewTargetSystemSerial = serial;
             world.TargetManager.LastAttack = serial;
+            Touch.MacroRecorder.OnAttack(); // UO Mobile
             Socket.Send_AttackRequest(serial);
         }
 
@@ -298,6 +299,7 @@ namespace ClassicUO.Game
 
         public static void DoubleClick(World world, uint serial)
         {
+            Touch.MacroRecorder.OnDoubleClick(world, serial); // UO Mobile
             if (serial != world.Player && SerialHelper.IsMobile(serial) && world.Player.InWarMode)
             {
                 RequestMobileStatus(world,serial);
@@ -337,6 +339,7 @@ namespace ClassicUO.Game
 
         public static void Say(string message, ushort hue = 0xFFFF, MessageType type = MessageType.Regular, byte font = 3)
         {
+            Touch.MacroRecorder.OnSay(message); // UO Mobile
             if (hue == 0xFFFF)
             {
                 hue = ProfileManager.CurrentProfile.SpeechHue;
@@ -550,6 +553,7 @@ namespace ClassicUO.Game
 
         public static void ReplyGump(uint local, uint server, int button, uint[] switches = null, Tuple<ushort, string>[] entries = null)
         {
+            Touch.MacroRecorder.OnMenuButton(button); // UO Mobile
             Socket.Send_GumpResponse(local,
                                      server,
                                      button,
@@ -636,6 +640,7 @@ namespace ClassicUO.Game
             {
                 LastSpellIndex = index;
                 Touch.MobileMacroRunner.CastSentAt = Time.Ticks; // UO Mobile: triggers wait for this cast's cursor
+                Touch.MacroRecorder.OnCast(index);
                 Socket.Send_CastSpellFromBook(index, bookSerial);
             }
         }
@@ -646,6 +651,7 @@ namespace ClassicUO.Game
             {
                 LastSpellIndex = index;
                 Touch.MobileMacroRunner.CastSentAt = Time.Ticks; // UO Mobile: triggers wait for this cast's cursor
+                Touch.MacroRecorder.OnCast(index);
                 Socket.Send_CastSpell(index);
             }
         }
@@ -670,6 +676,7 @@ namespace ClassicUO.Game
             if (index >= 0)
             {
                 LastSkillIndex = index;
+                Touch.MacroRecorder.OnSkill(index); // UO Mobile
                 Socket.Send_UseSkill(index);
             }
         }

@@ -901,12 +901,21 @@ namespace ClassicUO.Touch
             {
                 EnsureLoaded();
                 TouchHudGump.Ensure(Client.Game.UO.World);
-                PhoneDefaults.Apply(Client.Game.UO.World);
-                PlayerTimers.Update(Client.Game.UO.World);
-                PackPrimer.Update(Client.Game.UO.World);
-                Agents.Update(Client.Game.UO.World);
-                AutoLoot.Update(Client.Game.UO.World);
-                SmartTargeting.Update(Client.Game.UO.World);
+                MacroRecorder.Quiet++; // what these do on their own isn't recorded
+
+                try
+                {
+                    PhoneDefaults.Apply(Client.Game.UO.World);
+                    PlayerTimers.Update(Client.Game.UO.World);
+                    PackPrimer.Update(Client.Game.UO.World);
+                    Agents.Update(Client.Game.UO.World);
+                    AutoLoot.Update(Client.Game.UO.World);
+                    SmartTargeting.Update(Client.Game.UO.World);
+                }
+                finally
+                {
+                    MacroRecorder.Quiet--;
+                }
             }
             else if (Layouts != null)
             {
@@ -919,7 +928,17 @@ namespace ClassicUO.Touch
             SyncKeyboard();
             CheckLongPress();
             Walk();
-            MobileMacroRunner.Update(Client.Game.UO.World);
+            MacroRecorder.Quiet++; // a running macro's or trigger's steps aren't recorded
+
+            try
+            {
+                MobileMacroRunner.Update(Client.Game.UO.World);
+            }
+            finally
+            {
+                MacroRecorder.Quiet--;
+            }
+
             StealthCounter.Update(Client.Game.UO.World);
             ScreenKeyboard.Update();
             HousePlacementGhost.Update(Client.Game.UO.World);
