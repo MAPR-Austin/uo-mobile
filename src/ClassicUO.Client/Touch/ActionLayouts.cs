@@ -9,9 +9,9 @@ using ClassicUO.Configuration;
 namespace ClassicUO.Touch
 {
     /// <summary>
-    /// One on-screen button. Positions are the button centre, normalised to the safe area (0..1),
-    /// kept separately for landscape (X/Y) and portrait (PX/PY). A missing portrait position is
-    /// derived from the landscape one (see <see cref="ActionLayout.Portrait"/>).
+    /// One on-screen button. Positions are the button centre, normalised to the safe area (0..1).
+    /// Landscape (X/Y) is the layout; portrait follows it (<see cref="ActionLayout.PortraitOf"/>)
+    /// unless the button was dragged while in portrait, which pins it there (PX/PY, PortraitPinned).
     /// </summary>
     internal sealed class ActionButtonDef
     {
@@ -27,6 +27,8 @@ namespace ClassicUO.Touch
         [JsonPropertyName("y")] public float Y { get; set; }
         [JsonPropertyName("px")] public float? PX { get; set; }
         [JsonPropertyName("py")] public float? PY { get; set; }
+        /// <summary>Placed by hand in portrait: PX/PY hold; otherwise portrait follows landscape.</summary>
+        [JsonPropertyName("ppin")] public bool PortraitPinned { get; set; }
         /// <summary>Diameter as a fraction of the screen's shorter side.</summary>
         [JsonPropertyName("size")] public float Size { get; set; } = 0.14f;
     }
@@ -38,8 +40,138 @@ namespace ClassicUO.Touch
         [JsonPropertyName("joy_y")] public float JoystickY { get; set; } = 0.74f;
         [JsonPropertyName("joy_px")] public float? PJoystickX { get; set; }
         [JsonPropertyName("joy_py")] public float? PJoystickY { get; set; }
+        [JsonPropertyName("joy_ppin")] public bool JoystickPortraitPinned { get; set; }
         [JsonPropertyName("joy_size")] public float JoystickSize { get; set; } = 0.34f;
         [JsonPropertyName("buttons")] public List<ActionButtonDef> Buttons { get; set; } = new List<ActionButtonDef>();
+
+        // the portrait spots worked out from landscape, for one screen shape and layout revision
+        private Dictionary<ActionButtonDef, (float X, float Y)> _derived;
+        private float _derivedAspect;
+        private int _derivedRevision = -1;
+
+        /// <summary>
+        /// Where <paramref name="b"/> goes in portrait. A spot pinned by dragging it in portrait
+        /// stays; otherwise the landscape layout is refitted to the tall screen: the top row stays a
+        /// row across the top, the cluster on the right keeps its shape in the lower right (squeezed
+        /// only as much as the narrower screen needs), and buttons on the left go above the
+        /// joystick. <paramref name="aspect"/> is long side / short side.
+        /// </summary>
+        public (float X, float Y) PortraitOf(ActionButtonDef b, float aspect, int revision)
+        {
+            if (b.PortraitPinned && b.PX.HasValue && b.PY.HasValue)
+            {
+                return (b.PX.Value, b.PY.Value);
+            }
+
+            if (_derived == null || _derivedRevision != revision || Math.Abs(_derivedAspect - aspect) > 0.001f)
+            {
+                Derive(aspect, revision);
+            }
+
+            return _derived.TryGetValue(b, out (float X, float Y) p) ? p : Portrait(b.X, b.Y, aspect);
+        }
+
+        /// <summary>The joystick in portrait: pinned by hand, else bottom-left (bottom-right for a right-handed landscape joystick).</summary>
+        public (float X, float Y) PortraitJoystick =>
+            JoystickPortraitPinned && PJoystickX.HasValue && PJoystickY.HasValue
+                ? (PJoystickX.Value, PJoystickY.Value)
+                : (JoystickX < 0.5f ? 0.24f : 0.76f, 0.86f);
+
+        private void Derive(float aspect, int revision)
+        {
+            _derived = new Dictionary<ActionButtonDef, (float X, float Y)>();
+            _derivedAspect = aspect;
+            _derivedRevision = revision;
+
+            List<ActionButtonDef> top = new List<ActionButtonDef>(), right = new List<ActionButtonDef>(), left = new List<ActionButtonDef>();
+
+            foreach (ActionButtonDef b in Buttons)
+            {
+                if (b.PortraitPinned && b.PX.HasValue && b.PY.HasValue)
+                {
+                    continue;
+                }
+
+                (b.Y < 0.16f ? top : b.X >= 0.5f ? right : left).Add(b);
+            }
+
+            bool joyLeft = JoystickX < 0.5f;
+
+            // the top row: across the top, kept to its side, squeezed to fit the width
+            Fit(top, aspect, 0.04f, 0.96f, float.NaN, float.NaN, null);
+            // the action cluster: the lower part of the screen, beside the joystick
+            Fit(right, aspect, joyLeft ? 0.40f : 0.03f, joyLeft ? 0.97f : 0.60f, 0.50f, 0.97f, joyLeft);
+            // the other side: above the joystick
+            Fit(left, aspect, joyLeft ? 0.03f : 0.55f, joyLeft ? 0.45f : 0.97f, 0.40f, 0.74f, !joyLeft);
+        }
+
+        /// <summary>
+        /// Places a group of buttons in a box of the portrait screen, keeping their arrangement in
+        /// physical units (short-side lengths): squeezed across and down only as much as needed,
+        /// anchored at the box's right (or left) side and its bottom - or each button keeps its
+        /// distance from the top (bottom NaN). anchorRight null: the side the group was on.
+        /// </summary>
+        private void Fit(List<ActionButtonDef> group, float aspect, float boxLeft, float boxRight, float boxTop, float bottom, bool? anchorRight)
+        {
+            if (group.Count == 0)
+            {
+                return;
+            }
+
+            float minX = float.MaxValue, maxX = float.MinValue, minY = float.MaxValue, maxY = float.MinValue;
+
+            foreach (ActionButtonDef b in group)
+            {
+                float ux = b.X * aspect, r = b.Size * 0.5f;
+                minX = Math.Min(minX, ux - r);
+                maxX = Math.Max(maxX, ux + r);
+                minY = Math.Min(minY, b.Y - r);
+                maxY = Math.Max(maxY, b.Y + r);
+            }
+
+            bool toRight = anchorRight ?? (minX + maxX) * 0.5f >= aspect * 0.5f;
+            float sx = Math.Min(1f, (boxRight - boxLeft) / Math.Max(0.01f, maxX - minX));
+            float sy = float.IsNaN(bottom) ? 1f : Math.Min(1f, (bottom - boxTop) * aspect / Math.Max(0.01f, maxY - minY));
+
+            foreach (ActionButtonDef b in group)
+            {
+                float ux = b.X * aspect;
+                float px = toRight ? boxRight - (maxX - ux) * sx : boxLeft + (ux - minX) * sx;
+                float py = float.IsNaN(bottom) ? b.Y / aspect : (bottom * aspect - (maxY - b.Y) * sy) / aspect;
+                _derived[b] = (Math.Clamp(px, 0.04f, 0.96f), Math.Clamp(py, 0.02f, 0.98f));
+            }
+        }
+
+        /// <summary>A free landscape spot for a new button: the right-hand side, clear of the others.</summary>
+        public (float X, float Y) FreeSpot(float size, float aspect)
+        {
+            for (float y = 0.24f; y <= 0.93f; y += 0.12f)
+            {
+                for (float x = 0.93f; x >= 0.45f; x -= 0.07f)
+                {
+                    bool clear = true;
+
+                    foreach (ActionButtonDef b in Buttons)
+                    {
+                        float dx = (b.X - x) * aspect, dy = b.Y - y, need = (b.Size + size) * 0.5f + 0.01f;
+
+                        if (dx * dx + dy * dy < need * need)
+                        {
+                            clear = false;
+
+                            break;
+                        }
+                    }
+
+                    if (clear)
+                    {
+                        return (x, y);
+                    }
+                }
+            }
+
+            return (0.5f, 0.3f);
+        }
 
         /// <summary>
         /// Portrait position for a landscape one that has none: keep the same physical distance from
@@ -60,6 +192,8 @@ namespace ClassicUO.Touch
     internal sealed class ActionLayoutSet
     {
         [JsonPropertyName("active")] public int Active { get; set; }
+        /// <summary>2: portrait spots are pinned only when placed by hand in portrait.</summary>
+        [JsonPropertyName("version")] public int Version { get; set; }
         [JsonPropertyName("layouts")] public List<ActionLayout> Layouts { get; set; } = new List<ActionLayout>();
 
         [JsonIgnore]
@@ -103,54 +237,52 @@ namespace ClassicUO.Touch
             {
                 set = CreateDefault();
             }
-            else
+            else if (set.Version < 2)
             {
-                FillPortraitFromDefaults(set);
+                PinHandPlacedPortraitSpots(set);
             }
 
             return set;
         }
 
         /// <summary>
-        /// Layouts saved before portrait existed (build 31 and earlier) have no portrait positions.
-        /// Deriving them from landscape stacks buttons on the joystick, so take each button's spot
-        /// from the matching default layout (same name, else same index), matched by action. Only
-        /// buttons the defaults don't have fall back to <see cref="ActionLayout.Portrait"/>.
+        /// Layouts saved before version 2 kept a portrait spot for every button: the default layout's,
+        /// the screen centre for a button added with "+", or wherever the player dragged it in
+        /// portrait. Only that last kind is pinned; the others now follow landscape.
         /// </summary>
-        private static void FillPortraitFromDefaults(ActionLayoutSet set)
+        private static void PinHandPlacedPortraitSpots(ActionLayoutSet set)
         {
             ActionLayoutSet defaults = CreateDefault();
+
+            static bool Near(float a, float b) => Math.Abs(a - b) < 0.006f;
 
             for (int i = 0; i < set.Layouts.Count; i++)
             {
                 ActionLayout layout = set.Layouts[i];
                 ActionLayout d = defaults.Layouts.Find(x => x.Name == layout.Name) ?? defaults.Layouts[i % defaults.Layouts.Count];
 
-                if (!layout.PJoystickX.HasValue || !layout.PJoystickY.HasValue)
-                {
-                    layout.PJoystickX = d.PJoystickX;
-                    layout.PJoystickY = d.PJoystickY;
-                }
+                layout.JoystickPortraitPinned = layout.PJoystickX.HasValue && layout.PJoystickY.HasValue &&
+                                                !(Near(layout.PJoystickX.Value, 0.24f) && Near(layout.PJoystickY.Value, 0.86f));
 
                 List<ActionButtonDef> unused = new List<ActionButtonDef>(d.Buttons);
 
                 foreach (ActionButtonDef b in layout.Buttons)
                 {
-                    if (b.PX.HasValue && b.PY.HasValue)
-                    {
-                        continue;
-                    }
-
                     ActionButtonDef match = unused.Find(x => x.Action == b.Action);
 
                     if (match != null)
                     {
-                        b.PX = match.PX;
-                        b.PY = match.PY;
-                        unused.Remove(match); // a second copy of the same action falls back to derivation
+                        unused.Remove(match);
                     }
+
+                    bool hasSpot = b.PX.HasValue && b.PY.HasValue;
+                    bool isDefault = hasSpot && match != null && Near(b.PX.Value, match.PX ?? -1f) && Near(b.PY.Value, match.PY ?? -1f);
+                    bool isNew = hasSpot && Near(b.PX.Value, 0.5f) && Near(b.PY.Value, 0.5f);
+                    b.PortraitPinned = hasSpot && !isDefault && !isNew;
                 }
             }
+
+            set.Version = 2;
         }
 
         public void Save()
@@ -230,7 +362,7 @@ namespace ClassicUO.Touch
                 B("Status", "open:Status", 0.84f, 0.50f, 0.74f, 0.66f, 0.11f),
             });
 
-            return new ActionLayoutSet { Active = 0, Layouts = { combat, mage, utility } };
+            return new ActionLayoutSet { Active = 0, Version = 2, Layouts = { combat, mage, utility } };
         }
     }
 

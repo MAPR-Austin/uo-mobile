@@ -44,6 +44,7 @@ namespace ClassicUO.Touch
     ///   record           start recording a phone macro, or stop and save it (Touch/MacroRecorder)
     ///   restock[:LIST]   top the pack up from the open bank box or chest: "restock:bandages=100,regs=30"
     ///   organize[:LIST]  move items of LIST (default gold) from the pack into the container opened last
+    ///   counters[:on|off]   show or hide the counter strip (a long press on it hides it too)
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -319,6 +320,11 @@ namespace ClassicUO.Touch
 
                 case "organize":
                     Agents.Organize(world, arg);
+
+                    break;
+
+                case "counters":
+                    PhoneDefaults.ToggleStrip(world, arg);
 
                     break;
 

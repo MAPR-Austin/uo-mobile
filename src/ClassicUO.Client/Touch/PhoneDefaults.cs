@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
+using System;
 using ClassicUO.Configuration;
 using ClassicUO.Game;
 using ClassicUO.Game.Managers;
@@ -13,8 +14,9 @@ namespace ClassicUO.Touch
     /// UO's options and on the windows themselves): doors open as you walk into them, and a counter
     /// strip near the top left shows bandages, the main potions and the eight reagents - red under 5,
     /// a double tap uses one; it is locked (a drag moves the strip; a double tap on its frame unlocks
-    /// it to add counters by dropping items on it, a long press on one sets it up). No explosion
-    /// potion: a stray double tap would arm one in the pack.
+    /// it to add counters by dropping items on it). A long press hides the strip; a "Counters" button
+    /// (action "counters[:on|off]") shows it again. No explosion potion: a stray double tap would arm
+    /// one in the pack.
     /// </summary>
     internal static class PhoneDefaults
     {
@@ -54,6 +56,12 @@ namespace ClassicUO.Touch
                 return; // the player already has one of their own
             }
 
+            UIManager.Add(CreateStrip(world));
+        }
+
+        /// <summary>The phone's counter strip: 14 counters, 7 across, near the top left, locked.</summary>
+        public static CounterBarGump CreateStrip(World world)
+        {
             Rectangle safe = TouchInput.Safe;
             int rows = (Counters.Length + Columns - 1) / Columns;
             CounterBarGump bar = new CounterBarGump(world, safe.X + 6, safe.Y + (int)(safe.Height * 0.2f), Cell);
@@ -68,7 +76,124 @@ namespace ClassicUO.Touch
 
             bar.SizeTo(Columns, rows);
             bar.ReadOnly = true; // a drag moves the strip instead of pulling a counter off it
-            UIManager.Add(bar);
+
+            return bar;
+        }
+
+        /// <summary>TouchInput.CheckLongPress: a long press on the strip hides it. True when it did.</summary>
+        public static bool HideStripOnLongPress(Game.UI.Controls.Control over)
+        {
+            CounterBarGump bar = over?.RootParent as CounterBarGump ?? over as CounterBarGump;
+            Profile p = ProfileManager.CurrentProfile;
+
+            if (bar == null || p == null)
+            {
+                return false;
+            }
+
+            p.TouchCountersHidden = true;
+            bar.IsVisible = false;
+            GameActions.Print(Client.Game.UO.World, "Counter strip hidden. Edit a button and pick 'Counters' to bring it back.", 0x3B2);
+
+            return true;
+        }
+
+        private static int _stripCheckedRevision = -1;
+        private static bool _stripCheckedPortrait;
+
+        /// <summary>
+        /// Every frame, in the world: a hidden strip stays hidden (it comes back with the saved windows
+        /// at login); and when the phone turns or the layout changes, a strip lying under the HUD's top
+        /// row (War, Chat, ...) moves down just below it.
+        /// </summary>
+        public static void KeepStripHidden()
+        {
+            Profile p = ProfileManager.CurrentProfile;
+
+            if (p == null || !(UIManager.GetGump<CounterBarGump>() is CounterBarGump bar))
+            {
+                return;
+            }
+
+            if (p.TouchCountersHidden)
+            {
+                bar.IsVisible = false;
+
+                return;
+            }
+
+            if (_stripCheckedRevision == TouchInput.Revision && _stripCheckedPortrait == TouchInput.IsPortrait)
+            {
+                return;
+            }
+
+            _stripCheckedRevision = TouchInput.Revision;
+            _stripCheckedPortrait = TouchInput.IsPortrait;
+            ActionLayout layout = TouchInput.Current;
+
+            if (layout == null)
+            {
+                return;
+            }
+
+            int rowBottom = -1;
+
+            foreach (ActionButtonDef b in layout.Buttons)
+            {
+                if (b.Y >= 0.16f)
+                {
+                    continue; // the top row only
+                }
+
+                Point c = TouchInput.ButtonCenter(b);
+                int r = TouchInput.ButtonRadius(b);
+
+                // the button and the strip overlap across
+                if (c.X + r > bar.X && c.X - r < bar.X + bar.Width)
+                {
+                    rowBottom = Math.Max(rowBottom, c.Y + r);
+                }
+            }
+
+            if (rowBottom >= 0 && bar.Y < rowBottom + 4 && bar.Y + bar.Height > rowBottom - 2 * TouchInput.ScreenMin / 10)
+            {
+                bar.Y = rowBottom + 6;
+            }
+        }
+
+        /// <summary>The "counters" action: show or hide the strip ("on" / "off", or switch).</summary>
+        public static void ToggleStrip(World world, string arg)
+        {
+            Profile p = ProfileManager.CurrentProfile;
+
+            if (p == null)
+            {
+                return;
+            }
+
+            CounterBarGump bar = UIManager.GetGump<CounterBarGump>();
+            bool visible = bar != null && bar.IsVisible && !p.TouchCountersHidden;
+            bool show = string.IsNullOrEmpty(arg) ? !visible : arg.Equals("on", System.StringComparison.OrdinalIgnoreCase);
+
+            p.TouchCountersHidden = !show;
+
+            if (show)
+            {
+                p.CounterBarEnabled = true;
+
+                if (bar == null)
+                {
+                    UIManager.Add(bar = CreateStrip(world));
+                }
+
+                bar.IsVisible = true;
+            }
+            else if (bar != null)
+            {
+                bar.IsVisible = false;
+            }
+
+            GameActions.Print(world, show ? "Counter strip shown." : "Counter strip hidden.", 0x3B2);
         }
     }
 }

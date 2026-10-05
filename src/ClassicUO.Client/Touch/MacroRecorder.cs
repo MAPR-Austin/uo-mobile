@@ -141,7 +141,7 @@ namespace ClassicUO.Touch
             switch (action)
             {
                 case "record": case "stop_macro": case "layout_next": case "edit_layout": case "macro_editor": case "uo_macros":
-                case "chat": case "triggers": case "autoloot": case "dress_save": case "all_names": case "healthbar_target": case "open":
+                case "chat": case "triggers": case "autoloot": case "dress_save": case "all_names": case "healthbar_target": case "open": case "counters":
                     return; // controls for the phone, not steps
                 case "spell": Add("cast " + arg, Kind.Step); return;
                 case "skill": Add("skill " + arg, Kind.Step); return;

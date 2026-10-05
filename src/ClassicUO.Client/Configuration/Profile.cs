@@ -235,6 +235,9 @@ namespace ClassicUO.Configuration
 
         /// <summary>UO Mobile: auto loot on, and what it takes (Touch/AutoLoot; item names or graphics, comma separated).</summary>
         public bool TouchAutoLoot { get; set; }
+
+        /// <summary>UO Mobile: the counter strip hidden by a long press (a Counters button shows it again).</summary>
+        public bool TouchCountersHidden { get; set; }
         public string TouchAutoLootItems { get; set; } = Touch.AutoLoot.DefaultList;
 
         public bool ShowSkillsChangedMessage { get; set; } = true;

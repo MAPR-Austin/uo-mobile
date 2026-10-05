@@ -344,24 +344,15 @@ namespace ClassicUO.Touch
         /// <summary>Long side / short side of the screen.</summary>
         private static float Aspect => Math.Max(ScreenW, ScreenH) / (float)Math.Max(1, ScreenMin);
 
-        private static (float X, float Y) Place(float x, float y, float? px, float? py)
+        public static Point ButtonCenter(ActionButtonDef b)
         {
             if (!IsPortrait)
             {
-                return (x, y);
+                return FromLayout(b.X, b.Y);
             }
 
-            if (px.HasValue && py.HasValue)
-            {
-                return (px.Value, py.Value);
-            }
-
-            return ActionLayout.Portrait(x, y, Aspect);
-        }
-
-        public static Point ButtonCenter(ActionButtonDef b)
-        {
-            (float x, float y) = Place(b.X, b.Y, b.PX, b.PY);
+            // portrait follows landscape, unless the button was placed by hand in portrait
+            (float x, float y) = Current != null ? Current.PortraitOf(b, Aspect, Revision) : ActionLayout.Portrait(b.X, b.Y, Aspect);
 
             return FromLayout(x, y);
         }
@@ -377,7 +368,7 @@ namespace ClassicUO.Touch
                     return Point.Zero;
                 }
 
-                (float x, float y) = Place(Current.JoystickX, Current.JoystickY, Current.PJoystickX, Current.PJoystickY);
+                (float x, float y) = IsPortrait ? Current.PortraitJoystick : (Current.JoystickX, Current.JoystickY);
 
                 return FromLayout(x, y);
             }
@@ -386,7 +377,7 @@ namespace ClassicUO.Touch
         public static int JoystickRadius => Current == null ? 0 : Math.Max(30, (int)(Current.JoystickSize * ScreenMin * 0.5f));
 
         /// <summary>In edit mode an extra "+" button sits at the top centre.</summary>
-        public static Point AddButtonCenter => IsPortrait ? FromLayout(0.5f, 0.13f) : FromLayout(0.5f, 0.07f);
+        public static Point AddButtonCenter => IsPortrait ? FromLayout(0.5f, 0.30f) : FromLayout(0.5f, 0.07f); // portrait: below the top row and the counter strip
 
         public static int AddButtonRadius => Math.Max(14, (int)(0.05f * ScreenMin));
 
@@ -907,6 +898,7 @@ namespace ClassicUO.Touch
                 try
                 {
                     PhoneDefaults.Apply(Client.Game.UO.World);
+                    PhoneDefaults.KeepStripHidden();
                     PlayerTimers.Update(Client.Game.UO.World);
                     PackPrimer.Update(Client.Game.UO.World);
                     Agents.Update(Client.Game.UO.World);
@@ -1229,6 +1221,15 @@ namespace ClassicUO.Touch
                 return; // (a finger resting on a house ghost is looking, not right-clicking)
             }
 
+            // Long press on the counter strip hides it (a Counters button brings it back).
+            if (PhoneDefaults.HideStripOnLongPress(UIManager.MouseOverControl))
+            {
+                f.LongPressFired = true;
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, f.Pos, _frame, f.Id));
+
+                return;
+            }
+
             // Long press over a gump = right click (UO's "close this window").
             // Over the world it does nothing, so a slow tap still works as a click.
             if (UIManager.MouseOverControl != null)
@@ -1304,7 +1305,8 @@ namespace ClassicUO.Touch
             float nx = MathHelper.Clamp((pos.X - safe.X) / (float)Math.Max(1, safe.Width), 0.02f, 0.98f);
             float ny = MathHelper.Clamp((pos.Y - safe.Y) / (float)Math.Max(1, safe.Height), 0.02f, 0.98f);
 
-            // Edits apply to the orientation being edited; the other keeps its own positions.
+            // A landscape drag moves the layout (portrait follows it); a portrait drag pins that
+            // button's portrait spot (Edit > "Portrait: auto" lets it follow again).
             bool portrait = IsPortrait;
 
             if (f.Joystick)
@@ -1313,6 +1315,7 @@ namespace ClassicUO.Touch
                 {
                     layout.PJoystickX = nx;
                     layout.PJoystickY = ny;
+                    layout.JoystickPortraitPinned = true;
                 }
                 else
                 {
@@ -1328,6 +1331,7 @@ namespace ClassicUO.Touch
                 {
                     b.PX = nx;
                     b.PY = ny;
+                    b.PortraitPinned = true;
                 }
                 else
                 {
@@ -1348,7 +1352,9 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            layout.Buttons.Add(new ActionButtonDef { Label = "New", Action = "target_nearest", X = 0.5f, Y = 0.5f, PX = 0.5f, PY = 0.5f, Size = 0.13f });
+            // a free spot among the others on the right (not the screen's middle, in either orientation)
+            (float x, float y) = layout.FreeSpot(0.13f, Aspect);
+            layout.Buttons.Add(new ActionButtonDef { Label = "New", Action = "target_nearest", X = x, Y = y, Size = 0.13f });
             Revision++;
             ButtonEditGump.Open(Client.Game.UO.World, layout.Buttons.Count - 1);
         }

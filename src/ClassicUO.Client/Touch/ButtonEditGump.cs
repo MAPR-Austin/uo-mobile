@@ -22,7 +22,8 @@ namespace ClassicUO.Touch
         private const int H = 400;
         private const int PAGE_SIZE = 18;
 
-        private const int ID_SAVE = 1, ID_DELETE = 2, ID_SMALLER = 3, ID_BIGGER = 4, ID_PREV = 5, ID_NEXT = 6, ID_CANCEL = 7;
+        private const int ID_SAVE = 1, ID_DELETE = 2, ID_SMALLER = 3, ID_BIGGER = 4, ID_PREV = 5, ID_NEXT = 6, ID_CANCEL = 7, ID_UNPIN = 8;
+        private NiceButton _unpin;
         private const int ID_PRESET_BASE = 100;
 
         private readonly int _index;
@@ -59,7 +60,7 @@ namespace ClassicUO.Touch
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),
             ("Macro Editor", "macro_editor"), ("Next Layout", "layout_next"),
-            ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("Triggers", "triggers"), ("Auto Loot", "autoloot"), ("Record Macro", "record"), ("Restock", "restock"), ("Organize Gold", "organize:gold"), ("Chat", "chat"), ("UO Macros", "uo_macros"),
+            ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("Triggers", "triggers"), ("Auto Loot", "autoloot"), ("Record Macro", "record"), ("Restock", "restock"), ("Organize Gold", "organize:gold"), ("Counters", "counters"), ("Chat", "chat"), ("UO Macros", "uo_macros"),
         };
 
         private ButtonEditGump(World world, int index) : base(world, 0, 0)
@@ -113,6 +114,12 @@ namespace ClassicUO.Touch
 
             Add(new NiceButton(12, H - 76, 60, 26, ButtonAction.Activate, "< Prev") { ButtonParameter = ID_PREV, IsSelectable = false });
             Add(new NiceButton(W - 72, H - 76, 60, 26, ButtonAction.Activate, "Next >") { ButtonParameter = ID_NEXT, IsSelectable = false });
+
+            // in portrait, a button placed by hand there stays put; this lets it follow landscape again
+            if (TouchInput.IsPortrait && def != null && def.PortraitPinned)
+            {
+                Add(_unpin = new NiceButton(W / 2 - 70, H - 76, 140, 26, ButtonAction.Activate, "Portrait: auto") { ButtonParameter = ID_UNPIN, IsSelectable = false });
+            }
 
             BuildPage();
             UpdateSizeLabel();
@@ -189,6 +196,18 @@ namespace ClassicUO.Touch
 
                 case ID_CANCEL:
                     Dispose();
+
+                    break;
+
+                case ID_UNPIN:
+                    def.PortraitPinned = false;
+                    TouchInput.Layouts.Save();
+                    TouchInput.MarkChanged();
+
+                    if (_unpin != null)
+                    {
+                        _unpin.IsVisible = false;
+                    }
 
                     break;
 
