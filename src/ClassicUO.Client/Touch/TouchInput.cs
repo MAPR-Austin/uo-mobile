@@ -342,7 +342,7 @@ namespace ClassicUO.Touch
         public static bool IsPortrait => ScreenH > ScreenW;
 
         /// <summary>Long side / short side of the screen.</summary>
-        private static float Aspect => Math.Max(ScreenW, ScreenH) / (float)Math.Max(1, ScreenMin);
+        public static float Aspect => Math.Max(ScreenW, ScreenH) / (float)Math.Max(1, ScreenMin);
 
         public static Point ButtonCenter(ActionButtonDef b)
         {
@@ -1221,11 +1221,14 @@ namespace ClassicUO.Touch
                 return; // (a finger resting on a house ghost is looking, not right-clicking)
             }
 
-            // Long press on the counter strip hides it (a Counters button brings it back).
+            // Long press on the (locked) counter strip hides it (a Counters button brings it back). The
+            // press ends off-screen: dispatched next frame, an Up at the finger would reach whatever lies
+            // under the now-hidden strip - the world, with a target cursor up.
             if (PhoneDefaults.HideStripOnLongPress(UIManager.MouseOverControl))
             {
                 f.LongPressFired = true;
-                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, f.Pos, _frame, f.Id));
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Move, OffScreen, _frame, f.Id));
+                _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, OffScreen, _frame, f.Id));
 
                 return;
             }

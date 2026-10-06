@@ -72,6 +72,7 @@ namespace ClassicUO.Touch
         }
 
         /// <summary>The joystick in portrait: pinned by hand, else bottom-left (bottom-right for a right-handed landscape joystick).</summary>
+        [JsonIgnore]
         public (float X, float Y) PortraitJoystick =>
             JoystickPortraitPinned && PJoystickX.HasValue && PJoystickY.HasValue
                 ? (PJoystickX.Value, PJoystickY.Value)
@@ -83,26 +84,27 @@ namespace ClassicUO.Touch
             _derivedAspect = aspect;
             _derivedRevision = revision;
 
+            // every button sizes its group - a pinned one too (by its landscape spot), so pinning one
+            // doesn't shift the rest - but only the unpinned ones are placed
             List<ActionButtonDef> top = new List<ActionButtonDef>(), right = new List<ActionButtonDef>(), left = new List<ActionButtonDef>();
 
             foreach (ActionButtonDef b in Buttons)
             {
-                if (b.PortraitPinned && b.PX.HasValue && b.PY.HasValue)
-                {
-                    continue;
-                }
-
                 (b.Y < 0.16f ? top : b.X >= 0.5f ? right : left).Add(b);
             }
 
-            bool joyLeft = JoystickX < 0.5f;
+            // the boxes keep clear of the joystick where it is in portrait, with its real size
+            (float jx, float jy) = PortraitJoystick;
+            float jr = JoystickSize * 0.5f + 0.03f; // radius plus a margin, in short-side units (portrait width)
+            bool joyLeft = jx < 0.5f;
+            float aboveJoy = Math.Max(0.35f, jy - jr / aspect);
 
             // the top row: across the top, kept to its side, squeezed to fit the width
             Fit(top, aspect, 0.04f, 0.96f, float.NaN, float.NaN, null);
             // the action cluster: the lower part of the screen, beside the joystick
-            Fit(right, aspect, joyLeft ? 0.40f : 0.03f, joyLeft ? 0.97f : 0.60f, 0.50f, 0.97f, joyLeft);
+            Fit(right, aspect, joyLeft ? Math.Min(0.60f, jx + jr) : 0.03f, joyLeft ? 0.97f : Math.Max(0.40f, jx - jr), 0.50f, 0.97f, joyLeft);
             // the other side: above the joystick
-            Fit(left, aspect, joyLeft ? 0.03f : 0.55f, joyLeft ? 0.45f : 0.97f, 0.40f, 0.74f, !joyLeft);
+            Fit(left, aspect, joyLeft ? 0.03f : 0.55f, joyLeft ? 0.45f : 0.97f, aboveJoy - 0.30f, aboveJoy, !joyLeft);
         }
 
         /// <summary>
@@ -135,6 +137,11 @@ namespace ClassicUO.Touch
 
             foreach (ActionButtonDef b in group)
             {
+                if (b.PortraitPinned && b.PX.HasValue && b.PY.HasValue)
+                {
+                    continue; // placed by hand
+                }
+
                 float ux = b.X * aspect;
                 float px = toRight ? boxRight - (maxX - ux) * sx : boxLeft + (ux - minX) * sx;
                 float py = float.IsNaN(bottom) ? b.Y / aspect : (bottom * aspect - (maxY - b.Y) * sy) / aspect;
@@ -264,19 +271,12 @@ namespace ClassicUO.Touch
                 layout.JoystickPortraitPinned = layout.PJoystickX.HasValue && layout.PJoystickY.HasValue &&
                                                 !(Near(layout.PJoystickX.Value, 0.24f) && Near(layout.PJoystickY.Value, 0.86f));
 
-                List<ActionButtonDef> unused = new List<ActionButtonDef>(d.Buttons);
-
                 foreach (ActionButtonDef b in layout.Buttons)
                 {
-                    ActionButtonDef match = unused.Find(x => x.Action == b.Action);
-
-                    if (match != null)
-                    {
-                        unused.Remove(match);
-                    }
-
+                    // a default button's spot (even one whose action was changed since), the centre "+"
+                    // used, or a spot placed by hand in portrait - only that last kind is pinned
                     bool hasSpot = b.PX.HasValue && b.PY.HasValue;
-                    bool isDefault = hasSpot && match != null && Near(b.PX.Value, match.PX ?? -1f) && Near(b.PY.Value, match.PY ?? -1f);
+                    bool isDefault = hasSpot && d.Buttons.Exists(x => x.PX.HasValue && x.PY.HasValue && Near(b.PX.Value, x.PX.Value) && Near(b.PY.Value, x.PY.Value));
                     bool isNew = hasSpot && Near(b.PX.Value, 0.5f) && Near(b.PY.Value, 0.5f);
                     b.PortraitPinned = hasSpot && !isDefault && !isNew;
                 }

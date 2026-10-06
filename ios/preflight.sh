@@ -71,12 +71,14 @@ echo "== Orientation / screen fit"
 p1=$(sed -n '/<key>UISupportedInterfaceOrientations<\/key>/,/<\/array>/p' ios/Info.plist | grep -c "UIInterfaceOrientationPortrait<")
 p2=$(grep -A3 "SDL_HINT_ORIENTATIONS," external/FNA/src/FNAPlatform/SDL3_FNAPlatform.cs | grep -c "Portrait")
 if [ "$p1" -eq 0 ] || [ "$p2" -gt 0 ]; then ok "portrait in Info.plist is allowed by FNA's SDL_ORIENTATIONS"; else bad "Info.plist allows portrait but FNA's SDL_ORIENTATIONS does not"; fi
-missing="$(grep -rn "new ActionButtonDef *{" src/ClassicUO.Client/Touch --include=*.cs | grep -v "PX =" || true)"
-[ -z "$missing" ] && ok "every new HUD button gets a portrait position (PX/PY)" || { bad "HUD button created without PX/PY (lands off-screen in portrait)"; printf '%s
-' "$missing" | sed 's/^/         /'; }
+# Build 46: portrait spots are derived from landscape (pinned only when placed by hand in portrait);
+# the build-31 failure was derived spots landing off-screen / on the joystick, so every portrait spot
+# must go through ActionLayout.PortraitOf, which keeps the cluster clear of the joystick and on screen.
+need src/ClassicUO.Client/Touch/TouchInput.cs "Current.PortraitOf(b, Aspect, Revision)" "HUD buttons take their portrait spot from ActionLayout.PortraitOf"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs "Math.Clamp(px, 0.04f, 0.96f), Math.Clamp(py, 0.02f, 0.98f)" "derived portrait spots are kept on screen"
 need src/ClassicUO.Client/GameController.cs "UOM_PHONE_FIT" "phone screen-fit path can be forced on desktop (UOM_PHONE_FIT=1)"
 need src/ClassicUO.Client/GameController.cs "FollowPhoneRotation();" "backbuffer follows rotation (FNA does not update PreferredBackBuffer*)"
-need src/ClassicUO.Client/Touch/ActionLayouts.cs "FillPortraitFromDefaults(set)" "old layouts get portrait positions (build-31 files have none)"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs "PinHandPlacedPortraitSpots(set)" "old layouts migrate: only portrait spots placed by hand stay pinned (build 46)"
 need src/ClassicUO.Client/Game/Managers/UIManager.cs "HitTestGumps(position, TouchInput.PointerGump" "hit testing maps zoomed windows like the pointer does"
 need src/ClassicUO.Client/GameController.cs "GumpScale.Save();" "window zoom saved on suspend"
 

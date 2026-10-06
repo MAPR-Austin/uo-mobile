@@ -201,6 +201,7 @@ namespace ClassicUO.Touch
 
                 case ID_UNPIN:
                     def.PortraitPinned = false;
+                    def.PX = def.PY = null;
                     TouchInput.Layouts.Save();
                     TouchInput.MarkChanged();
 

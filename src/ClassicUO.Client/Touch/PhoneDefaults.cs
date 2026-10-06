@@ -86,9 +86,9 @@ namespace ClassicUO.Touch
             CounterBarGump bar = over?.RootParent as CounterBarGump ?? over as CounterBarGump;
             Profile p = ProfileManager.CurrentProfile;
 
-            if (bar == null || p == null)
+            if (bar == null || p == null || !bar.ReadOnly)
             {
-                return false;
+                return false; // unlocked for editing: a long press opens the counter's menu as before
             }
 
             p.TouchCountersHidden = true;
@@ -98,8 +98,7 @@ namespace ClassicUO.Touch
             return true;
         }
 
-        private static int _stripCheckedRevision = -1;
-        private static bool _stripCheckedPortrait;
+        private static (int Revision, bool Portrait, Rectangle Safe, int W, int H) _stripChecked = (-1, false, Rectangle.Empty, 0, 0);
 
         /// <summary>
         /// Every frame, in the world: a hidden strip stays hidden (it comes back with the saved windows
@@ -122,13 +121,15 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            if (_stripCheckedRevision == TouchInput.Revision && _stripCheckedPortrait == TouchInput.IsPortrait)
+            // the safe area too: iOS can report new insets a frame after the turn
+            var key = (TouchInput.Revision, TouchInput.IsPortrait, TouchInput.Safe, TouchInput.ScreenW, TouchInput.ScreenH);
+
+            if (_stripChecked.Equals(key))
             {
                 return;
             }
 
-            _stripCheckedRevision = TouchInput.Revision;
-            _stripCheckedPortrait = TouchInput.IsPortrait;
+            _stripChecked = key;
             ActionLayout layout = TouchInput.Current;
 
             if (layout == null)
@@ -157,7 +158,7 @@ namespace ClassicUO.Touch
 
             if (rowBottom >= 0 && bar.Y < rowBottom + 4 && bar.Y + bar.Height > rowBottom - 2 * TouchInput.ScreenMin / 10)
             {
-                bar.Y = rowBottom + 6;
+                bar.Y = Math.Max(0, Math.Min(rowBottom + 6, TouchInput.ScreenH - bar.Height - 4));
             }
         }
 
@@ -186,6 +187,7 @@ namespace ClassicUO.Touch
                     UIManager.Add(bar = CreateStrip(world));
                 }
 
+                bar.IsEnabled = true;
                 bar.IsVisible = true;
             }
             else if (bar != null)

@@ -107,6 +107,19 @@ must be caught here.
      - auto loot: a monster another player killed is left alone ("Looting this monster corpse
        will be a criminal act!" and nothing taken); nothing is looted while hidden or in war mode;
      - Organize Gold with a corpse window on top still goes to the bank box (never into the corpse).
+   - Build 46 (HUD placement):
+     - turn to portrait in each layout (Combat, Mage, Utility, and your own): the action buttons keep
+       their landscape arrangement as one cluster in the lower right beside the joystick, the top row
+       stays a row across the top, nothing lands mid-screen or on the joystick; turn back: unchanged;
+     - Edit in landscape, drag a button, turn to portrait: it moved there too; Edit in portrait, drag a
+       button: it stays where you put it in portrait; tap it, "Portrait: auto": it follows landscape
+       again;
+     - "+" adds the new button in a free spot on the right in both orientations (not mid-screen);
+       in portrait the "+" sits below the top row and the counter strip;
+     - buttons you had placed by hand in portrait before this build are still there after updating;
+     - in portrait the counter strip sits below the top row (War, Chat...), not under it;
+     - long press on the counter strip: it hides ("Counter strip hidden..."); edit a button, preset
+       "Counters", tap it: the strip comes back; relaunch while hidden: it stays hidden.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
