@@ -397,13 +397,57 @@ namespace ClassicUO.Touch
             {
                 ActionButtonDef b = layout.Buttons[i];
 
-                if (InCircle(p, ButtonCenter(b), ButtonRadius(b)))
+                if (InCircle(p, ButtonCenter(b), ButtonRadius(b)) && !SteppedAside(b))
                 {
                     return i;
                 }
             }
 
             return -1;
+        }
+
+        private static readonly List<Rectangle> _tradeWindows = new List<Rectangle>();
+
+        /// <summary>Notes where shop and trade windows are open, as drawn (the HUD calls this each frame).</summary>
+        public static void FindTradeWindows()
+        {
+            _tradeWindows.Clear();
+
+            foreach (Game.UI.Gumps.Gump g in UIManager.Gumps)
+            {
+                if (!g.IsDisposed && g.IsVisible && (g is Game.UI.Gumps.ShopGump || g is Game.UI.Gumps.TradingGump))
+                {
+                    float s = GumpScale.Of(g);
+                    _tradeWindows.Add(new Rectangle(g.X, g.Y, (int)(g.Width * s), (int)(g.Height * s)));
+                }
+            }
+        }
+
+        /// <summary>
+        /// A button over an open shop or trade window steps aside - not drawn, not pressed - until the
+        /// window closes: the HUD is drawn over every window, and covered the shop's Accept and Clear.
+        /// </summary>
+        public static bool SteppedAside(ActionButtonDef b)
+        {
+            if (_tradeWindows.Count == 0 || EditMode)
+            {
+                return false;
+            }
+
+            Point c = ButtonCenter(b);
+            int r = ButtonRadius(b);
+
+            foreach (Rectangle w in _tradeWindows)
+            {
+                int nx = Math.Clamp(c.X, w.Left, w.Right), ny = Math.Clamp(c.Y, w.Top, w.Bottom);
+
+                if ((c.X - nx) * (c.X - nx) + (c.Y - ny) * (c.Y - ny) < r * r)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static bool InGame => Client.Game.UO.World != null && Client.Game.UO.World.InGame && Current != null;
@@ -418,7 +462,8 @@ namespace ClassicUO.Touch
             Control c = UIManager.ControlAtPhysical(pos);
 
             return (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable) &&
-                   c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0;
+                   c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0 ||
+                   c is HitBox && (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump); // Accept, Clear, the arrows
         }
 
         /// <summary>While an editor window is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>

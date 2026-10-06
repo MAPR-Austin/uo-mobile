@@ -130,6 +130,8 @@ namespace ClassicUO.Touch
         {
             base.Update();
 
+            TouchInput.FindTradeWindows();
+
             // Keep the world viewport filling the screen (window resizes, rotation, DPI changes).
             if (Client.Game.Scene is GameScene scene
                 && (scene.Camera.Bounds.Width != TouchInput.ScreenW || scene.Camera.Bounds.Height != TouchInput.ScreenH))
@@ -149,6 +151,13 @@ namespace ClassicUO.Touch
             if (_builtRevision != TouchInput.Revision || _builtW != TouchInput.ScreenW || _builtH != TouchInput.ScreenH || _builtSuppressed != TouchInput.Suppressed || _builtWar != InWar || _builtSafe != TouchInput.Safe)
             {
                 Rebuild();
+            }
+
+            ActionLayout layout = TouchInput.Current;
+
+            for (int i = 0; layout != null && i < _labels.Count && i < layout.Buttons.Count; i++)
+            {
+                _labels[i].IsVisible = !TouchInput.SteppedAside(layout.Buttons[i]);
             }
         }
 
@@ -254,6 +263,12 @@ namespace ClassicUO.Touch
                     for (int i = 0; i < layout.Buttons.Count; i++)
                     {
                         ActionButtonDef b = layout.Buttons[i];
+
+                        if (TouchInput.SteppedAside(b))
+                        {
+                            continue;
+                        }
+
                         Point c = TouchInput.ButtonCenter(b);
                         int r = TouchInput.ButtonRadius(b);
                         bool pressed = TouchInput.PressedButton == i;

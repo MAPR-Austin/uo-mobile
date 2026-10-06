@@ -81,6 +81,18 @@ need src/ClassicUO.Client/GameController.cs "FollowPhoneRotation();" "backbuffer
 need src/ClassicUO.Client/Touch/ActionLayouts.cs "PinHandPlacedPortraitSpots(set)" "old layouts migrate: only portrait spots placed by hand stay pinned (build 46)"
 need src/ClassicUO.Client/Game/Managers/UIManager.cs "HitTestGumps(position, TouchInput.PointerGump" "hit testing maps zoomed windows like the pointer does"
 need src/ClassicUO.Client/GameController.cs "GumpScale.Save();" "window zoom saved on suspend"
+# Build 47: the HUD draws over every window, so buttons step aside for shop and trade windows (their
+# Accept/Clear sat under Set Target and Cure Self), both when drawn and when hit.
+need src/ClassicUO.Client/Touch/TouchInput.cs "InCircle(p, ButtonCenter(b), ButtonRadius(b)) && !SteppedAside(b)" "HUD buttons over a shop/trade window take no taps"
+need src/ClassicUO.Client/Touch/TouchHudGump.cs "if (TouchInput.SteppedAside(b))" "HUD buttons over a shop/trade window are not drawn"
+need src/ClassicUO.Client/Touch/TouchHudGump.cs "TouchInput.FindTradeWindows();" "the HUD finds shop/trade windows every frame"
+
+echo "== Houses"
+# Build 47: a dyed custom house: tiles take the house hue, and a hue change recolors in place (a
+# reload dropped every custom wall and floor until the design was sent again).
+[ "$(grep -c 'item.Hue, // UO Mobile: a dyed custom house keeps its color' src/ClassicUO.Client/Network/PacketHandlers.cs)" = 3 ] \
+  && ok "custom house tiles take the house's hue (all 3 plane modes)" || bad "every custom house tile must be added with item.Hue"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "item.WantUpdateMulti = moved || (item.Hue != hue && !recolorHouse);" "a house's hue change recolors in place instead of reloading"
 
 echo "== Game-file downloads"
 need src/ClassicUO.Client/Main.cs "if (!Touch.GameFiles.Configured &&" "UO folder check waits for the download screen (build 34)"

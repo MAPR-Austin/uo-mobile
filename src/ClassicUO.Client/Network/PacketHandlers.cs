@@ -5156,7 +5156,7 @@ namespace ClassicUO.Network
                             {
                                 house.Add(
                                     id,
-                                    0,
+                                    item.Hue, // UO Mobile: a dyed custom house keeps its color
                                     (ushort)(item.X + x),
                                     (ushort)(item.Y + y),
                                     (sbyte)(item.Z + z),
@@ -5191,7 +5191,7 @@ namespace ClassicUO.Network
                             {
                                 house.Add(
                                     id,
-                                    0,
+                                    item.Hue, // UO Mobile: a dyed custom house keeps its color
                                     (ushort)(item.X + x),
                                     (ushort)(item.Y + y),
                                     (sbyte)(item.Z + z),
@@ -5248,7 +5248,7 @@ namespace ClassicUO.Network
                             {
                                 house.Add(
                                     id,
-                                    0,
+                                    item.Hue, // UO Mobile: a dyed custom house keeps its color
                                     (ushort)(item.X + x),
                                     (ushort)(item.Y + y),
                                     (sbyte)(item.Z + z),
@@ -6292,6 +6292,8 @@ namespace ClassicUO.Network
 
             if (item != null)
             {
+                bool recolorHouse = false;
+
                 if (graphic != 0x2006)
                 {
                     graphic += graphic_inc;
@@ -6300,12 +6302,20 @@ namespace ClassicUO.Network
                 if (type == 2)
                 {
                     item.IsMulti = true;
-                    item.WantUpdateMulti =
+
+                    bool moved =
                         (graphic & 0x3FFF) != item.Graphic
                         || item.X != x
                         || item.Y != y
-                        || item.Z != z
-                        || item.Hue != hue;
+                        || item.Z != z;
+
+                    // UO Mobile: a house dyed in place recolors its pieces; reloading it would drop a custom
+                    // house's walls and floors until the design is sent again
+                    recolorHouse =
+                        !moved
+                        && item.Hue != hue
+                        && world.HouseManager.TryGetHouse(serial, out _);
+                    item.WantUpdateMulti = moved || (item.Hue != hue && !recolorHouse);
                     item.Graphic = (ushort)(graphic & 0x3FFF);
                 }
                 else
@@ -6326,6 +6336,14 @@ namespace ClassicUO.Network
                 }
 
                 item.FixHue(hue);
+
+                if (recolorHouse && world.HouseManager.TryGetHouse(serial, out House dyed))
+                {
+                    foreach (Multi piece in dyed.Components)
+                    {
+                        piece.Hue = item.Hue;
+                    }
+                }
 
                 if (count == 0)
                 {

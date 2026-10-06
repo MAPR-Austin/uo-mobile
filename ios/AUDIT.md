@@ -120,6 +120,14 @@ must be caught here.
      - in portrait the counter strip sits below the top row (War, Chat...), not under it;
      - long press on the counter strip: it hides ("Counter strip hidden..."); edit a button, preset
        "Counters", tap it: the strip comes back; relaunch while hidden: it stays hidden.
+   - Build 47 (vanity dyes, shop windows):
+     - dye a custom-built house from its sign with a house dye: the whole house (floors, walls,
+       stairs) turns the new color at once and nothing disappears; walk away and come back (or
+       relog): still that color; a classic house (castle, tower) recolors too;
+     - say "vendor buy" at the vanity merchant (West Britain bank) in landscape and portrait: the
+       buttons over the shop window step aside and Accept, Clear and the arrows take taps; close
+       the shop: the buttons are back; same for a secure trade window;
+     - with the shop open, the joystick still walks, and a tap on Accept under its ring buys.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
