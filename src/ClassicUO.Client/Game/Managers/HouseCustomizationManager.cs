@@ -693,7 +693,7 @@ namespace ClassicUO.Game.Managers
                             house.Add
                             (
                                 item.Graphic,
-                                0,
+                                foundationItem.Hue, // UO Mobile: a dyed house's new pieces match it
                                 (ushort) (foundationItem.X + xx + item.X),
                                 (ushort) (foundationItem.Y + yy + item.Y),
                                 (sbyte) (z + item.Z),

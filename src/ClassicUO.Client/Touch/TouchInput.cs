@@ -174,6 +174,7 @@ namespace ClassicUO.Touch
             _pinchA = _pinchB = long.MinValue;
             _pinchGump = null;
             _ghostFinger = long.MinValue;
+            _tradeWindows.Clear();
             PackPrimer.Reset();
             Agents.Reset();
             AutoLoot.Reset();
@@ -423,6 +424,20 @@ namespace ClassicUO.Touch
             }
         }
 
+        /// <summary>Over an open shop or trade window (UI units): the target panel steps aside there too.</summary>
+        public static bool OverTradeWindow(Rectangle r)
+        {
+            foreach (Rectangle w in _tradeWindows)
+            {
+                if (w.Intersects(r))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         /// <summary>
         /// A button over an open shop or trade window steps aside - not drawn, not pressed - until the
         /// window closes: the HUD is drawn over every window, and covered the shop's Accept and Clear.
@@ -463,7 +478,8 @@ namespace ClassicUO.Touch
 
             return (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable) &&
                    c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0 ||
-                   c is HitBox && (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump); // Accept, Clear, the arrows
+                   (c is HitBox || c is Button || c is Checkbox || c is StbTextBox field && field.IsEditable) &&
+                   (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump); // Accept, Clear, +/-, the arrows, gold
         }
 
         /// <summary>While an editor window is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>

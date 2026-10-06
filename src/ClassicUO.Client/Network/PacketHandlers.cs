@@ -6341,7 +6341,10 @@ namespace ClassicUO.Network
                 {
                     foreach (Multi piece in dyed.Components)
                     {
-                        piece.Hue = item.Hue;
+                        if ((piece.State & CUSTOM_HOUSE_MULTI_OBJECT_FLAGS.CHMOF_GENERIC_INTERNAL) == 0)
+                        {
+                            piece.Hue = item.Hue;
+                        }
                     }
                 }
 

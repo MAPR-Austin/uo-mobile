@@ -72,6 +72,19 @@ namespace ClassicUO.Touch
             Rectangle safe = TouchInput.Safe;
             TargetPanel = new Rectangle(safe.X + 6, TopRowY, PANEL_W, PANEL_H);
 
+            if (!TouchInput.EditMode && TouchInput.OverTradeWindow(TargetPanel))
+            {
+                // steps aside for a shop or trade window, like the buttons
+                TargetPanel = Rectangle.Empty;
+
+                if (_targetLabel != null)
+                {
+                    _targetLabel.IsVisible = false;
+                }
+
+                return;
+            }
+
             string text = $"{target.Name}  ({target.Distance})";
             ushort hue = Notoriety.GetHue(target.NotorietyFlag);
 
