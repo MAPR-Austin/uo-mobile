@@ -93,6 +93,12 @@ echo "== Houses"
 [ "$(grep -c 'item.Hue, // UO Mobile: a dyed custom house keeps its color' src/ClassicUO.Client/Network/PacketHandlers.cs)" = 3 ] \
   && ok "custom house tiles take the house's hue (all 3 plane modes)" || bad "every custom house tile must be added with item.Hue"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "item.WantUpdateMulti = moved || (item.Hue != hue && !recolorHouse);" "a house's hue change recolors in place instead of reloading"
+# Build 48: furniture deeds get the house's placement ghost: the server sends 0xBF 0x7A57 (cursor id +
+# pieces, servuo AddonPreview.cs) and answers 0x7A55 for the deed; keep both ends' numbers in step.
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort AddonPieces = 0x7A57;" "furniture deed pieces sub-command is 0x7A57 (servuo AddonPreview.Pieces)"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGhost.AddonPieces:" "0xBF 0x7A57 reaches the placement ghost"
+need src/ClassicUO.Client/Game/Scenes/GameScene.cs "Touch.HousePlacementGhost.UpdateAddon(_world, SelectedObject.Object as GameObject);" "the furniture ghost is drawn every frame"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "world.TargetManager.TargetCursorId == _addonCursor" "the furniture ghost only follows the deed's own cursor"
 
 echo "== Game-file downloads"
 need src/ClassicUO.Client/Main.cs "if (!Touch.GameFiles.Configured &&" "UO folder check waits for the download screen (build 34)"

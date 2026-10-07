@@ -4742,6 +4742,22 @@ namespace ClassicUO.Network
 
                     break;
 
+                case Touch.HousePlacementGhost.AddonPieces: // UO Mobile: a furniture deed's cursor and its pieces (servuo AddonPreview.cs)
+                    {
+                        uint cursor = p.ReadUInt32BE();
+                        int pieceCount = p.ReadUInt16BE();
+                        var pieces = new System.Collections.Generic.List<(ushort, short, short, short, ushort)>(pieceCount);
+
+                        for (int i = 0; i < pieceCount; i++)
+                        {
+                            pieces.Add((p.ReadUInt16BE(), (short)p.ReadUInt16BE(), (short)p.ReadUInt16BE(), (short)p.ReadUInt16BE(), p.ReadUInt16BE()));
+                        }
+
+                        Touch.HousePlacementGhost.OnAddonPieces(cursor, pieces);
+                    }
+
+                    break;
+
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");
 

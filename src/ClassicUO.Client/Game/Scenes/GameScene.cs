@@ -929,6 +929,9 @@ namespace ClassicUO.Game.Scenes
                 _multi = null;
             }
 
+            // UO Mobile: a furniture deed's ghost, like the house's (Touch/HousePlacementGhost)
+            Touch.HousePlacementGhost.UpdateAddon(_world, SelectedObject.Object as GameObject);
+
             if (_isMouseLeftDown && !Client.Game.UO.GameCursor.ItemHold.Enabled)
             {
                 if (

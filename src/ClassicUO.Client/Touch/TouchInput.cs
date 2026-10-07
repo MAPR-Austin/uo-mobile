@@ -1061,6 +1061,8 @@ namespace ClassicUO.Touch
 
         private static long _parkPointerAt;
         private static long _ghostFinger = long.MinValue;
+        /// <summary>A finger is dragging the placement ghost on the world now.</summary>
+        public static bool GhostFingerDown => _ghostFinger != long.MinValue;
 
         /// <summary>
         /// A lifted finger leaves no pointer behind: once the tap has been handled, move the virtual

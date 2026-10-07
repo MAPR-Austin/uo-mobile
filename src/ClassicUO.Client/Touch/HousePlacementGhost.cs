@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSD-2-Clause
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using ClassicUO.Game;
 using ClassicUO.Game.GameObjects;
@@ -25,11 +26,21 @@ namespace ClassicUO.Touch
     /// 0x7A55 asks (sequence, the target the tap would send), 0x7A56 answers (sequence, result) -
     /// keep both ends' numbers in step. A server without it never answers: the ghost stays its own
     /// colour, "Checking..." stays up, and Place still works (the server checks it then).
+    /// Furniture deeds work the same way (addon mode, build 48): with the deed's cursor the server sends
+    /// 0x7A57 - the cursor's id and the pieces (servuo AddonPreview.cs) - and the ghost is those pieces on
+    /// the floor at your level under the finger; the same question is answered for the deed.
     /// </summary>
     internal static class HousePlacementGhost
     {
         public const ushort Query = 0x7A55;
         public const ushort Reply = 0x7A56;
+        public const ushort AddonPieces = 0x7A57;
+
+        // a furniture deed's cursor: its id, its pieces (graphic, x/y/z offset, hue) and their ghost in the world
+        private static uint _addonCursor;
+        private static List<(ushort Graphic, short X, short Y, short Z, ushort Hue)> _pieces;
+        private static readonly List<Multi> _preview = new List<Multi>();
+        private static int _previewX = -1, _previewY, _previewZ, _previewHue = -1;
 
         /// <summary>UO's plain red: the house can't go there.</summary>
         private const ushort BadHue = 0x0021;
@@ -52,13 +63,162 @@ namespace ClassicUO.Touch
         /// The server says the house can't go there (a reason the bar names). 6 ("not placing a house")
         /// and unknown codes are no opinion: a boat's cursor looks the same and its ghost stays plain.
         /// </summary>
-        private static bool Cannot(byte result) => result >= 1 && result <= 5 || result == 7;
+        private static bool Cannot(byte result) => result >= 1 && result <= 5 || result == 7 || result >= 8 && result <= 10;
 
-        public static bool Active(World world)
+        public static bool Active(World world) => HouseActive(world) || AddonActive(world);
+
+        private static bool HouseActive(World world)
         {
             return TouchInput.Enabled && world != null && world.InGame && Client.Game.Scene is GameScene &&
                    world.TargetManager.IsTargeting && world.TargetManager.TargetingState == CursorTarget.MultiPlacement &&
                    world.CustomHouseManager == null && world.TargetManager.MultiTargetInfo != null;
+        }
+
+        /// <summary>A furniture deed's cursor is up and its pieces came with it.</summary>
+        private static bool AddonActive(World world)
+        {
+            return TouchInput.Enabled && world != null && world.InGame && Client.Game.Scene is GameScene && _pieces != null &&
+                   world.TargetManager.IsTargeting && world.TargetManager.TargetingState != CursorTarget.MultiPlacement &&
+                   world.TargetManager.TargetCursorId == _addonCursor;
+        }
+
+        /// <summary>PacketHandlers (0xBF 0x7A57): a furniture deed's cursor and its pieces.</summary>
+        public static void OnAddonPieces(uint cursor, List<(ushort, short, short, short, ushort)> pieces)
+        {
+            ClearPreview();
+            _addonCursor = cursor;
+            _pieces = pieces.Count > 0 ? pieces : null;
+            _result = Unknown;
+            _answered = false;
+            _dirty = _anchor != null;
+        }
+
+        /// <summary>
+        /// GameScene, every frame: the deed's ghost on the floor at your level under the finger (or where it was
+        /// left, at first a couple of steps in front of you), red where the server says it won't fit.
+        /// </summary>
+        public static void UpdateAddon(World world, GameObject under)
+        {
+            if (!AddonActive(world))
+            {
+                ClearPreview();
+
+                return;
+            }
+
+            // only a finger dragging on the world moves it (not the tap that chose a ladder's facing)
+            GameObject pick = under != null && TouchInput.GhostFingerDown ? FloorAt(world, under.X, under.Y, world.Player.Z) ?? under
+                : _anchor != null && !_anchor.IsDestroyed ? _anchor
+                : FloorAt(world, world.Player.X + 1, world.Player.Y + 2, world.Player.Z);
+
+            if (pick == null)
+            {
+                return;
+            }
+
+            if (!ReferenceEquals(pick, _anchor))
+            {
+                Moved(pick);
+            }
+
+            if (_anchor == null)
+            {
+                return;
+            }
+
+            int top = TopOf(_anchor);
+            int hue = Cannot(_result) ? BadHue : -2;
+
+            if (_preview.Count != _pieces.Count)
+            {
+                ClearPreview();
+
+                foreach (var piece in _pieces)
+                {
+                    Multi m = Multi.Create(world, piece.Graphic);
+                    m.IsHousePreview = true; // see-through, and never what a finger picks
+                    _preview.Add(m);
+                }
+            }
+
+            if (_anchor.X == _previewX && _anchor.Y == _previewY && top == _previewZ && hue == _previewHue)
+            {
+                return;
+            }
+
+            (_previewX, _previewY, _previewZ, _previewHue) = (_anchor.X, _anchor.Y, top, hue);
+
+            for (int i = 0; i < _pieces.Count; i++)
+            {
+                var piece = _pieces[i];
+                _preview[i].Hue = hue == BadHue ? BadHue : piece.Hue;
+                _preview[i].SetInWorldTile((ushort)(_anchor.X + piece.X), (ushort)(_anchor.Y + piece.Y), (sbyte)(top + piece.Z));
+            }
+        }
+
+        private static void ClearPreview()
+        {
+            foreach (Multi m in _preview)
+            {
+                m.Destroy();
+            }
+
+            _preview.Clear();
+            _previewX = -1;
+            _previewHue = -1;
+        }
+
+        /// <summary>
+        /// Where furniture would stand at that tile: the highest floor (or the ground) at about your level - the
+        /// floor you're on, not the one above or the ground under a house.
+        /// </summary>
+        private static GameObject FloorAt(World world, int x, int y, int level)
+        {
+            GameObject best = null;
+            int bestTop = int.MinValue;
+
+            for (GameObject o = world.Map.GetTile(x, y); o != null; o = o.TNext)
+            {
+                bool floor = o is Land || (o is Static || o is Multi m && !m.IsHousePreview) && IsSurface(o);
+
+                if (!floor)
+                {
+                    continue;
+                }
+
+                int top = TopOf(o);
+
+                if (top <= level + 10 && top > bestTop)
+                {
+                    best = o;
+                    bestTop = top;
+                }
+            }
+
+            return best;
+        }
+
+        private static bool IsSurface(GameObject o)
+        {
+            return o.Graphic < Client.Game.UO.FileManager.TileData.StaticData.Length && Client.Game.UO.FileManager.TileData.StaticData[o.Graphic].IsSurface;
+        }
+
+        /// <summary>The height a piece standing on <paramref name="o" /> stands at (a bridge counts half its height, as the server does).</summary>
+        private static int TopOf(GameObject o)
+        {
+            if (o is Land)
+            {
+                return o.Z;
+            }
+
+            if (o.Graphic < Client.Game.UO.FileManager.TileData.StaticData.Length)
+            {
+                var data = Client.Game.UO.FileManager.TileData.StaticData[o.Graphic];
+
+                return o.Z + (data.IsBridge ? data.Height / 2 : data.Height);
+            }
+
+            return o.Z;
         }
 
         /// <summary>
@@ -149,7 +309,7 @@ namespace ClassicUO.Touch
             }
 
             // the server swapped the cursor for another house: the answers so far were for the old one
-            ushort model = world.TargetManager.MultiTargetInfo.Model;
+            ushort model = HouseActive(world) ? world.TargetManager.MultiTargetInfo.Model : (ushort)0;
 
             if (model != _model)
             {
@@ -169,7 +329,8 @@ namespace ClassicUO.Touch
                 Ask();
             }
 
-            _bar.Show(_anchor == null ? "Drag on the ground to move the house" : Reason(_result), _answered && _result == 0);
+            bool addon = AddonActive(world);
+            _bar.Show(_anchor == null ? addon ? "Drag on the floor to move it" : "Drag on the ground to move the house" : Reason(_result, addon), _answered && _result == 0);
         }
 
         public static void Place(World world)
@@ -206,13 +367,17 @@ namespace ClassicUO.Touch
             }
         }
 
-        private static string Reason(byte result)
+        private static string Reason(byte result, bool addon = false)
         {
             switch (result)
             {
                 case Unknown: return "Checking...";
                 case 0: return "This spot is clear - tap Place";
+                case 1 when addon: return "Doesn't fit: a wall, furniture, a person or a low ceiling is in the way";
                 case 1: return "Can't build here: something is in the way or the ground isn't right";
+                case 8: return "Only inside a house you own";
+                case 9: return "Too close to a door";
+                case 10: return "It hangs on a wall: move it against one";
                 case 2: return "Houses can't be built in this area";
                 case 3: return "Too far away: bring the house closer";
                 case 7: return "Out of sight: move it where you can see it";

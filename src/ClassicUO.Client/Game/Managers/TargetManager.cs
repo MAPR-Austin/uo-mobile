@@ -103,6 +103,9 @@ namespace ClassicUO.Game.Managers
     internal sealed class TargetManager
     {
         private uint _targetCursorId;
+
+        /// <summary>UO Mobile: the server's id for the cursor up now (a furniture deed's ghost matches its pieces to it).</summary>
+        public uint TargetCursorId => _targetCursorId;
         private readonly World _world;
         private readonly byte[] _lastDataBuffer = new byte[19];
         private Action<GameObject> _targetCallback;

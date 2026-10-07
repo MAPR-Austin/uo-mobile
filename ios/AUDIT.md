@@ -131,6 +131,15 @@ must be caught here.
        secure trade with the window over the joystick ring, the Accept box ticks;
      - with a target selected, the target panel also steps aside while the shop is open;
      - doors, the sign and addons keep their own colour when a house is dyed (they are separate items).
+   - Build 48 (furniture deed ghost):
+     - double-tap a furniture deed (a stolen sarcophagus or cannon, a ladder after picking its facing) in
+       your house: its ghost appears a step in front of you with the Place/Cancel bar and the HUD steps
+       aside; drag a finger on the floor: it follows, red with a reason where it won't fit ("a low
+       ceiling", "too close to a door", "only inside a house you own"), green "clear" where it will;
+       Place sets it there; Cancel leaves the deed in the pack;
+     - a ladder in a ground-floor room is red (35 tall under a 20-high floor); in the courtyard it's green;
+     - the ghost starts in front of you, not where you tapped the ladder's facing menu;
+     - house placement (the placement tool) still works as in build 43.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
