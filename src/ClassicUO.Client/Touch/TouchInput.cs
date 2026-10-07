@@ -175,6 +175,7 @@ namespace ClassicUO.Touch
             _pinchGump = null;
             _ghostFinger = long.MinValue;
             _tradeWindows.Clear();
+            HousePlacementGhost.Reset();
             PackPrimer.Reset();
             Agents.Reset();
             AutoLoot.Reset();

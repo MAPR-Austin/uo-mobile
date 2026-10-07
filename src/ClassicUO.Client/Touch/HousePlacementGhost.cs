@@ -103,6 +103,13 @@ namespace ClassicUO.Touch
             {
                 ClearPreview();
 
+                // pieces only ever follow their cursor: once it is gone they are stale (a restarted server
+                // hands out the same cursor ids again)
+                if (world?.TargetManager == null || !world.TargetManager.IsTargeting || world.TargetManager.TargetCursorId != _addonCursor)
+                {
+                    _pieces = null;
+                }
+
                 return;
             }
 
@@ -129,7 +136,7 @@ namespace ClassicUO.Touch
             int top = TopOf(_anchor);
             int hue = Cannot(_result) ? BadHue : -2;
 
-            if (_preview.Count != _pieces.Count)
+            if (_preview.Count != _pieces.Count || _preview.Count > 0 && _preview[0].IsDestroyed) // (a map change destroys them)
             {
                 ClearPreview();
 
@@ -154,6 +161,14 @@ namespace ClassicUO.Touch
                 _preview[i].Hue = hue == BadHue ? BadHue : piece.Hue;
                 _preview[i].SetInWorldTile((ushort)(_anchor.X + piece.X), (ushort)(_anchor.Y + piece.Y), (sbyte)(top + piece.Z));
             }
+        }
+
+        /// <summary>TouchInput.Unload: nothing carried over to the next login.</summary>
+        public static void Reset()
+        {
+            ClearPreview();
+            _pieces = null;
+            _addonCursor = 0;
         }
 
         private static void ClearPreview()
@@ -227,7 +242,7 @@ namespace ClassicUO.Touch
         /// </summary>
         public static GameObject RestingAnchor(World world)
         {
-            if (!Active(world))
+            if (!HouseActive(world))
             {
                 return null;
             }
@@ -342,7 +357,7 @@ namespace ClassicUO.Touch
 
             if (_anchor == null)
             {
-                GameActions.Print(world, "Drag the house onto the ground first.", 0x0021);
+                GameActions.Print(world, AddonActive(world) ? "Drag it onto the floor first." : "Drag the house onto the ground first.", 0x0021);
 
                 return;
             }
@@ -350,7 +365,7 @@ namespace ClassicUO.Touch
             // only a known "no" for this very spot stops it (the server checks the placement anyway)
             if (_answered && Cannot(_result))
             {
-                GameActions.Print(world, Reason(_result), 0x0021);
+                GameActions.Print(world, Reason(_result, AddonActive(world)), 0x0021);
 
                 return;
             }
@@ -379,6 +394,7 @@ namespace ClassicUO.Touch
                 case 9: return "Too close to a door";
                 case 10: return "It hangs on a wall: move it against one";
                 case 2: return "Houses can't be built in this area";
+                case 3 when addon: return "Too far away: bring it closer";
                 case 3: return "Too far away: bring the house closer";
                 case 7: return "Out of sight: move it where you can see it";
                 case 4: return "Castles and keeps can't go here";
