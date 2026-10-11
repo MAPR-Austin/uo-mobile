@@ -61,6 +61,7 @@ namespace ClassicUO.Touch
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),
             ("Macro Editor", "macro_editor"), ("Next Layout", "layout_next"),
             ("Edit Layout", "edit_layout"), ("Stop Macro", "stop_macro"), ("Triggers", "triggers"), ("Auto Loot", "autoloot"), ("Record Macro", "record"), ("Restock", "restock"), ("Organize Gold", "organize:gold"), ("Counters", "counters"), ("Chat", "chat"), ("UO Macros", "uo_macros"),
+            ("Helm", "helm"),
         };
 
         private ButtonEditGump(World world, int index) : base(world, 0, 0)

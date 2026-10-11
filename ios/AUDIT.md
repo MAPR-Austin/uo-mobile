@@ -140,6 +140,24 @@ must be caught here.
      - a ladder in a ground-floor room is red (35 tall under a 20-high floor); in the courtyard it's green;
      - the ghost starts in front of you, not where you tapped the ladder's facing menu;
      - house placement (the placement tool) still works as in build 43.
+   - Build 49 (boat helm; needs the server's BoatHelm.cs):
+     - buy a small ship deed from a shipwright, place it off a dock, step aboard over the plank, stand next
+       to the tiller man and double-tap him anywhere on his figure (the boat's rail is drawn over most of
+       him): "You are now piloting this vessel." and the joystick hint; a single tap on him names him, not
+       the "ship"; the "Helm" button preset (Edit, a button, Helm) does the same from up to 3 tiles;
+     - at the helm the stick no longer walks you: a light push sails the way it points, 1 tile a second; a
+       full push 4 tiles a second; pointing 90 degrees or more off the bow turns the ship to the nearest
+       heading first, within 45 degrees it sails diagonally without turning; letting go stops it at once;
+     - hold the stick into the shore: the tiller man says "we've stopped" once, not every second; point
+       elsewhere and it sails again;
+     - sail, then send the app to the background: the ship stops within about 2 seconds; come back and push:
+       it sails again;
+     - double-tap the tiller man again: "You are no longer piloting this vessel." and the stick walks again;
+       two tiles from him you can't take the helm ("That is too far away."), nor as a ghost;
+     - with a second player aboard: they walk the deck smoothly while you sail (no snapping back every
+       tile), can't take your helm ("... has the helm"), but the ship's owner can; nobody can dry-dock it
+       while someone is at the helm. Alone: staff can `[UOMSelfTest boatride sail` (a deckhand sails a
+       square while you walk the deck; `[UOMSelfTest boatride end` puts you back).
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

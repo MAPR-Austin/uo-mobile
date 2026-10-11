@@ -522,6 +522,13 @@ namespace ClassicUO.Game.GameObjects
 
         public bool Walk(Direction direction, bool run)
         {
+            // UO Mobile: at a boat's helm the stick (or the right mouse) steers the boat and the server refuses
+            // the pilot's steps (servuo BoatHelm); a refused step would only resync the walker
+            if (IsDrivingBoat)
+            {
+                return false;
+            }
+
             if (Walker.WalkingFailed || Walker.LastStepRequestTime > Time.Ticks || Walker.StepsCount >= Constants.MAX_STEP_COUNT || Client.Game.UO.Version >= ClientVersion.CV_60142 && IsParalyzed)
             {
                 return false;

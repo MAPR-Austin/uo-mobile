@@ -187,6 +187,7 @@ namespace ClassicUO.Touch
             GumpScale.Unload();
             JoystickActive = false;
             PressedButton = -1;
+            _boatSpeed = 0;
         }
 
         /// <summary>
@@ -1329,6 +1330,17 @@ namespace ClassicUO.Touch
 
         private static void Walk()
         {
+            World world = Client.Game.UO.World;
+
+            if (world != null && world.InGame && world.Player != null && world.Player.IsDrivingBoat)
+            {
+                Steer(world); // at a boat's helm the stick steers the boat
+
+                return;
+            }
+
+            _boatSpeed = 0; // not (or no longer) at the helm: the server stopped the boat when it let us go
+
             if (!JoystickActive || Client.Game.UO.World == null || !Client.Game.UO.World.InGame || Client.Game.UO.World.Player == null)
             {
                 return;
@@ -1355,6 +1367,85 @@ namespace ClassicUO.Touch
             }
 
             Client.Game.UO.World.Player.Walk(facing - 1, mag >= JOY_RUN);
+        }
+
+        // ---------- boat helm ----------
+
+        // At a boat's helm (the server's pilot mount, 0x3E96, is on us: Mobile.IsDrivingBoat) the stick steers
+        // the boat through the client's own mouse-steering packet (0xBF 0x33, servuo BoatHelm): the boat goes
+        // the way the stick points (a map direction, as for walking), a push past JOY_RUN sails fast, letting
+        // go stops it. A held course is resent every BOAT_RESEND_MS, flagged so the server's watchdog stops
+        // the boat if the phone goes quiet (sent to the background); a change goes out at most every
+        // BOAT_MIN_MS, and a direction holds until the stick is BOAT_HYSTERESIS degrees into the next one, so
+        // a thumb resting on an edge doesn't flip-flop the course.
+        private const uint BOAT_RESEND_MS = 750;
+        private const uint BOAT_MIN_MS = 150;
+        private const float BOAT_HYSTERESIS = 10f;
+        private static Direction _boatDir = Direction.North;
+        private static byte _boatSpeed; // what the server was last told (0: stopped)
+        private static uint _boatSentAt;
+
+        private static void Steer(World world)
+        {
+            float mag = JoystickActive ? JoystickOffset.Length() : 0f;
+
+            if (mag < JOY_DEADZONE)
+            {
+                if (_boatSpeed != 0)
+                {
+                    _boatSpeed = 0;
+                    _boatSentAt = Time.Ticks;
+                    world.BoatMovingManager.MoveRequest(_boatDir, 0, true);
+                }
+
+                return;
+            }
+
+            if (world.Player.Pathfinder.AutoWalking)
+            {
+                world.Player.Pathfinder.StopAutoWalk();
+            }
+
+            Direction dir = StickDirection(JoystickOffset, _boatSpeed != 0 ? _boatDir : Direction.NONE);
+            byte speed = (byte)(mag >= JOY_RUN ? 2 : 1);
+            bool changed = dir != _boatDir || speed != _boatSpeed;
+
+            if (Time.Ticks - _boatSentAt >= (changed ? BOAT_MIN_MS : BOAT_RESEND_MS))
+            {
+                _boatDir = dir;
+                _boatSpeed = speed;
+                _boatSentAt = Time.Ticks;
+                world.BoatMovingManager.MoveRequest(dir, speed, true);
+            }
+        }
+
+        /// <summary>
+        /// The map direction the stick points (screen up is UO's "Up", the north-west; the same 8 as
+        /// walking), keeping <paramref name="keep"/> until the stick is BOAT_HYSTERESIS degrees past its edge.
+        /// </summary>
+        private static Direction StickDirection(Vector2 v, Direction keep)
+        {
+            float a = MathHelper.ToDegrees(MathF.Atan2(v.X, -v.Y)); // 0 = screen up, clockwise
+
+            if (a < 0f)
+            {
+                a += 360f;
+            }
+
+            if (keep != Direction.NONE)
+            {
+                float center = (((int)keep + 1) & 7) * 45f;
+                float off = MathF.Abs((a - center + 540f) % 360f - 180f);
+
+                if (off <= 22.5f + BOAT_HYSTERESIS)
+                {
+                    return keep;
+                }
+            }
+
+            int sector = (int)MathF.Round(a / 45f) & 7; // 0 up, 1 up-right, 2 right ...
+
+            return (Direction)((sector + 7) & 7);
         }
 
         // ---------- edit mode ----------

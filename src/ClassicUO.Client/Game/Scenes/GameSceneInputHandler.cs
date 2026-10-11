@@ -644,6 +644,12 @@ namespace ClassicUO.Game.Scenes
             {
                 GameObject obj = lastObj as GameObject;
 
+                // UO Mobile: as for a double-click, a click on the tiller man's figure is his, not the boat rail's
+                if ((obj is Multi || obj is Land) && Touch.MobileActions.TillerManAtPointer(_world) is Item tillerMan)
+                {
+                    obj = tillerMan;
+                }
+
                 switch (obj)
                 {
                     case Static st:
@@ -762,6 +768,13 @@ namespace ClassicUO.Game.Scenes
             }
 
             BaseGameObject obj = SelectedObject.Object;
+
+            // UO Mobile: a boat's rail pieces are picked over most of the tiller man's figure (and a double-click on
+            // the hull does nothing): a double-click on his figure is meant for him (he takes you to the helm)
+            if ((obj is Multi || obj is Land) && Touch.MobileActions.TillerManAtPointer(_world) is Item tiller)
+            {
+                obj = tiller;
+            }
 
             switch (obj)
             {

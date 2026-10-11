@@ -3700,7 +3700,9 @@ namespace ClassicUO.Network
             writer.Dispose();
         }
 
-        public static void Send_MultiBoatMoveRequest(this NetClient socket, uint serial, Direction dir, byte speed)
+        // UO Mobile: resends = the phone repeats this while the stick is held; flagged (0x80 on the copy of the
+        // direction) so the server's watchdog stops the boat if the phone goes quiet (servuo BoatHelm.ResendFlag)
+        public static void Send_MultiBoatMoveRequest(this NetClient socket, uint serial, Direction dir, byte speed, bool resends = false)
         {
             const byte ID = 0xBF;
 
@@ -3718,7 +3720,7 @@ namespace ClassicUO.Network
             writer.WriteUInt16BE(0x33);
             writer.WriteUInt32BE(serial);
             writer.WriteUInt8((byte) dir);
-            writer.WriteUInt8((byte) dir);
+            writer.WriteUInt8((byte) (resends ? (byte) dir | 0x80 : (byte) dir));
             writer.WriteUInt8(speed);
 
             if (length < 0)

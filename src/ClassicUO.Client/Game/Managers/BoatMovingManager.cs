@@ -45,9 +45,9 @@ namespace ClassicUO.Game.Managers
             }
         }
 
-        public void MoveRequest(Direction direciton, byte speed)
+        public void MoveRequest(Direction direciton, byte speed, bool resends = false) // UO Mobile: resends (TouchInput.Steer)
         {
-            NetClient.Socket.Send_MultiBoatMoveRequest(_world.Player, direciton, speed);
+            NetClient.Socket.Send_MultiBoatMoveRequest(_world.Player, direciton, speed, resends);
             _timePacket = Time.Ticks;
         }
 

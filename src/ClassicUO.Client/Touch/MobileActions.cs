@@ -45,6 +45,8 @@ namespace ClassicUO.Touch
     ///   restock[:LIST]   top the pack up from the open bank box or chest: "restock:bandages=100,regs=30"
     ///   organize[:LIST]  move items of LIST (default gold) from the pack into the container opened last
     ///   counters[:on|off]   show or hide the counter strip (a long press on it hides it too)
+    ///   helm             take or leave a boat's helm (double-clicks the tiller man in reach); at the
+    ///                    helm the joystick steers the boat (TouchInput.Steer)
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -328,6 +330,11 @@ namespace ClassicUO.Touch
 
                     break;
 
+                case "helm":
+                    Helm(world);
+
+                    break;
+
                 case "macro_editor":
                     MacroEditorGump.Open(world);
 
@@ -353,6 +360,70 @@ namespace ClassicUO.Touch
 
                     break;
             }
+        }
+
+        // a boat's tiller man (each facing) and a rowboat's rudder
+        private static readonly ushort[] _tillerGraphics = { 0x3E4E, 0x3E4B, 0x3E50, 0x3E55, 0x3EBE, 0x3EC4, 0x3E76, 0x3E63 };
+
+        /// <summary>
+        /// The "helm" action: double-click the nearest tiller man in reach, which takes the boat's helm or
+        /// leaves it (the server decides: servuo BoatHelm). The same as double-tapping him.
+        /// </summary>
+        private static void Helm(World world)
+        {
+            Item tiller = null;
+
+            foreach (Item it in world.Items.Values)
+            {
+                if (it.OnGround && Array.IndexOf(_tillerGraphics, it.Graphic) >= 0 && it.Distance <= 3 && (tiller == null || it.Distance < tiller.Distance))
+                {
+                    tiller = it;
+                }
+            }
+
+            if (tiller == null)
+            {
+                GameActions.Print(world, "No tiller man in reach (stand beside him on your boat).", 0x35);
+
+                return;
+            }
+
+            GameActions.DoubleClick(world, tiller.Serial);
+        }
+
+        /// <summary>
+        /// The tiller man whose figure is under the pointer (a few pixels' slack for a finger), or null. The
+        /// boat's rail pieces are drawn over most of him and win the scene's pick (GameSceneInputHandler).
+        /// </summary>
+        public static Item TillerManAtPointer(World world)
+        {
+            Microsoft.Xna.Framework.Point mouse = SelectedObject.TranslatedMousePositionByViewport;
+
+            foreach (Item it in world.Items.Values)
+            {
+                if (!it.OnGround || Array.IndexOf(_tillerGraphics, it.Graphic) < 0 || it.Distance > 18)
+                {
+                    continue;
+                }
+
+                ref readonly Renderer.SpriteInfo art = ref Client.Game.UO.Arts.GetArt(it.Graphic);
+
+                if (art.Texture == null)
+                {
+                    continue;
+                }
+
+                ref var index = ref Client.Game.UO.FileManager.Arts.File.GetValidRefEntry(it.Graphic + 0x4000);
+                int x = it.RealScreenPosition.X + (int)it.Offset.X - index.Width;
+                int y = it.RealScreenPosition.Y + (int)(it.Offset.Y + it.Offset.Z) - index.Height;
+
+                if (mouse.X >= x - 6 && mouse.X <= x + art.UV.Width + 6 && mouse.Y >= y - 6 && mouse.Y <= y + art.UV.Height + 6)
+                {
+                    return it;
+                }
+            }
+
+            return null;
         }
 
         private static uint _seenLastTarget, _seenSelected, _seenAttack, _shown;

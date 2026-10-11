@@ -100,6 +100,18 @@ need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGh
 need src/ClassicUO.Client/Game/Scenes/GameScene.cs "Touch.HousePlacementGhost.UpdateAddon(_world, SelectedObject.Object as GameObject);" "the furniture ghost is drawn every frame"
 need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "world.TargetManager.TargetCursorId == _addonCursor" "the furniture ghost only follows the deed's own cursor"
 
+echo "== Boats"
+# Build 49: a boat's helm (servuo BoatHelm.cs). At the helm (0x3E96 on Layer.Mount) the stick steers through
+# 0xBF 0x33; a held course is resent flagged 0x80 on the copy of the direction, and the server's watchdog stops
+# a flagged boat whose phone goes quiet. Keep the flag in step with BoatHelm.ResendFlag.
+need src/ClassicUO.Client/Touch/TouchInput.cs "world.Player.IsDrivingBoat" "at a boat's helm the stick steers the boat"
+need src/ClassicUO.Client/Touch/TouchInput.cs "world.BoatMovingManager.MoveRequest(dir, speed, true);" "a held course is resent, flagged for the server's watchdog"
+need src/ClassicUO.Client/Touch/TouchInput.cs "world.BoatMovingManager.MoveRequest(_boatDir, 0, true);" "letting go of the stick stops the boat"
+need src/ClassicUO.Client/Network/OutgoingPackets.cs "(resends ? (byte) dir | 0x80 : (byte) dir)" "resend flag 0x80 (servuo BoatHelm.ResendFlag)"
+need src/ClassicUO.Client/Game/GameObjects/PlayerMobile.cs "if (IsDrivingBoat)" "the pilot never walks (the server refuses the steps)"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "if (CarryPlayer(world, boatDX, boatDY, cx, cy, (sbyte)cz))" "a boat's step carries a walking player without resetting the walker (no resync per tile)"
+need src/ClassicUO.Client/Game/Scenes/GameSceneInputHandler.cs "Touch.MobileActions.TillerManAtPointer(_world) is Item tiller" "a double-tap on the tiller man reaches him through the boat's rail"
+
 echo "== Game-file downloads"
 need src/ClassicUO.Client/Main.cs "if (!Touch.GameFiles.Configured &&" "UO folder check waits for the download screen (build 34)"
 need src/ClassicUO.Client/Main.cs '"(hidden)"' "passwords redacted from the argument trace"

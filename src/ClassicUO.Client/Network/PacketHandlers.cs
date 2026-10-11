@@ -5824,6 +5824,9 @@ namespace ClassicUO.Network
                 ProfileManager.CurrentProfile != null
                 && ProfileManager.CurrentProfile.UseSmoothBoatMovement;
 
+            // UO Mobile: how far the boat moved this step (CarryPlayer)
+            int boatDX = x - multi.X, boatDY = y - multi.Y;
+
             if (smooth)
             {
                 world.BoatMovingManager.AddStep(
@@ -5912,6 +5915,11 @@ namespace ClassicUO.Network
                 {
                     if (cSerial == world.Player)
                     {
+                        if (CarryPlayer(world, boatDX, boatDY, cx, cy, (sbyte)cz))
+                        {
+                            continue;
+                        }
+
                         UpdatePlayer(
                             world,
                             cSerial,
@@ -5947,6 +5955,48 @@ namespace ClassicUO.Network
                     }
                 }
             }
+        }
+
+        /// <summary>
+        /// UO Mobile: a boat's step carries the player (and any steps still on their way to the server) one
+        /// tile along with it. Stock went through UpdatePlayer, whose DenyWalk restarts the walk sequence; the
+        /// server doesn't restart it for a boat's move (Mobile.SetLocation keeps it for High Seas clients), so
+        /// the next steps of a player walking the deck of a moving boat were refused and resynced at every
+        /// tile the boat sailed. False: not a single boat step (or a resync is under way); do as stock.
+        /// </summary>
+        private static bool CarryPlayer(World world, int dx, int dy, ushort x, ushort y, sbyte z)
+        {
+            PlayerMobile player = world.Player;
+
+            if (Math.Abs(dx) > 1 || Math.Abs(dy) > 1 || player.Walker.WalkingFailed)
+            {
+                return false;
+            }
+
+            if (player.Steps.Count == 0 && player.Walker.StepsCount == 0)
+            {
+                player.SetInWorldTile(x, y, z); // standing (or at the helm): exactly where the server has us
+
+                return true;
+            }
+
+            for (int i = 0; i < player.Steps.Count; i++)
+            {
+                ref Mobile.Step step = ref player.Steps.GetAt(i);
+                step.X += dx;
+                step.Y += dy;
+            }
+
+            for (int i = 0; i < player.Walker.StepsCount; i++)
+            {
+                ref StepInfo info = ref player.Walker.StepInfos[i];
+                info.X = (ushort)(info.X + dx);
+                info.Y = (ushort)(info.Y + dy);
+            }
+
+            player.SetInWorldTile((ushort)(player.X + dx), (ushort)(player.Y + dy), player.Z);
+
+            return true;
         }
 
         private static void PacketList(World world, ref StackDataReader p)
