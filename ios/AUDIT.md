@@ -153,11 +153,13 @@ must be caught here.
      - sail, then send the app to the background: the ship stops within about 2 seconds; come back and push:
        it sails again;
      - double-tap the tiller man again: "You are no longer piloting this vessel." and the stick walks again;
-       two tiles from him you can't take the helm ("That is too far away."), nor as a ghost;
+       three tiles from him you can't take the helm ("That is too far away."), nor as a ghost; double-tapping
+       yourself at the helm lets go of it too (as a dismount) and the ship stops;
      - with a second player aboard: they walk the deck smoothly while you sail (no snapping back every
        tile), can't take your helm ("... has the helm"), but the ship's owner can; nobody can dry-dock it
        while someone is at the helm. Alone: staff can `[UOMSelfTest boatride sail` (a deckhand sails a
-       square while you walk the deck; `[UOMSelfTest boatride end` puts you back).
+       square while you walk the deck; `[UOMSelfTest boatride end` puts you back). Leave the desktop
+       option "smooth boat movement" off: that stock path still snaps a walking player back.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

@@ -770,8 +770,10 @@ namespace ClassicUO.Game.Scenes
             BaseGameObject obj = SelectedObject.Object;
 
             // UO Mobile: a boat's rail pieces are picked over most of the tiller man's figure (and a double-click on
-            // the hull does nothing): a double-click on his figure is meant for him (he takes you to the helm)
-            if ((obj is Multi || obj is Land) && Touch.MobileActions.TillerManAtPointer(_world) is Item tiller)
+            // the hull does nothing): a double-click on his figure is meant for him (he takes you to the helm). So is
+            // one where yours overlaps his as you stand beside him (on yourself it opens your paperdoll, or at the
+            // helm it lets go of it, as a dismount)
+            if ((obj is Multi || obj is Land || obj == _world.Player) && Touch.MobileActions.TillerManAtPointer(_world) is Item tiller)
             {
                 obj = tiller;
             }

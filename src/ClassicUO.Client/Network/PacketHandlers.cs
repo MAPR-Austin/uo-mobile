@@ -5824,8 +5824,9 @@ namespace ClassicUO.Network
                 ProfileManager.CurrentProfile != null
                 && ProfileManager.CurrentProfile.UseSmoothBoatMovement;
 
-            // UO Mobile: how far the boat moved this step (CarryPlayer)
+            // UO Mobile: how far the boat moved this step, and where the server had us before it (CarryPlayer)
             int boatDX = x - multi.X, boatDY = y - multi.Y;
+            Point playerWasAt = world.RangeSize;
 
             if (smooth)
             {
@@ -5915,7 +5916,7 @@ namespace ClassicUO.Network
                 {
                     if (cSerial == world.Player)
                     {
-                        if (CarryPlayer(world, boatDX, boatDY, cx, cy, (sbyte)cz))
+                        if (CarryPlayer(world, boatDX, boatDY, playerWasAt, cx, cy, (sbyte)cz))
                         {
                             continue;
                         }
@@ -5962,9 +5963,11 @@ namespace ClassicUO.Network
         /// tile along with it. Stock went through UpdatePlayer, whose DenyWalk restarts the walk sequence; the
         /// server doesn't restart it for a boat's move (Mobile.SetLocation keeps it for High Seas clients), so
         /// the next steps of a player walking the deck of a moving boat were refused and resynced at every
-        /// tile the boat sailed. False: not a single boat step (or a resync is under way); do as stock.
+        /// tile the boat sailed. False: not a single boat step, a resync under way, or the server's place for us
+        /// (<paramref name="x"/>, <paramref name="y"/>) isn't the confirmed one (<paramref name="wasAt"/>) moved
+        /// with the boat - out of step already: do as stock (resync).
         /// </summary>
-        private static bool CarryPlayer(World world, int dx, int dy, ushort x, ushort y, sbyte z)
+        private static bool CarryPlayer(World world, int dx, int dy, Point wasAt, ushort x, ushort y, sbyte z)
         {
             PlayerMobile player = world.Player;
 
@@ -5978,6 +5981,11 @@ namespace ClassicUO.Network
                 player.SetInWorldTile(x, y, z); // standing (or at the helm): exactly where the server has us
 
                 return true;
+            }
+
+            if (x != wasAt.X + dx || y != wasAt.Y + dy)
+            {
+                return false;
             }
 
             for (int i = 0; i < player.Steps.Count; i++)
