@@ -401,7 +401,8 @@ namespace ClassicUO.Touch
 
             foreach (Item it in world.Items.Values)
             {
-                if (!it.OnGround || Array.IndexOf(_tillerGraphics, it.Graphic) < 0 || it.Distance > 18)
+                // (only near you: a tiller man off the drawn area keeps a stale screen position)
+                if (!it.OnGround || Array.IndexOf(_tillerGraphics, it.Graphic) < 0 || it.Distance > 4)
                 {
                     continue;
                 }

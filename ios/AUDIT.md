@@ -144,14 +144,17 @@ must be caught here.
      - buy a small ship deed from a shipwright, place it off a dock, step aboard over the plank, stand next
        to the tiller man and double-tap him anywhere on his figure (the boat's rail is drawn over most of
        him): "You are now piloting this vessel." and the joystick hint; a single tap on him names him, not
-       the "ship"; the "Helm" button preset (Edit, a button, Helm) does the same from up to 3 tiles;
+       the "ship"; the "Helm" button preset (Edit, a button, Helm) takes the helm within 2 tiles of him and
+       leaves it from up to 3;
      - at the helm the stick no longer walks you: a light push sails the way it points, 1 tile a second; a
        full push 4 tiles a second; pointing 90 degrees or more off the bow turns the ship to the nearest
        heading first, within 45 degrees it sails diagonally without turning; letting go stops it at once;
      - hold the stick into the shore: the tiller man says "we've stopped" once, not every second; point
        elsewhere and it sails again;
-     - sail, then send the app to the background: the ship stops within about 2 seconds; come back and push:
-       it sails again;
+     - sail, then send the app to the background: the ship stops (at once is a pass: iOS cancels the touch,
+       which sends the stop; otherwise within about 2 seconds); come back and push: it sails again;
+     - rest your thumb at the light/full push edge, then at the edge of the dead zone: the ship keeps a steady
+       pace and keeps moving (no stutter, no stall);
      - double-tap the tiller man again: "You are no longer piloting this vessel." and the stick walks again;
        three tiles from him you can't take the helm ("That is too far away."), nor as a ghost; double-tapping
        yourself at the helm lets go of it too (as a dismount) and the ship stops;
@@ -303,3 +306,4 @@ must be caught here.
 | audit | (agent, build 44) | Last Target kept an old harmful/beneficial memory over a new pick (Dump E-Bolt broke after its first kill); the target queue answered any later cursor (a bandage could hit the enemy); dress left a weapon swap half done; the default counter strip was editable so a drag tore counters off; a macro button couldn't stop a macro inside a call; dress sets were written in place | picks feed the memories (harmful for foes, beneficial for friends; dead/missing skipped; reset on logout); only spell buttons queue, only for a harmful/beneficial cursor, cleared by a fizzle or any other action; both hands cleared as needed; the strip is created locked and without explosion potions; the root macro's name decides the stop; ConfigurationResolver.Save; unknown item names fail at validation |
 | audit | (agent, build 47) | the trade window's Accept is a check box and the shop's +/- are buttons, so under the joystick ring a tap walked instead; the target panel still drew over a shop window and took taps; the stepped-aside rectangles survived a logout; a dye landing while in the designer recolored its floor grid, and pieces placed in the designer showed undyed | every interactive control in a shop/trade window beats the joystick; the target panel steps aside too; cleared on unload; the designer's grid keeps its colours and new pieces take the house hue. Doors, the sign and addons are separate items and keep their own colour |
 | audit | (agent, build 48) | a deed's pieces were never forgotten, so after a server restart (cursor ids start over) a spell's cursor could take the furniture ghost; preview tiles destroyed by a map change stayed invisible; server: a probe addon saved mid-placement would stay in the world, and spot answers anywhere on the map could reveal hidden players | pieces dropped with their cursor and on logout; previews rebuilt; probes dropped before saves and at shutdown; answers only within 24 tiles and in a house the player co-owns |
+| audit | (agent, build 49) | speed and stop had no hysteresis, so a thumb on the light/full or dead-zone edge restarted the boat's step timer every 150 ms (stutter, a slow boat never stepping); the tiller-man pick-through used stale screen positions of far tiller men and took a double-tap on yourself on a dock; a phone check said the helm could be taken from 3 tiles (2) | fast from 0.62, slow again below 0.52, once sailing stop only below 0.15; pick-through only within 4 tiles; the self double-tap goes to the tiller man only at the helm or on a deck; wording fixed, preflight pattern tightened |

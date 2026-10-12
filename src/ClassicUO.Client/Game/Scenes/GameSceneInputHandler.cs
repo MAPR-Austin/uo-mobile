@@ -749,6 +749,20 @@ namespace ClassicUO.Game.Scenes
             return true;
         }
 
+        /// <summary>UO Mobile: you stand on a boat's deck (a multi's piece under your feet), not on a dock beside it.</summary>
+        private bool OnDeck()
+        {
+            for (GameObject o = _world.Map.GetTile(_world.Player.X, _world.Player.Y); o != null; o = o.TNext)
+            {
+                if (o is Multi && !((Multi)o).IsHousePreview && Math.Abs(o.Z - _world.Player.Z) <= 5)
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
         private bool OnLeftMouseDoubleClick()
         {
             bool result = false;
@@ -773,7 +787,7 @@ namespace ClassicUO.Game.Scenes
             // the hull does nothing): a double-click on his figure is meant for him (he takes you to the helm). So is
             // one where yours overlaps his as you stand beside him (on yourself it opens your paperdoll, or at the
             // helm it lets go of it, as a dismount)
-            if ((obj is Multi || obj is Land || obj == _world.Player) && Touch.MobileActions.TillerManAtPointer(_world) is Item tiller)
+            if ((obj is Multi || obj is Land || obj == _world.Player && (_world.Player.IsDrivingBoat || OnDeck())) && Touch.MobileActions.TillerManAtPointer(_world) is Item tiller)
             {
                 obj = tiller;
             }

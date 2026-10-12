@@ -111,7 +111,7 @@ need src/ClassicUO.Client/Network/OutgoingPackets.cs "(resends ? (byte) dir | 0x
 need src/ClassicUO.Client/Game/GameObjects/PlayerMobile.cs "if (IsDrivingBoat)" "the pilot never walks (the server refuses the steps)"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "if (CarryPlayer(world, boatDX, boatDY, playerWasAt, cx, cy, (sbyte)cz))" "a boat's step carries a walking player without resetting the walker (no resync per tile)"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "if (x != wasAt.X + dx || y != wasAt.Y + dy)" "a player already out of step with the server still resyncs"
-need src/ClassicUO.Client/Game/Scenes/GameSceneInputHandler.cs "Touch.MobileActions.TillerManAtPointer(_world) is Item tiller" "a double-tap on the tiller man reaches him through the boat's rail"
+need src/ClassicUO.Client/Game/Scenes/GameSceneInputHandler.cs "Touch.MobileActions.TillerManAtPointer(_world) is Item tiller)" "a double-tap on the tiller man reaches him through the boat's rail"
 
 echo "== Game-file downloads"
 need src/ClassicUO.Client/Main.cs "if (!Touch.GameFiles.Configured &&" "UO folder check waits for the download screen (build 34)"

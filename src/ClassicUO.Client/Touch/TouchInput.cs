@@ -1385,11 +1385,16 @@ namespace ClassicUO.Touch
         private static byte _boatSpeed; // what the server was last told (0: stopped)
         private static uint _boatSentAt;
 
+        // speed and stopping hold too (a thumb resting on an edge would restart the boat's step timer each time):
+        // fast from JOY_RUN, slow again only below BOAT_SLOW_BELOW; once sailing it stops only below BOAT_STOP_BELOW
+        private const float BOAT_SLOW_BELOW = JOY_RUN - 0.10f;
+        private const float BOAT_STOP_BELOW = 0.15f;
+
         private static void Steer(World world)
         {
             float mag = JoystickActive ? JoystickOffset.Length() : 0f;
 
-            if (mag < JOY_DEADZONE)
+            if (mag < (_boatSpeed != 0 ? BOAT_STOP_BELOW : JOY_DEADZONE))
             {
                 if (_boatSpeed != 0)
                 {
@@ -1407,7 +1412,7 @@ namespace ClassicUO.Touch
             }
 
             Direction dir = StickDirection(JoystickOffset, _boatSpeed != 0 ? _boatDir : Direction.NONE);
-            byte speed = (byte)(mag >= JOY_RUN ? 2 : 1);
+            byte speed = (byte)(mag >= (_boatSpeed == 2 ? BOAT_SLOW_BELOW : JOY_RUN) ? 2 : 1);
             bool changed = dir != _boatDir || speed != _boatSpeed;
 
             if (Time.Ticks - _boatSentAt >= (changed ? BOAT_MIN_MS : BOAT_RESEND_MS))
