@@ -119,6 +119,24 @@ need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "TouchInput.GhostFingerTr
 need src/ClassicUO.Client/GameController.cs "(SDL_EventType)sdlEvent->type == SDL_EventType.SDL_EVENT_FINGER_CANCELED" "a touch the system cancels (Control Center, a call) is passed on as canceled"
 need src/ClassicUO.Client/Touch/TouchInput.cs "drop ? OffScreen : pos" "...and a canceled finger laying a line lifts off-screen: nothing is built"
 need src/ClassicUO.Client/Touch/ActionLayouts.cs "set.Layouts.Insert(0, CreateDefault(true)" "Zombie Survival characters with layouts saved before build 52 get the Survival layout once"
+# Build 53: Zombie Survival's map markers and alerts (servuo Custom/Zombie/PhoneMarkers.cs, PhoneAlerts.cs): the server sends
+# 0x7A61 markers by itself after login; only then does the app say hello / ask (0x7A60); alerts come as 0x7A62.
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "public const ushort RequestSub = 0x7A60;" "markers request / hello sub-command is 0x7A60 (servuo ZombieMarkers.RequestSub)"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "public const ushort MarkersSub = 0x7A61;" "markers sub-command is 0x7A61 (ZombieMarkers.MarkersSub)"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "public const ushort AlertSub = 0x7A62;" "alert sub-command is 0x7A62 (ZombieAlerts.AlertSub)"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.ZombieMarkers.MarkersSub:" "0xBF 0x7A61 reaches the markers"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.ZombieMarkers.AlertSub:" "0xBF 0x7A62 reaches the alert banner"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "_helloSent = Send(world, FlagAlerts);" "the app says hello only after the shard sent markers (an old shard never gets 0x7A60)"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "if (world == null || !world.InGame || world.Player == null" "0x7A60 only once the player exists (an in-game sub-command before that gets the client dropped)"
+need src/ClassicUO.Client/Game/Scenes/GameScene.cs "Touch.ZombieMarkers.Reset();" "markers and alerts are forgotten at logout (no other shard's markers)"
+need src/ClassicUO.Client/Touch/AlertBanner.cs "AcceptMouseInput = false; // drawn, never hit" "the alert banner never takes a touch"
+need src/ClassicUO.Client/Touch/SurvivalMapGump.cs "TakeTexture(); // (a drawn frame" "the map's picture becomes a texture on a drawn frame, on the main thread (the worker only reads files)"
+need src/ClassicUO.Client/Touch/TouchInput.cs "UIManager.GetGump<HousePlacementBar>() != null || UIManager.GetGump<SurvivalMapGump>() != null;" "the HUD steps aside while the map is open"
+need src/ClassicUO.Client/Touch/TouchInput.cs "!(g is SurvivalMapGump)) // (the map is the screen" "the full-screen map never forces the wide portrait fit (it would keep itself wide)"
+need src/ClassicUO.Client/Touch/ButtonEditGump.cs '("Repair All", "say:\[repairall")' "the Repair All preset ([repairall)"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs 'B("Repair\\nAll", "say:\[repairall"' "new Survival layouts have Repair All (and Map)"
+none "ClassicUO's world map stays off the phone's presets (a ~120 MB image built off the main thread; the phone's map is SurvivalMapGump)" \
+     '"open:WorldMap"' src/ClassicUO.Client/Touch/ButtonEditGump.cs src/ClassicUO.Client/Touch/ActionLayouts.cs
 
 echo "== Boats"
 # Build 49: a boat's helm (servuo BoatHelm.cs). At the helm (0x3E96 on Layer.Mount) the stick steers through

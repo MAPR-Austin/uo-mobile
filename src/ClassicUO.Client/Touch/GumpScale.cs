@@ -72,7 +72,8 @@ namespace ClassicUO.Touch
         /// </summary>
         public static bool Scalable(Gump g) =>
             !(g is TouchHudGump || g is WorldViewportGump || g is PopupMenuGump ||
-              g is NameOverheadGump || g is QuestArrowGump || g is BaseHealthBarGump);
+              g is NameOverheadGump || g is QuestArrowGump || g is BaseHealthBarGump ||
+              g is SurvivalMapGump || g is AlertBanner); // (the map fills the screen; the banner is drawn, never touched)
 
         /// <summary>A physical point (UI units) in the window's own unscaled layout.</summary>
         public static Point ToLogical(Gump g, Point p, float scale) =>

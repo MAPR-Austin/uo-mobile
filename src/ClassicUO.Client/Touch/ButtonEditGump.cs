@@ -57,7 +57,8 @@ namespace ClassicUO.Touch
             ("Lock Down", "say:I wish to lock this down"), ("Release", "say:I wish to release this"), ("Secure", "say:I wish to secure this"),
             ("Ban", "say:I ban thee"), ("Eject", "say:Remove thyself"), ("Bank", "say:bank"),
             ("Vendor Buy", "say:vendor buy"), ("Vendor Sell", "say:vendor sell"), ("Guards", "say:guards"),
-            ("Build", "say:[build"), ("Towns", "say:[towns"), ("Vendors", "say:[vendors"), // Zombie Survival's commands
+            ("Build", "say:[build"), ("Towns", "say:[towns"), ("Vendors", "say:[vendors"), ("Repair All", "say:[repairall"), // Zombie Survival's commands
+            ("Map", "map"),
             ("All Kill", "say:all kill"), ("All Follow", "say:all follow me"), ("All Guard", "say:all guard me"),
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),

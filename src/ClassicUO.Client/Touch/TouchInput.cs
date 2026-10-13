@@ -250,7 +250,7 @@ namespace ClassicUO.Touch
             foreach (Game.UI.Gumps.Gump g in UIManager.Gumps)
             {
                 if (!g.IsDisposed && g.IsVisible && g.Width > PORTRAIT_UI_WIDTH &&
-                    !(g is TouchHudGump) && !(g is Game.UI.Gumps.WorldViewportGump))
+                    !(g is TouchHudGump) && !(g is Game.UI.Gumps.WorldViewportGump) && !(g is SurvivalMapGump)) // (the map is the screen: it follows its size)
                 {
                     return true;
                 }
@@ -484,9 +484,9 @@ namespace ClassicUO.Touch
                    (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump); // Accept, Clear, +/-, the arrows, gold
         }
 
-        /// <summary>While an editor window is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>
+        /// <summary>While an editor window or the map is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>
         public static bool Suppressed => UIManager.GetGump<MacroEditorGump>() != null || UIManager.GetGump<ButtonEditGump>() != null ||
-                                         UIManager.GetGump<HousePlacementBar>() != null;
+                                         UIManager.GetGump<HousePlacementBar>() != null || UIManager.GetGump<SurvivalMapGump>() != null;
 
         public static Point ToUi(float nx, float ny) => new Point((int)(nx * ScreenW), (int)(ny * ScreenH));
 

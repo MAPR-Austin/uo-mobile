@@ -41,7 +41,7 @@ namespace ClassicUO.Game.UI.Gumps
     [JsonSerializable(typeof(List<int>), GenerationMode = JsonSourceGenerationMode.Metadata)]
     sealed partial class ZonesJsonContext : JsonSerializerContext { }
 
-    internal class WorldMapGump : ResizableGump
+    internal partial class WorldMapGump : ResizableGump // UO Mobile: partial (WorldMapGump.Survival.cs: Zombie Survival's markers)
     {
         public const string USER_MARKERS_FILE = "userMarkers";
 
@@ -2078,6 +2078,8 @@ namespace ClassicUO.Game.UI.Gumps
                     DrawMarkerString(batcher, lastMarker, gX, gY, halfWidth, halfHeight, layerDepth);
                 }
             }
+
+            DrawSurvivalMarkers(batcher, gX, gY, halfWidth, halfHeight, layerDepth); // UO Mobile: Zombie Survival's towns, peddlers, camp
 
             if (_gotoMarker != null)
             {

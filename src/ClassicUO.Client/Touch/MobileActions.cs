@@ -48,6 +48,7 @@ namespace ClassicUO.Touch
     ///   counters[:on|off]   show or hide the counter strip (a long press on it hides it too)
     ///   helm             take or leave a boat's helm (double-clicks the tiller man in reach); at the
     ///                    helm the joystick steers the boat (TouchInput.Steer)
+    ///   map              open or close the phone's map (Touch/SurvivalMapGump; Zombie Survival's markers on it)
     ///   macro:Name       run a desktop-client macro (Options > Macros)
     ///   chat             focus the speech line and show the keyboard
     ///   stop_macro, layout_next, edit_layout, macro_editor, uo_macros   HUD control
@@ -351,6 +352,11 @@ namespace ClassicUO.Touch
 
                 case "helm":
                     Helm(world);
+
+                    break;
+
+                case "map":
+                    SurvivalMapGump.Toggle(world);
 
                     break;
 

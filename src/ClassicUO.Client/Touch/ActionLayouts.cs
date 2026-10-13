@@ -414,7 +414,8 @@ namespace ClassicUO.Touch
         /// target, edit, layout toggle) so the player can never lose the way back. Landscape puts the
         /// action cluster bottom-right; portrait stacks it under the world view on the right, with
         /// the joystick on the left. On Zombie Survival a "Survival" layout comes first (build 52): the
-        /// fight and the healing, and the shard's commands ([build, [towns, [vendors) on buttons.
+        /// fight and the healing, and the shard's commands ([build, [towns, [vendors) on buttons; build 53 adds Repair All
+        /// ([repairall) and Map to Survival layouts made from then on (saved ones keep theirs).
         /// </summary>
         public static ActionLayoutSet CreateDefault(bool survival = false)
         {
@@ -488,6 +489,8 @@ namespace ClassicUO.Touch
                     B("Vendors", "say:[vendors", 0.84f, 0.44f, 0.70f, 0.62f, 0.11f),
                     B("Arm/\nDisarm", "arm_disarm", 0.65f, 0.70f, 0.82f, 0.67f, 0.12f), // a potion wants a free hand (a spear takes both)
                     B("Pack", "open:Backpack", 0.95f, 0.24f, 0.74f, 0.59f, 0.10f),
+                    B("Repair\nAll", "say:[repairall", 0.84f, 0.27f, 0.86f, 0.52f, 0.11f), // build 53: new Survival layouts only
+                    B("Map", "map", 0.73f, 0.28f, 0.62f, 0.52f, 0.11f),
                 });
                 set.Layouts.Insert(0, zombie);
             }

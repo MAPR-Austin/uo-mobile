@@ -216,6 +216,32 @@ must be caught here.
        Arm/Disarm puts the spear away);
      - the build menu's Stop ends the cursor and the bar goes (before, the bar stayed up);
      - Graveyard Battles: house placement and furniture deeds exactly as in build 51 (no Turn, a drag moves the ghost).
+   - Build 53 (Zombie Survival map, alerts, repair all; needs the zombie server's PhoneMarkers/PhoneAlerts/RepairAll.cs):
+     - a Zombie Survival character that never saved buttons starts on "Survival" with two more buttons, Map and Repair All
+       (top right, above Vendors/Towns; in portrait above the cluster); a character that already has Survival keeps its
+       buttons as they were (Edit > a button: the presets "Repair All" and "Map" add them);
+     - Map: the HUD steps aside and the map fills the screen; the first time per launch "Drawing the map..." for a few
+       seconds, then the land around you with You on it; a finger drags it; - and + zoom (the first - after the widest
+       shows the whole facet, centred); a double tap zooms in there; You centres on you again and follows; Close closes
+       it and the HUD comes back; turn the phone with the map open: it refits;
+     - on Zombie Survival: a legend; every town coloured by its state (red overrun, yellow cleared, green held) with its
+       outline when zoomed in; the six peddlers in orange (blinking red-orange while running from the dead); your camp in
+       gold (blinking red ring for 2 minutes after it is hit), a friend's camp in blue; tap one: its name, state, distance
+       and direction in the bar; "Markers N s old" never passes ~32 s while the map is open (it asks every 30 s);
+       Graveyard Battles: the same map, no legend, no markers;
+     - alerts: a banner just below the top row of buttons (landscape: between the counter strip and the buttons on the
+       right; portrait: below the counter strip), never over a button, with a sound - a horde marching on a town you are
+       at or camped by (war drums), your camp's wall or fire bashed by a zombie or a stranger (a zombie's moan; once per
+       90 s per camp), a town held (fanfare), cleared, or fallen (drums) for everyone, a tripwire; the same line is in the
+       journal; a tap on the banner reaches what is under it (a button, the world); several at once queue (3.5 s each);
+       landscape and portrait, and with the map open (then at the top);
+     - Repair All among damaged walls of yours or of a camp that lists you as a friend: "You repair all N damaged pieces
+       within reach." with one hammer sound; each gets a single repair's worth for a single repair's boards or ore (not
+       with free building); again within 5 s: "Catch your breath..."; with no ore: "... (1 still needs ore)"; a
+       stranger's wall nearby is left alone;
+     - the map on the oldest phone in use: open it, drag about and zoom for a minute (one ~29 MB picture, ~36 MB more while
+       it is drawn): no crash, no hitch when it appears;
+     - a build-52 app on the same server: plays as before (no banners, the alert lines in the journal).
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

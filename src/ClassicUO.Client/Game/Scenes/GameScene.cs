@@ -337,6 +337,7 @@ namespace ClassicUO.Game.Scenes
 
             _world.CommandManager.UnRegisterAll();
             _world.Weather.Reset();
+            Touch.ZombieMarkers.Reset(); // UO Mobile: Zombie Survival's markers and alerts don't outlive the login
             UIManager.Clear();
             _world.Clear();
             _world.ChatManager.Clear();

@@ -4799,6 +4799,16 @@ namespace ClassicUO.Network
 
                     break;
 
+                case Touch.ZombieMarkers.MarkersSub: // UO Mobile: Zombie Survival's map markers (servuo Custom/Zombie/PhoneMarkers.cs)
+                    Touch.ZombieMarkers.Read(world, ref p);
+
+                    break;
+
+                case Touch.ZombieMarkers.AlertSub: // UO Mobile: a Zombie Survival alert banner (servuo Custom/Zombie/PhoneAlerts.cs)
+                    Touch.AlertBanner.Read(world, ref p);
+
+                    break;
+
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");
 
