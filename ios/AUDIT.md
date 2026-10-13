@@ -168,9 +168,13 @@ must be caught here.
        again; turn to landscape: nothing there moved; drag a different button in landscape, turn back to
        portrait: every portrait button is exactly where you left it (before, moving a landscape button
        shifted the portrait ones that hadn't been dragged in portrait); the joystick too;
-     - in portrait, Edit a button and tap "Portrait: auto": it jumps to the spot worked out from
-       landscape and stays there through further turns;
-     - "+" in landscape adds a button; turn to portrait: it gets a spot near the others and keeps it.
+     - drag button X in landscape; turn to portrait: X stays where it was; Edit X, tap "Match landscape",
+       close the editor: X moves to the spot worked out from landscape and stays there through further turns;
+     - close and relaunch the app: portrait and landscape spots are as you left them; switch layouts with
+       Layout while in portrait: each shows where build 49 had it (then stays);
+     - "+" in landscape adds a button; turn to portrait: it gets a spot near the others and keeps it;
+     - with the counter strip under the top row (War, Chat, ...) in portrait, turn the phone: the strip still
+       moves down below the row in each orientation.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

@@ -354,7 +354,7 @@ namespace ClassicUO.Touch
                 return FromLayout(b.X, b.Y);
             }
 
-            // portrait follows landscape, unless the button was placed by hand in portrait
+            // portrait: the pinned spot (each orientation keeps its own), else worked out from landscape
             (float x, float y) = Current != null ? Current.PortraitOf(b, Aspect, Revision) : ActionLayout.Portrait(b.X, b.Y, Aspect);
 
             return FromLayout(x, y);
@@ -1480,6 +1480,7 @@ namespace ClassicUO.Touch
                     layout.PJoystickX = nx;
                     layout.PJoystickY = ny;
                     layout.JoystickPortraitPinned = true;
+                    layout.JoystickPortraitAuto = false; // placed by hand
                 }
                 else
                 {
@@ -1496,6 +1497,7 @@ namespace ClassicUO.Touch
                     b.PX = nx;
                     b.PY = ny;
                     b.PortraitPinned = true;
+                    b.PortraitAuto = false; // placed by hand
                 }
                 else
                 {

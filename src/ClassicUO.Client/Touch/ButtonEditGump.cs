@@ -119,7 +119,7 @@ namespace ClassicUO.Touch
             // in portrait: put the button back where the landscape layout would place it
             if (TouchInput.IsPortrait && def != null && def.PortraitPinned)
             {
-                Add(_unpin = new NiceButton(W / 2 - 70, H - 76, 140, 26, ButtonAction.Activate, "Portrait: auto") { ButtonParameter = ID_UNPIN, IsSelectable = false });
+                Add(_unpin = new NiceButton(W / 2 - 70, H - 76, 140, 26, ButtonAction.Activate, "Match landscape") { ButtonParameter = ID_UNPIN, IsSelectable = false });
             }
 
             BuildPage();
@@ -200,8 +200,8 @@ namespace ClassicUO.Touch
 
                     break;
 
-                case ID_UNPIN:
-                    def.PortraitPinned = false;
+                case ID_UNPIN: // re-placed from landscape when the editor closes, and pinned there again
+                    def.PortraitPinned = def.PortraitAuto = false;
                     def.PX = def.PY = null;
                     TouchInput.Layouts.Save();
                     TouchInput.MarkChanged();

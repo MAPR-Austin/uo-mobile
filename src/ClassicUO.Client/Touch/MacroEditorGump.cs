@@ -483,7 +483,7 @@ namespace ClassicUO.Touch
             }
 
             string label = m.Name.Length > 12 ? m.Name.Substring(0, 12) : m.Name;
-            (float x, float y) = layout.FreeSpot(0.13f, TouchInput.Aspect); // a free spot on the right (portrait follows)
+            (float x, float y) = layout.FreeSpot(0.13f, TouchInput.Aspect); // a free spot on the right (portrait places it from there once)
             layout.Buttons.Add(new ActionButtonDef { Label = label.Replace(' ', '|'), Action = "mmacro:" + m.Name, X = x, Y = y, Size = 0.13f });
             TouchInput.Layouts.Save();
             TouchInput.MarkChanged();

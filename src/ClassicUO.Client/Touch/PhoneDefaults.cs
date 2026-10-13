@@ -141,7 +141,11 @@ namespace ClassicUO.Touch
 
             foreach (ActionButtonDef b in layout.Buttons)
             {
-                if (b.Y >= 0.16f)
+                // the top row as this orientation has it (portrait keeps its own spots): within 0.16 of the
+                // short side from the top
+                float topY = TouchInput.IsPortrait ? layout.PortraitOf(b, TouchInput.Aspect, TouchInput.Revision).Y * TouchInput.Aspect : b.Y;
+
+                if (topY >= 0.16f)
                 {
                     continue; // the top row only
                 }

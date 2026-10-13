@@ -11,6 +11,7 @@ using ClassicUO.Game.Scenes;
 using ClassicUO.Game.UI.Controls;
 using ClassicUO.Game.UI.Gumps;
 using ClassicUO.Renderer;
+using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -206,7 +207,14 @@ namespace ClassicUO.Touch
             // each orientation keeps its own layout: the first time this one shows in portrait, its spots stop following landscape
             if (TouchInput.IsPortrait && layout.PinPortrait(TouchInput.Aspect, TouchInput.Revision))
             {
-                TouchInput.Layouts.Save();
+                try
+                {
+                    TouchInput.Layouts.Save();
+                }
+                catch (Exception e)
+                {
+                    Log.Warn($"[UOMobile] layout pins not saved: {e.Message}"); // kept for this session; pinned again next launch
+                }
             }
 
             foreach (ActionButtonDef b in layout.Buttons)

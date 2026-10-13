@@ -31,6 +31,8 @@ namespace ClassicUO.Touch
         [JsonPropertyName("py")] public float? PY { get; set; }
         /// <summary>PX/PY hold (set by hand in portrait, or pinned the first time portrait showed it); otherwise portrait follows landscape.</summary>
         [JsonPropertyName("ppin")] public bool PortraitPinned { get; set; }
+        /// <summary>Pinned automatically (where portrait first showed it), not dragged there: re-placed on a differently shaped screen.</summary>
+        [JsonPropertyName("pauto")] public bool PortraitAuto { get; set; }
         /// <summary>Diameter as a fraction of the screen's shorter side.</summary>
         [JsonPropertyName("size")] public float Size { get; set; } = 0.14f;
     }
@@ -43,6 +45,9 @@ namespace ClassicUO.Touch
         [JsonPropertyName("joy_px")] public float? PJoystickX { get; set; }
         [JsonPropertyName("joy_py")] public float? PJoystickY { get; set; }
         [JsonPropertyName("joy_ppin")] public bool JoystickPortraitPinned { get; set; }
+        [JsonPropertyName("joy_pauto")] public bool JoystickPortraitAuto { get; set; }
+        /// <summary>The screen shape (long side / short side) the automatic portrait pins were made for; 0: none yet.</summary>
+        [JsonPropertyName("paspect")] public float PortraitAspect { get; set; }
         [JsonPropertyName("joy_size")] public float JoystickSize { get; set; } = 0.34f;
         [JsonPropertyName("buttons")] public List<ActionButtonDef> Buttons { get; set; } = new List<ActionButtonDef>();
 
@@ -52,8 +57,9 @@ namespace ClassicUO.Touch
         private int _derivedRevision = -1;
 
         /// <summary>
-        /// Where <paramref name="b"/> goes in portrait. A spot pinned by dragging it in portrait
-        /// stays; otherwise the landscape layout is refitted to the tall screen: the top row stays a
+        /// Where <paramref name="b"/> goes in portrait. A pinned spot (dragged there, or where portrait
+        /// first showed it - <see cref="PinPortrait"/>) stays; otherwise the landscape layout is refitted
+        /// to the tall screen: the top row stays a
         /// row across the top, the cluster on the right keeps its shape in the lower right (squeezed
         /// only as much as the narrower screen needs), and buttons on the left go above the
         /// joystick. <paramref name="aspect"/> is long side / short side.
@@ -86,6 +92,31 @@ namespace ClassicUO.Touch
         /// </summary>
         public bool PinPortrait(float aspect, int revision)
         {
+            bool reshaped = false;
+
+            // a differently shaped screen (a backup restored to another phone): the automatic pins are worked
+            // out again for it; spots placed by hand stay
+            if (PortraitAspect > 0f && Math.Abs(PortraitAspect - aspect) > 0.05f)
+            {
+                foreach (ActionButtonDef b in Buttons)
+                {
+                    if (b.PortraitAuto)
+                    {
+                        b.PortraitPinned = b.PortraitAuto = false;
+                        b.PX = b.PY = null;
+                    }
+                }
+
+                if (JoystickPortraitAuto)
+                {
+                    JoystickPortraitPinned = JoystickPortraitAuto = false;
+                    PJoystickX = PJoystickY = null;
+                }
+
+                _derivedRevision = -1; // derive again with these unpinned
+                reshaped = true;
+            }
+
             List<(ActionButtonDef B, float X, float Y)> spots = new List<(ActionButtonDef B, float X, float Y)>();
 
             // every spot first, then pin: pinning one mustn't change where the others were worked out to be
@@ -105,17 +136,22 @@ namespace ClassicUO.Touch
             {
                 b.PX = x;
                 b.PY = y;
-                b.PortraitPinned = true;
+                b.PortraitPinned = b.PortraitAuto = true;
             }
 
             if (joystick)
             {
                 PJoystickX = jx;
                 PJoystickY = jy;
-                JoystickPortraitPinned = true;
+                JoystickPortraitPinned = JoystickPortraitAuto = true;
             }
 
-            return spots.Count > 0 || joystick;
+            if (spots.Count > 0 || joystick)
+            {
+                PortraitAspect = aspect;
+            }
+
+            return spots.Count > 0 || joystick || reshaped;
         }
 
         private void Derive(float aspect, int revision)
@@ -239,7 +275,11 @@ namespace ClassicUO.Touch
     internal sealed class ActionLayoutSet
     {
         [JsonPropertyName("active")] public int Active { get; set; }
-        /// <summary>2: portrait spots are pinned only when placed by hand in portrait.</summary>
+        /// <summary>
+        /// 2: portrait spots pinned only when placed by hand (older files pinned every spot). 3 (build 50): each
+        /// orientation keeps its own spots - portrait ones are pinned automatically where portrait first showed
+        /// them (PortraitAuto) or by hand.
+        /// </summary>
         [JsonPropertyName("version")] public int Version { get; set; }
         [JsonPropertyName("layouts")] public List<ActionLayout> Layouts { get; set; } = new List<ActionLayout>();
 
@@ -288,6 +328,8 @@ namespace ClassicUO.Touch
             {
                 PinHandPlacedPortraitSpots(set);
             }
+
+            set.Version = Math.Max(set.Version, 3); // the pins below 3 were all made by hand
 
             return set;
         }
@@ -402,7 +444,7 @@ namespace ClassicUO.Touch
                 B("Status", "open:Status", 0.84f, 0.50f, 0.74f, 0.66f, 0.11f),
             });
 
-            return new ActionLayoutSet { Active = 0, Version = 2, Layouts = { combat, mage, utility } };
+            return new ActionLayoutSet { Active = 0, Version = 3, Layouts = { combat, mage, utility } };
         }
     }
 
