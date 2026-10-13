@@ -94,6 +94,15 @@ namespace ClassicUO.Game.Managers
 
             LastCharacterInfo lastChar = LastCharacters.FirstOrDefault(c => c.AccountName.Equals(account) && c.ServerName == server);
 
+            // UO Mobile: a shard renamed since (ProfileManager.RenamedServers): the last character played under its old name
+            foreach ((string oldName, string newName) in ProfileManager.RenamedServers)
+            {
+                if (lastChar == null && string.Equals(server, newName, StringComparison.OrdinalIgnoreCase))
+                {
+                    lastChar = LastCharacters.FirstOrDefault(c => c.AccountName.Equals(account) && string.Equals(c.ServerName, oldName, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
             return lastChar != null ? lastChar.LastCharacterName : string.Empty;
         }
 

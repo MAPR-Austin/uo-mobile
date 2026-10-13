@@ -172,7 +172,9 @@ namespace ClassicUO.Game.Scenes
                 }
             }
 
-            if ((CurrentLoginStep == LoginSteps.CharacterCreation || CurrentLoginStep == LoginSteps.CharacterSelection) && Time.Ticks > _pingTime)
+            // UO Mobile: on a phone the server list now shows at every login, and the list sits open while the player
+            // decides - so it pings too (ServUO drops a login socket that says nothing for 90 s)
+            if ((CurrentLoginStep == LoginSteps.CharacterCreation || CurrentLoginStep == LoginSteps.CharacterSelection || CurrentLoginStep == LoginSteps.ServerSelection) && Time.Ticks > _pingTime)
             {
                 // Note that this will not be an ICMP ping, so it's better that this *not* be affected by -no_server_ping.
 
@@ -183,7 +185,25 @@ namespace ClassicUO.Game.Scenes
 
                 _pingTime = Time.Ticks + 60000;
             }
+
+            CheckStuckServerPick();
         }
+
+        /// <summary>
+        /// UO Mobile: a pick the shard never answers (the login socket died while the list sat open with the phone
+        /// locked, a port still closed) would leave "Logging into shard..." up for good: back to the list after 15 s.
+        /// </summary>
+        private void CheckStuckServerPick()
+        {
+            if (CurrentLoginStep == LoginSteps.LoginInToServer && _serverPickedAt != 0 && Time.Ticks > _serverPickedAt + 15000)
+            {
+                _serverPickedAt = 0;
+                Log.Warn("[UOMobile] the shard didn't answer the pick; back to the list");
+                StepBack();
+            }
+        }
+
+        private uint _serverPickedAt;
 
         private Gump GetGumpForStep()
         {
@@ -265,6 +285,8 @@ namespace ClassicUO.Game.Scenes
                     case LoginSteps.LoginInToServer:
                         labelText = Client.Game.UO.FileManager.Clilocs.GetString(3000053, ResGeneral.LoggingIntoShard); // logging into shard
 
+                        showButtons = LoginButtons.Cancel; // UO Mobile: back to the list (StepBack)
+
                         break;
 
                     case LoginSteps.EnteringBritania:
@@ -344,6 +366,14 @@ namespace ClassicUO.Game.Scenes
                         return i;
                     }
                 }
+
+                // UO Mobile: a shard renamed since (ProfileManager.RenamedServers) is still the one picked last time
+                string renamed = ProfileManager.NewNameOf(name);
+
+                if (renamed != null)
+                {
+                    return GetServerIndexByName(renamed);
+                }
             }
 
             return -1;
@@ -356,7 +386,7 @@ namespace ClassicUO.Game.Scenes
 
             if (index == -1)
             {
-                index = Settings.GlobalSettings.LastServerNum;
+                index = Settings.GlobalSettings.LastServerNum - 1; // UO Mobile: saved one-based (SelectServer)
             }
 
             if (index < 0 || index >= Servers.Length)
@@ -386,6 +416,7 @@ namespace ClassicUO.Game.Scenes
                 Settings.GlobalSettings.Save();
 
                 CurrentLoginStep = LoginSteps.LoginInToServer;
+                _serverPickedAt = Time.Ticks;
 
                 _world.ServerName = Servers[ServerIndex].Name;
 
@@ -587,6 +618,7 @@ namespace ClassicUO.Game.Scenes
 
         public void UpdateCharacterList(ref StackDataReader p)
         {
+            _serverPickedAt = 0; // the shard answered the pick
             ParseCharacterList(ref p);
 
             if (CurrentLoginStep != LoginSteps.PopUpMessage)

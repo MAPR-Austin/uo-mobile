@@ -176,11 +176,15 @@ must be caught here.
      - with the counter strip under the top row (War, Chat, ...) in portrait, turn the phone: the strip still
        moves down below the row in each orientation.
    - Build 51 (the server list; needs the Graveyard server's ExtraServers and the zombie server on 2594):
-     - log in with auto-login on: the list shows Graveyard Battles and Zombie Survival (before, auto-login skipped it);
-       pick Zombie Survival: a new account is made on first login there, character creation starts every skill
-       at 100 with a spear; log out and pick Graveyard Battles: your old characters, as before;
-     - drop the connection (airplane mode for a few seconds) while in the zombie world: the reconnect goes straight
-       back to the zombie world, not the list and not Graveyard.
+     - log in with auto-login on: the list shows "UO Mobile" (until the rename) and Zombie Survival, rows big enough
+       to tap (before, auto-login skipped the list); pick Zombie Survival: a new account is made on first login
+       there; the stock character creation, then the new character has every skill at 100 and a spear; log out and
+       pick the PvP shard: your old characters and button layout, as before;
+     - leave the list open with the phone locked for 2 minutes, then pick a shard: it logs in (the list pings); if a
+       shard never answers, "Logging into shard..." has a Cancel button and goes back to the list by itself after 15 s;
+     - drop the connection (airplane mode for a few seconds) while in the zombie world: "Connection lost", then the
+       login screen; Log In, the list, pick Zombie Survival: auto-login enters the zombie character (the app runs
+       without -reconnect, so there is no automatic reconnect).
      - after the PvP shard's rename to "Graveyard Battles" (done on the server once 51 is approved): log in there with
        a character that had a custom button layout, macros and window spots under "UO Mobile": all still there.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the

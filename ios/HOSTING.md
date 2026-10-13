@@ -84,7 +84,9 @@ friend onto its backbone at their nearest edge.
 - **World**: copy the current home world (after a save) so existing characters carry over.
 - **Relay IP**: the iOS client sets `ignore_relay_ip`, so it always reconnects to the host it
   logged in to, whatever address ServUO advertises - on the port of the shard picked from the list (build 51:
-  Zombie Survival listens on 2594 on the same host).
+  Zombie Survival listens on 2594 on the same host). So every shard must listen on the same port number it
+  advertises (no router port-forward from a different outside port).
+- **Firewall**: tcp 2593 (Graveyard Battles) and 2594 (Zombie Survival).
 - **Accounts**: auto-create on first login (as today). Anyone with the app and the address can
   make an account; add invite codes later if that becomes a problem.
 

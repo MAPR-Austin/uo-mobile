@@ -267,6 +267,10 @@ namespace ClassicUO.Game.UI.Gumps.Login
 
         private class ServerEntryGump : Control
         {
+            // UO Mobile: rows a finger can pick on a phone (the stock 25 put two shards about 22 points apart)
+            private static int RowHeight => ClassicUO.Touch.TouchInput.Enabled ? 44 : 25;
+            private static int RowTextY => (RowHeight - 25) / 2;
+
             private readonly int _buttonId;
             private readonly ServerListEntry _entry;
             private readonly HoveredLabel _server_packet_loss;
@@ -293,6 +297,7 @@ namespace ClassicUO.Game.UI.Gumps.Login
                     )
                     {
                         X = 74,
+                        Y = RowTextY,
                         AcceptMouseInput = false
                     }
                 );
@@ -310,6 +315,7 @@ namespace ClassicUO.Game.UI.Gumps.Login
                     )
                     {
                         X = 250,
+                        Y = RowTextY,
                         AcceptMouseInput = false
                     }
                 );
@@ -327,6 +333,7 @@ namespace ClassicUO.Game.UI.Gumps.Login
                     )
                     {
                         X = 320,
+                        Y = RowTextY,
                         AcceptMouseInput = false
                     }
                 );
@@ -334,7 +341,7 @@ namespace ClassicUO.Game.UI.Gumps.Login
 
                 AcceptMouseInput = true;
                 Width = 370;
-                Height = 25;
+                Height = RowHeight;
 
                 WantUpdateSize = false;
             }

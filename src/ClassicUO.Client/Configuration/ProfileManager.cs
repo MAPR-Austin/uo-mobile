@@ -55,7 +55,21 @@ namespace ClassicUO.Configuration
         }
 
         /// <summary>UO Mobile: shards renamed in the server list (old name, new name).</summary>
-        private static readonly (string Old, string New)[] RenamedServers = { ("UO Mobile", "Graveyard Battles") };
+        internal static readonly (string Old, string New)[] RenamedServers = { ("UO Mobile", "Graveyard Battles") };
+
+        /// <summary>UO Mobile: the name a shard has now, if <paramref name="oldName"/> is one it had before; else null.</summary>
+        internal static string NewNameOf(string oldName)
+        {
+            foreach ((string o, string n) in RenamedServers)
+            {
+                if (string.Equals(o, oldName, StringComparison.OrdinalIgnoreCase))
+                {
+                    return n;
+                }
+            }
+
+            return null;
+        }
 
         /// <summary>
         /// UO Mobile: a character's settings (button layouts, macros, windows) live under the shard's name, so when the
@@ -66,14 +80,14 @@ namespace ClassicUO.Configuration
         {
             foreach ((string oldName, string newName) in RenamedServers)
             {
-                if (!string.Equals(servername, newName, StringComparison.Ordinal))
+                if (!string.Equals(servername, newName, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
 
                 try
                 {
-                    string from = Path.Combine(RootPath, username, oldName), to = Path.Combine(RootPath, username, newName);
+                    string from = Path.Combine(RootPath, username, oldName), to = Path.Combine(RootPath, username, servername);
 
                     if (!Directory.Exists(from))
                     {
