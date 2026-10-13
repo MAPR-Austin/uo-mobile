@@ -57,6 +57,7 @@ namespace ClassicUO.Touch
         private float _dragCx, _dragCy;
         private int _selected = -1; // a marker's index, -2 you, -1 none
         private int _selectedVersion;
+        private (SurvivalMarkerKind Kind, string Name) _selectedKey; // found again after the markers are refreshed
         private string _info = "";
 
         private int _builtW, _builtH;
@@ -66,11 +67,17 @@ namespace ClassicUO.Touch
         private RenderedText _infoText, _statusText;
         private string _infoShown, _statusShown;
 
+        // what one frame draws (filled in AddToRenderLists, drawn in the same frame)
+        private readonly List<(RenderedText Text, int X, int Y)> _texts = new List<(RenderedText, int, int)>();
+        private readonly List<(Point P, Color C, int R, bool Ring)> _dots = new List<(Point, Color, int, bool)>();
+        private readonly List<(Rectangle R, Color C, Color Edge)> _areas = new List<(Rectangle, Color, Color)>();
+        private readonly List<Rectangle> _buttonRects = new List<Rectangle>();
+
         private SurvivalMapGump(World world) : base(world, 0, 0)
         {
             CanMove = false;
             AcceptMouseInput = true;
-            CanCloseWithRightClick = true;
+            CanCloseWithRightClick = false; // (a long press is a right click on the phone: a resting finger mustn't close the map)
             CanCloseWithEsc = true;
             LayerOrder = UILayer.Over;
 
@@ -327,7 +334,7 @@ namespace ClassicUO.Touch
                     continue;
                 }
 
-                Point q = ToScreen(k.X, k.Y, v, s);
+                Point q = Spot(k.X, k.Y, v, s);
                 int d = (q.X - p.X) * (q.X - p.X) + (q.Y - p.Y) * (q.Y - p.Y);
 
                 if (d < bestD)
@@ -339,7 +346,7 @@ namespace ClassicUO.Touch
 
             if (World.Player != null)
             {
-                Point me = ToScreen(World.Player.X, World.Player.Y, v, s);
+                Point me = Spot(World.Player.X, World.Player.Y, v, s);
                 int d = (me.X - p.X) * (me.X - p.X) + (me.Y - p.Y) * (me.Y - p.Y);
 
                 if (d < bestD)
@@ -350,10 +357,14 @@ namespace ClassicUO.Touch
 
             _selected = best;
             _selectedVersion = ZombieMarkers.Version;
+            _selectedKey = best >= 0 ? (markers[best].Kind, markers[best].Name) : default;
         }
 
         private Point ToScreen(float tx, float ty, Rectangle v, float s) =>
             new Point(v.Center.X + (int)MathF.Round((tx - _cx) * s), v.Center.Y + (int)MathF.Round((ty - _cy) * s));
+
+        /// <summary>Where a marker on tile (x, y) goes: the middle of the tile.</summary>
+        private Point Spot(int x, int y, Rectangle v, float s) => ToScreen(x + 0.5f, y + 0.5f, v, s);
 
         // ------------------------------------------------------------------ update
 
@@ -392,7 +403,9 @@ namespace ClassicUO.Touch
 
             if (_selected >= 0 && _selectedVersion != ZombieMarkers.Version)
             {
-                _selected = -1; // the list changed under it
+                // the list changed under it (a refresh): the same marker again, if it is still there
+                _selected = ZombieMarkers.Markers.FindIndex(k => k.Kind == _selectedKey.Kind && k.Name == _selectedKey.Name);
+                _selectedVersion = ZombieMarkers.Version;
             }
 
             _info = Describe();
@@ -494,12 +507,39 @@ namespace ClassicUO.Touch
                 return;
             }
 
+            try
+            {
+                _texture?.Dispose();
+                _texture = new Texture2D(Client.Game.GraphicsDevice, _buildW, _buildH, false, SurfaceFormat.Color);
+                _texture.SetData(done.Result);
+                _texW = _buildW;
+                _texH = _buildH;
+                _textureMap = _buildingMap;
+            }
+            catch (Exception e)
+            {
+                // (no picture: the map still shows the markers; tried again when it next opens)
+                _texture?.Dispose();
+                _texture = null;
+                _textureMap = -1;
+                _buildFailed = true;
+                Log.Error($"[UOMobile] map texture failed: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Logout (ZombieMarkers.Reset, the main thread, in the foreground): the picture's ~29 MB go; a build still running is
+        /// forgotten (its result is dropped when it ends).
+        /// </summary>
+        public static void Release()
+        {
             _texture?.Dispose();
-            _texture = new Texture2D(Client.Game.GraphicsDevice, _buildW, _buildH, false, SurfaceFormat.Color);
-            _texture.SetData(done.Result);
-            _texW = _buildW;
-            _texH = _buildH;
-            _textureMap = _buildingMap;
+            _texture = null;
+            _textureMap = -1;
+            _texW = _texH = 0;
+            _building = null;
+            _buildingMap = -1;
+            _buildFailed = false;
         }
 
         /// <summary>
@@ -703,7 +743,8 @@ namespace ClassicUO.Touch
             (int mapW, int mapH) = MapSize();
             uint now = Time.Ticks;
             bool blink = now / 400 % 2 == 0;
-            List<(RenderedText Text, int X, int Y)> texts = new List<(RenderedText, int, int)>();
+            List<(RenderedText Text, int X, int Y)> texts = _texts;
+            texts.Clear();
 
             // what's visible, in whole texels so the picture and the markers line up
             float halfW = v.Width / 2f / scale, halfH = v.Height / 2f / scale;
@@ -716,8 +757,10 @@ namespace ClassicUO.Touch
 
             // markers on screen
             List<SurvivalMarker> markers = ZombieMarkers.Markers;
-            List<(Point P, Color C, int R, bool Ring)> dots = new List<(Point, Color, int, bool)>();
-            List<(Rectangle R, Color C, Color Edge)> areas = new List<(Rectangle, Color, Color)>();
+            List<(Point P, Color C, int R, bool Ring)> dots = _dots;
+            List<(Rectangle R, Color C, Color Edge)> areas = _areas;
+            dots.Clear();
+            areas.Clear();
 
             for (int i = 0; i < markers.Count; i++)
             {
@@ -728,7 +771,7 @@ namespace ClassicUO.Touch
                     continue;
                 }
 
-                Point p = ToScreen(k.X, k.Y, v, scale);
+                Point p = Spot(k.X, k.Y, v, scale);
                 bool selected = i == _selected;
 
                 switch (k.Kind)
@@ -785,11 +828,12 @@ namespace ClassicUO.Touch
             {
                 if (a.Facet == map && now - a.At < ZombieMarkers.AlertSpotMs && blink)
                 {
-                    dots.Add((ToScreen(a.X, a.Y, v, scale), AlertRing, 16, false));
+                    // red for danger (a camp attacked, a horde, a town fallen, a tripwire); a town held or cleared rings its colour
+                    dots.Add((Spot(a.X, a.Y, v, scale), a.Kind == 4 ? Held : a.Kind == 5 ? Cleared : AlertRing, 16, false));
                 }
             }
 
-            Point me = ToScreen(World.Player.X, World.Player.Y, v, scale);
+            Point me = Spot(World.Player.X, World.Player.Y, v, scale);
             dots.Add((me, White, _selected == -2 ? 6 : 5, true));
             RenderedText you = Label("You", 0x0481);
             texts.Add((you, me.X - you.Width / 2, me.Y - 8 - you.Height));
@@ -830,7 +874,8 @@ namespace ClassicUO.Touch
             bool showLegend = ZombieMarkers.Supported;
             Rectangle legendBox = new Rectangle(v.X + 4, v.Y + 4, Math.Min(legendW, v.Width - 8), 22);
             Rectangle bar = new Rectangle(s.X, s.Bottom - BarH, s.Width, BarH);
-            List<Rectangle> buttons = new List<Rectangle>();
+            List<Rectangle> buttons = _buttonRects;
+            buttons.Clear();
 
             foreach (Control c in _bar)
             {

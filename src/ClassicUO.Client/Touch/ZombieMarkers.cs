@@ -130,7 +130,7 @@ namespace ClassicUO.Touch
             int count = p.ReadUInt16BE();
             List<SurvivalMarker> list = new List<SurvivalMarker>(count);
 
-            for (int i = 0; i < count && p.Remaining >= 17; i++)
+            for (int i = 0; i < count && p.Remaining >= 16; i++) // (16 bytes before the name)
             {
                 SurvivalMarkerKind kind = (SurvivalMarkerKind)p.ReadUInt8();
                 byte state = p.ReadUInt8();
@@ -194,6 +194,11 @@ namespace ClassicUO.Touch
         /// <summary>Every frame (AlertBanner, SurvivalMapGump): a map that just opened, or has been open 30 s, asks again.</summary>
         public static void Update(World world)
         {
+            if (Supported && !_helloSent)
+            {
+                _helloSent = Send(world, FlagAlerts); // (the first try came too early: once the player is there)
+            }
+
             bool open = MapOpen;
 
             if (Supported && open && (!_mapWasOpen || Time.Ticks - _lastRequest >= RefreshMs))
@@ -235,6 +240,7 @@ namespace ClassicUO.Touch
             _mapWasOpen = false;
             Version++;
             AlertBanner.Reset();
+            SurvivalMapGump.Release();
         }
     }
 }

@@ -56,6 +56,11 @@ namespace ClassicUO.Touch
         private RenderedText _text;
         private int _textWidth = -1;
 
+        // where the banner went, and what that depended on: placed again only when something on screen moved, so it can't
+        // flip between two spots from frame to frame
+        private Rectangle _placed;
+        private (int W, int H, Rectangle Safe, int Revision, bool Suppressed, Rectangle Panel, Rectangle Strip, string Text) _placedFor;
+
         private AlertBanner(World world) : base(world, 0, 0)
         {
             CanMove = false;
@@ -181,6 +186,11 @@ namespace ClassicUO.Touch
             {
                 _showFor = ShortShowMs; // more are waiting: this one gives way sooner
             }
+
+            if (_showing && UIManager.Gumps.First?.Value != this)
+            {
+                UIManager.MakeTopMostGump(this); // over everything while it shows, the map too (never hit, so nothing loses a touch)
+            }
         }
 
         /// <summary>
@@ -303,18 +313,34 @@ namespace ClassicUO.Touch
                 return false;
             }
 
-            // placed for a two-line banner, then laid out for the width it got
-            Rectangle r = Place(_text != null && !_text.IsDestroyed && _textWidth > 0 ? _text.Height + 2 * Pad : 44);
-            int maxTextWidth = r.Width - 2 * Pad - Accent;
+            CounterBarGump strip = UIManager.GetGump<CounterBarGump>();
+            var key = (TouchInput.ScreenW, TouchInput.ScreenH, TouchInput.Safe, TouchInput.Revision, TouchInput.Suppressed, TouchHudGump.TargetPanel,
+                       strip != null && strip.IsVisible ? new Rectangle(strip.X, strip.Y, strip.Width, strip.Height) : Rectangle.Empty, _current.Text);
 
-            if (_text == null || _text.IsDestroyed || _textWidth != maxTextWidth || _text.Text != _current.Text)
+            if (_text == null || _text.IsDestroyed || _textWidth < 0 || !key.Equals(_placedFor))
             {
-                _text?.Destroy();
-                _text = RenderedText.Create(_current.Text, 0x0481, 1, true, FontStyle.BlackBorder, TEXT_ALIGN_TYPE.TS_CENTER, maxTextWidth);
-                _textWidth = maxTextWidth;
+                // placed for a two-line banner and laid out for the width it got; placed once more if the text came out taller
+                Rectangle r0 = Place(44);
+                Layout(r0.Width);
+
+                if (_text.Height + 2 * Pad > 44)
+                {
+                    Rectangle r1 = Place(_text.Height + 2 * Pad);
+
+                    if (r1.Width != r0.Width)
+                    {
+                        Layout(r1.Width);
+                    }
+
+                    r0 = r1;
+                }
+
+                r0.Height = _text.Height + 2 * Pad;
+                _placed = r0;
+                _placedFor = key;
             }
 
-            r.Height = _text.Height + 2 * Pad;
+            Rectangle r = _placed;
             uint t = Time.Ticks - _shownAt;
             long left = (long)_showFor - t; // (a frame drawn after its time, before Update ends it: faded out)
             float alpha = t < FadeInMs ? t / (float)FadeInMs : left < FadeOutMs ? Math.Clamp(left / (float)FadeOutMs, 0f, 1f) : 1f;
@@ -340,6 +366,19 @@ namespace ClassicUO.Touch
             renderLists.AddGumpNoAtlas(_text, textX, r.Y + Pad, layerDepth, alpha);
 
             return base.AddToRenderLists(renderLists, x, y, ref layerDepthRef);
+        }
+
+        /// <summary>The text laid out for a banner <paramref name="width" /> wide.</summary>
+        private void Layout(int width)
+        {
+            int maxTextWidth = width - 2 * Pad - Accent;
+
+            if (_text == null || _text.IsDestroyed || _textWidth != maxTextWidth || _text.Text != _current.Text)
+            {
+                _text?.Destroy();
+                _text = RenderedText.Create(_current.Text, 0x0481, 1, true, FontStyle.BlackBorder, TEXT_ALIGN_TYPE.TS_CENTER, maxTextWidth);
+                _textWidth = maxTextWidth;
+            }
         }
 
         public override void Dispose()

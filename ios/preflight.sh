@@ -130,6 +130,8 @@ need src/ClassicUO.Client/Touch/ZombieMarkers.cs "_helloSent = Send(world, FlagA
 need src/ClassicUO.Client/Touch/ZombieMarkers.cs "if (world == null || !world.InGame || world.Player == null" "0x7A60 only once the player exists (an in-game sub-command before that gets the client dropped)"
 need src/ClassicUO.Client/Game/Scenes/GameScene.cs "Touch.ZombieMarkers.Reset();" "markers and alerts are forgotten at logout (no other shard's markers)"
 need src/ClassicUO.Client/Touch/AlertBanner.cs "AcceptMouseInput = false; // drawn, never hit" "the alert banner never takes a touch"
+need src/ClassicUO.Client/Touch/AlertBanner.cs "UIManager.MakeTopMostGump(this);" "...and is drawn over every window while it shows, the map too (the stock sort moves one Over gump per pass)"
+need src/ClassicUO.Client/Touch/SurvivalMapGump.cs "CanCloseWithRightClick = false;" "a long press (a right click on the phone) doesn't close the map"
 need src/ClassicUO.Client/Touch/SurvivalMapGump.cs "TakeTexture(); // (a drawn frame" "the map's picture becomes a texture on a drawn frame, on the main thread (the worker only reads files)"
 need src/ClassicUO.Client/Touch/TouchInput.cs "UIManager.GetGump<HousePlacementBar>() != null || UIManager.GetGump<SurvivalMapGump>() != null;" "the HUD steps aside while the map is open"
 need src/ClassicUO.Client/Touch/TouchInput.cs "!(g is SurvivalMapGump)) // (the map is the screen" "the full-screen map never forces the wide portrait fit (it would keep itself wide)"
