@@ -203,6 +203,12 @@ namespace ClassicUO.Touch
                 return;
             }
 
+            // each orientation keeps its own layout: the first time this one shows in portrait, its spots stop following landscape
+            if (TouchInput.IsPortrait && layout.PinPortrait(TouchInput.Aspect, TouchInput.Revision))
+            {
+                TouchInput.Layouts.Save();
+            }
+
             foreach (ActionButtonDef b in layout.Buttons)
             {
                 Point c = TouchInput.ButtonCenter(b);

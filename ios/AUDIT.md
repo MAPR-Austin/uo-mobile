@@ -163,6 +163,14 @@ must be caught here.
        while someone is at the helm. Alone: staff can `[UOMSelfTest boatride sail` (a deckhand sails a
        square while you walk the deck; `[UOMSelfTest boatride end` puts you back). Leave the desktop
        option "smooth boat movement" off: that stock path still snaps a walking player back.
+   - Build 50 (each orientation keeps its own button layout):
+     - turn the phone to portrait: the buttons sit where they did in build 49; Edit, drag one button, Edit
+       again; turn to landscape: nothing there moved; drag a different button in landscape, turn back to
+       portrait: every portrait button is exactly where you left it (before, moving a landscape button
+       shifted the portrait ones that hadn't been dragged in portrait); the joystick too;
+     - in portrait, Edit a button and tap "Portrait: auto": it jumps to the spot worked out from
+       landscape and stays there through further turns;
+     - "+" in landscape adds a button; turn to portrait: it gets a spot near the others and keeps it.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

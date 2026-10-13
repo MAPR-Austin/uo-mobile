@@ -116,7 +116,7 @@ namespace ClassicUO.Touch
             Add(new NiceButton(12, H - 76, 60, 26, ButtonAction.Activate, "< Prev") { ButtonParameter = ID_PREV, IsSelectable = false });
             Add(new NiceButton(W - 72, H - 76, 60, 26, ButtonAction.Activate, "Next >") { ButtonParameter = ID_NEXT, IsSelectable = false });
 
-            // in portrait, a button placed by hand there stays put; this lets it follow landscape again
+            // in portrait: put the button back where the landscape layout would place it
             if (TouchInput.IsPortrait && def != null && def.PortraitPinned)
             {
                 Add(_unpin = new NiceButton(W / 2 - 70, H - 76, 140, 26, ButtonAction.Activate, "Portrait: auto") { ButtonParameter = ID_UNPIN, IsSelectable = false });

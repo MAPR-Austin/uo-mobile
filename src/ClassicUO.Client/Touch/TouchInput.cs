@@ -1468,8 +1468,9 @@ namespace ClassicUO.Touch
             float nx = MathHelper.Clamp((pos.X - safe.X) / (float)Math.Max(1, safe.Width), 0.02f, 0.98f);
             float ny = MathHelper.Clamp((pos.Y - safe.Y) / (float)Math.Max(1, safe.Height), 0.02f, 0.98f);
 
-            // A landscape drag moves the layout (portrait follows it); a portrait drag pins that
-            // button's portrait spot (Edit > "Portrait: auto" lets it follow again).
+            // A landscape drag moves the landscape spot; a portrait drag the portrait one (each
+            // orientation keeps its own - ActionLayout.PinPortrait; Edit > "Portrait: auto" puts a
+            // button back where landscape would place it).
             bool portrait = IsPortrait;
 
             if (f.Joystick)

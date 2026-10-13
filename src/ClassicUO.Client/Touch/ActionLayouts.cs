@@ -10,8 +10,10 @@ namespace ClassicUO.Touch
 {
     /// <summary>
     /// One on-screen button. Positions are the button centre, normalised to the safe area (0..1).
-    /// Landscape (X/Y) is the layout; portrait follows it (<see cref="ActionLayout.PortraitOf"/>)
-    /// unless the button was dragged while in portrait, which pins it there (PX/PY, PortraitPinned).
+    /// Each orientation keeps its own spots (owner, 2026-10-12): landscape is X/Y; portrait starts out
+    /// worked out from landscape (<see cref="ActionLayout.PortraitOf"/>) and is pinned where it
+    /// appeared the first time the layout shows in portrait (<see cref="ActionLayout.PinPortrait"/>),
+    /// so from then on each moves only when dragged in its own orientation (PX/PY, PortraitPinned).
     /// </summary>
     internal sealed class ActionButtonDef
     {
@@ -27,7 +29,7 @@ namespace ClassicUO.Touch
         [JsonPropertyName("y")] public float Y { get; set; }
         [JsonPropertyName("px")] public float? PX { get; set; }
         [JsonPropertyName("py")] public float? PY { get; set; }
-        /// <summary>Placed by hand in portrait: PX/PY hold; otherwise portrait follows landscape.</summary>
+        /// <summary>PX/PY hold (set by hand in portrait, or pinned the first time portrait showed it); otherwise portrait follows landscape.</summary>
         [JsonPropertyName("ppin")] public bool PortraitPinned { get; set; }
         /// <summary>Diameter as a fraction of the screen's shorter side.</summary>
         [JsonPropertyName("size")] public float Size { get; set; } = 0.14f;
@@ -71,12 +73,50 @@ namespace ClassicUO.Touch
             return _derived.TryGetValue(b, out (float X, float Y) p) ? p : Portrait(b.X, b.Y, aspect);
         }
 
-        /// <summary>The joystick in portrait: pinned by hand, else bottom-left (bottom-right for a right-handed landscape joystick).</summary>
+        /// <summary>The joystick in portrait: pinned, else bottom-left (bottom-right for a right-handed landscape joystick).</summary>
         [JsonIgnore]
         public (float X, float Y) PortraitJoystick =>
             JoystickPortraitPinned && PJoystickX.HasValue && PJoystickY.HasValue
                 ? (PJoystickX.Value, PJoystickY.Value)
                 : (JoystickX < 0.5f ? 0.24f : 0.76f, 0.86f);
+
+        /// <summary>
+        /// Shown in portrait: every spot still worked out from landscape stays where it is now, so moving
+        /// things in landscape later leaves portrait as the player last saw it. True if anything was pinned.
+        /// </summary>
+        public bool PinPortrait(float aspect, int revision)
+        {
+            List<(ActionButtonDef B, float X, float Y)> spots = new List<(ActionButtonDef B, float X, float Y)>();
+
+            // every spot first, then pin: pinning one mustn't change where the others were worked out to be
+            foreach (ActionButtonDef b in Buttons)
+            {
+                if (!(b.PortraitPinned && b.PX.HasValue && b.PY.HasValue))
+                {
+                    (float x, float y) = PortraitOf(b, aspect, revision);
+                    spots.Add((b, x, y));
+                }
+            }
+
+            bool joystick = !(JoystickPortraitPinned && PJoystickX.HasValue && PJoystickY.HasValue);
+            (float jx, float jy) = PortraitJoystick;
+
+            foreach ((ActionButtonDef b, float x, float y) in spots)
+            {
+                b.PX = x;
+                b.PY = y;
+                b.PortraitPinned = true;
+            }
+
+            if (joystick)
+            {
+                PJoystickX = jx;
+                PJoystickY = jy;
+                JoystickPortraitPinned = true;
+            }
+
+            return spots.Count > 0 || joystick;
+        }
 
         private void Derive(float aspect, int revision)
         {
