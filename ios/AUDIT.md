@@ -181,6 +181,8 @@ must be caught here.
        at 100 with a spear; log out and pick Graveyard Battles: your old characters, as before;
      - drop the connection (airplane mode for a few seconds) while in the zombie world: the reconnect goes straight
        back to the zombie world, not the list and not Graveyard.
+     - after the PvP shard's rename to "Graveyard Battles" (done on the server once 51 is approved): log in there with
+       a character that had a custom button layout, macros and window spots under "UO Mobile": all still there.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

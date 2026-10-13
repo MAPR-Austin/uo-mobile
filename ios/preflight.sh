@@ -123,6 +123,7 @@ grep -E 'DEFAULT_FILES = "https://' ios/Program.cs >/dev/null && ok "file server
 need ios/Program.cs '"-ignore_relay_ip"' "reconnect to the login host (cloud NAT)"
 need src/ClassicUO.Client/Game/Scenes/LoginScene.cs "port != 0 ? port : Settings.GlobalSettings.Port" "...but on the relay's port: the shard picked from the list (Zombie Survival: 2594)"
 need src/ClassicUO.Client/Game/Scenes/LoginScene.cs "CanAutologin && (Servers.Length <= 1 || Reconnect)" "with two shards listed the player picks one at login"
+need src/ClassicUO.Client/Configuration/ProfileManager.cs '("UO Mobile", "Graveyard Battles")' "settings follow the PvP shard's rename (profiles live under the server name)"
 grep -E 'DEFAULT_IP = "[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+"' ios/Program.cs >/dev/null && bad "DEFAULT_IP is an IPv4 literal (fails on IPv6-only/NAT64 networks, e.g. Apple review)" || ok "default server is a host name (works on IPv6-only networks)"
 unguarded="$(awk '/private bool HandleSdlEvent/,/^        }$/' src/ClassicUO.Client/GameController.cs | grep -c 'when _download != null')"
 [ "$unguarded" -ge 10 ] && ok "input cases guarded while the download screen runs ($unguarded)" || bad "download screen: input cases not guarded ($unguarded < 10)"

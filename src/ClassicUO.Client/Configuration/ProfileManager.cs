@@ -3,6 +3,7 @@
 using System;
 using System.IO;
 using ClassicUO.Utility;
+using ClassicUO.Utility.Logging;
 using Microsoft.Xna.Framework;
 
 namespace ClassicUO.Configuration
@@ -38,6 +39,8 @@ namespace ClassicUO.Configuration
         {
             GlobalProfile = ConfigurationResolver.Load<GlobalProfile>(Path.Combine(RootPath, "globalprofile.json"), ProfileJsonContext.DefaultToUse.GlobalProfile) ?? new GlobalProfile();
 
+            CarryOverRenamedServer(username, servername);
+
             string path = FileSystemHelper.CreateFolderIfNotExists(RootPath, username, servername, charactername);
             string fileToLoad = Path.Combine(path, "profile.json");
 
@@ -49,6 +52,67 @@ namespace ClassicUO.Configuration
             CurrentProfile.CharacterName = charactername;
 
             ValidateFields(CurrentProfile);
+        }
+
+        /// <summary>UO Mobile: shards renamed in the server list (old name, new name).</summary>
+        private static readonly (string Old, string New)[] RenamedServers = { ("UO Mobile", "Graveyard Battles") };
+
+        /// <summary>
+        /// UO Mobile: a character's settings (button layouts, macros, windows) live under the shard's name, so when the
+        /// shard is renamed they are carried over the first time the new name is used: each character's folder (and any
+        /// file beside them) that the new name doesn't have yet moves across; what already exists there is kept.
+        /// </summary>
+        private static void CarryOverRenamedServer(string username, string servername)
+        {
+            foreach ((string oldName, string newName) in RenamedServers)
+            {
+                if (!string.Equals(servername, newName, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    string from = Path.Combine(RootPath, username, oldName), to = Path.Combine(RootPath, username, newName);
+
+                    if (!Directory.Exists(from))
+                    {
+                        continue;
+                    }
+
+                    if (!Directory.Exists(to))
+                    {
+                        Directory.Move(from, to);
+                        Log.Info($"[UOMobile] settings carried over from '{oldName}' to '{newName}'");
+
+                        continue;
+                    }
+
+                    foreach (string dir in Directory.GetDirectories(from))
+                    {
+                        string target = Path.Combine(to, Path.GetFileName(dir));
+
+                        if (!Directory.Exists(target))
+                        {
+                            Directory.Move(dir, target);
+                        }
+                    }
+
+                    foreach (string file in Directory.GetFiles(from))
+                    {
+                        string target = Path.Combine(to, Path.GetFileName(file));
+
+                        if (!File.Exists(target))
+                        {
+                            File.Move(file, target);
+                        }
+                    }
+                }
+                catch (Exception e)
+                {
+                    Log.Warn($"[UOMobile] settings not carried over to '{newName}': {e.Message}");
+                }
+            }
         }
 
         public static void SetProfileAsDefault(Profile profile)
