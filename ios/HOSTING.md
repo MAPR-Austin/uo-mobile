@@ -83,7 +83,8 @@ friend onto its backbone at their nearest edge.
 - **Backups**: nightly tar of `Saves/` + accounts, keep 14, plus a weekly disk snapshot.
 - **World**: copy the current home world (after a save) so existing characters carry over.
 - **Relay IP**: the iOS client sets `ignore_relay_ip`, so it always reconnects to the host it
-  logged in to, whatever address ServUO advertises.
+  logged in to, whatever address ServUO advertises - on the port of the shard picked from the list (build 51:
+  Zombie Survival listens on 2594 on the same host).
 - **Accounts**: auto-create on first login (as today). Anyone with the app and the address can
   make an account; add invite codes later if that becomes a problem.
 

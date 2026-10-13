@@ -175,6 +175,12 @@ must be caught here.
      - "+" in landscape adds a button; turn to portrait: it gets a spot near the others and keeps it;
      - with the counter strip under the top row (War, Chat, ...) in portrait, turn the phone: the strip still
        moves down below the row in each orientation.
+   - Build 51 (the server list; needs the Graveyard server's ExtraServers and the zombie server on 2594):
+     - log in with auto-login on: the list shows Graveyard Battles and Zombie Survival (before, auto-login skipped it);
+       pick Zombie Survival: a new account is made on first login there, character creation starts every skill
+       at 100 with a spear; log out and pick Graveyard Battles: your old characters, as before;
+     - drop the connection (airplane mode for a few seconds) while in the zombie world: the reconnect goes straight
+       back to the zombie world, not the list and not Graveyard.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

@@ -572,7 +572,9 @@ namespace ClassicUO.Game.Scenes
 
             CurrentLoginStep = LoginSteps.ServerSelection;
 
-            if (CanAutologin)
+            // UO Mobile: with more than one shard listed (Graveyard Battles, Zombie Survival) the player picks one at
+            // each login; only a reconnect after a dropped connection goes straight back to the last one
+            if (CanAutologin && (Servers.Length <= 1 || Reconnect))
             {
                 if (Servers.Length != 0)
                 {
@@ -677,11 +679,13 @@ namespace ClassicUO.Game.Scenes
 
             try
             {
-                // Ignore the packet, connect with the original IP regardless (i.e. websocket proxying)
+                // Ignore the packet's IP, connect to the original host regardless (i.e. websocket proxying, cloud NAT) -
+                // UO Mobile: but on the relay's port, the shard picked from the list (Zombie Survival is another port
+                // on the same host)
                 if (Settings.GlobalSettings.IgnoreRelayIp || ip == 0)
                 {
                     Log.Trace("Ignoring relay server packet IP address");
-                    NetClient.Socket.Connect(Settings.GlobalSettings.IP, Settings.GlobalSettings.Port);
+                    NetClient.Socket.Connect(Settings.GlobalSettings.IP, port != 0 ? port : Settings.GlobalSettings.Port);
                 }
                 else
                     NetClient.Socket.Connect(new IPAddress(ip).ToString(), port);
