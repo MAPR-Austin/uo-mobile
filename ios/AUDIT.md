@@ -187,6 +187,26 @@ must be caught here.
        without -reconnect, so there is no automatic reconnect).
      - after the PvP shard's rename to "Graveyard Battles" (done on the server once 51 is approved): log in there with
        a character that had a custom button layout, macros and window spots under "UO Mobile": all still there.
+   - Build 52 (Zombie Survival building; needs the zombie server's BuildLines.cs):
+     - a character on Zombie Survival that never saved a button layout starts on "Survival": Attack Nearest, Bandage,
+       Heal Pot, Build, Next Target, Towns, Vendors, Arm/Disarm, Pack under the system row, in landscape and portrait;
+       Layout goes on to Combat, Mage, Utility; a Graveyard Battles character's layouts are as before (no Survival);
+     - Build opens the build menu; pick the palisade E-W: the ghost and a bar with Place, Turn and Cancel; Turn walks the
+       ghost through north-south, corner, post and back (the menu's highlight follows); doors and spear walls turn two ways,
+       stairs four, a walkway has no Turn;
+     - tap a spot: the ghost goes there and Place builds one piece, as in build 51;
+     - drag a finger across the ground: a ghost on every tile from where it went down, along the drag's longer way (mostly
+       east-west: east-west palisades; mostly north-south: north-south ones), red where one can't go (a person, a wall, out
+       of sight, too far), the bar reads "Lift to build 7 of 9 - 2 can't: ..."; lift: they are all built at once with one
+       hammer sound, the journal says "Built 7 of 9 (2 blocked: ...)", and the cursor is back with the ghost on the next
+       tile along;
+     - drag back onto the first tile, or lift over the bar: nothing is built ("No line laid"); a drag longer than 24 tiles
+       shows 24 ("the most one line lays"); a second finger while dragging zooms and lays nothing;
+     - a walkway drag lays a strip of floors 20 up; with stairs a drag only moves the one ghost;
+     - Edit > a button: the presets Build, Towns, Vendors and Heal / Cure / Refresh Potion work (a potion needs a free hand:
+       Arm/Disarm puts the spear away);
+     - the build menu's Stop ends the cursor and the bar goes (before, the bar stayed up);
+     - Graveyard Battles: house placement and furniture deeds exactly as in build 51 (no Turn, a drag moves the ghost).
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

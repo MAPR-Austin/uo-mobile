@@ -4758,6 +4758,47 @@ namespace ClassicUO.Network
 
                     break;
 
+                case Touch.HousePlacementGhost.BuildInfo: // UO Mobile: a build cursor lays lines / turns (servuo BuildLines.cs)
+                    {
+                        uint cursor = p.ReadUInt32BE();
+                        byte flags = p.ReadUInt8();
+                        byte max = p.ReadUInt8();
+                        var ways = new System.Collections.Generic.List<(ushort, short, short, short, ushort)>[2];
+
+                        for (int w = 0; w < 2; w++)
+                        {
+                            int pieceCount = p.ReadUInt16BE();
+                            ways[w] = new System.Collections.Generic.List<(ushort, short, short, short, ushort)>(pieceCount);
+
+                            for (int i = 0; i < pieceCount; i++)
+                            {
+                                ways[w].Add((p.ReadUInt16BE(), (short)p.ReadUInt16BE(), (short)p.ReadUInt16BE(), (short)p.ReadUInt16BE(), p.ReadUInt16BE()));
+                            }
+                        }
+
+                        Touch.HousePlacementGhost.OnBuildInfo(cursor, flags, max, ways[0], ways[1]);
+                    }
+
+                    break;
+
+                case Touch.HousePlacementGhost.LineAnswer: // UO Mobile: what lifting a dragged line would build (servuo BuildLines.cs)
+                    {
+                        ushort seq = p.ReadUInt16BE();
+                        byte status = p.ReadUInt8();
+                        p.ReadUInt8(); // the way it runs (the app works it out the same way)
+                        int pieceCount = p.ReadUInt8();
+                        var pieces = new System.Collections.Generic.List<(short, short, short, byte)>(pieceCount);
+
+                        for (int i = 0; i < pieceCount; i++)
+                        {
+                            pieces.Add(((short)p.ReadUInt16BE(), (short)p.ReadUInt16BE(), (short)p.ReadUInt16BE(), p.ReadUInt8()));
+                        }
+
+                        Touch.HousePlacementGhost.OnLineAnswer(seq, status, pieces);
+                    }
+
+                    break;
+
                 default:
                     Log.Warn($"Unhandled 0xBF - sub: {cmd.ToHex()}");
 

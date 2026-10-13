@@ -1015,6 +1015,7 @@ namespace ClassicUO.Touch
                         if (HousePlacementGhost.Active(Client.Game.UO.World) && UIManager.IsWorldAt(e.Pos))
                         {
                             _ghostFinger = e.Finger;
+                            HousePlacementGhost.FingerDown(); // (a build piece: maybe the start of a line)
                             Client.Game.DispatchMouseMotion();
                             _downFinger = e.Finger;
 
@@ -1024,6 +1025,7 @@ namespace ClassicUO.Touch
                         if (e.Finger == _ghostFinger)
                         {
                             _ghostFinger = long.MinValue; // (a reused touch id: this press is a normal one)
+                            HousePlacementGhost.FingerUp(Client.Game.UO.World, false); // a line it was laying is dropped
                         }
 
                         Client.Game.DispatchMouseDown(MouseButtonType.Left);
@@ -1041,6 +1043,9 @@ namespace ClassicUO.Touch
                         if (e.Finger == _ghostFinger)
                         {
                             _ghostFinger = long.MinValue; // the ghost stays where the finger left it
+                            // a line being dragged is built where it lifts - not when it lifts over a window (or a
+                            // pinch took the finger: its release comes off-screen)
+                            HousePlacementGhost.FingerUp(Client.Game.UO.World, UIManager.IsWorldAt(e.Pos));
                         }
                         else
                         {

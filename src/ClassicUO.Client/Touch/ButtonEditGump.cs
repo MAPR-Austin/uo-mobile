@@ -43,6 +43,7 @@ namespace ClassicUO.Touch
             ("Prev Target", "target_prev"), ("Attack Last", "attack_last"), ("Last Target", "last_target"),
             ("Target Self", "target_self"), ("Cancel", "cancel_target"), ("Health Bar", "healthbar_target"),
             ("War/Peace", "war_peace"), ("Bandage Self", "bandage_self"), ("Bandage Tgt", "bandage_target"),
+            ("Heal Potion", "use:heal"), ("Cure Potion", "use:cure"), ("Refresh Potion", "use:refresh"),
             ("Last Spell", "last_spell"), ("Last Object", "last_object"), ("All Names", "all_names"),
             ("E-Bolt>Last", "spell_lt:EnergyBolt"), ("Explo>Last", "spell_lt:Explosion"), ("Flame>Last", "spell_lt:FlameStrike"),
             ("M.Arrow>Last", "spell_lt:MagicArrow"), ("Harm>Last", "spell_lt:Harm"), ("Para>Last", "spell_lt:Paralyze"),
@@ -56,6 +57,7 @@ namespace ClassicUO.Touch
             ("Lock Down", "say:I wish to lock this down"), ("Release", "say:I wish to release this"), ("Secure", "say:I wish to secure this"),
             ("Ban", "say:I ban thee"), ("Eject", "say:Remove thyself"), ("Bank", "say:bank"),
             ("Vendor Buy", "say:vendor buy"), ("Vendor Sell", "say:vendor sell"), ("Guards", "say:guards"),
+            ("Build", "say:[build"), ("Towns", "say:[towns"), ("Vendors", "say:[vendors"), // Zombie Survival's commands
             ("All Kill", "say:all kill"), ("All Follow", "say:all follow me"), ("All Guard", "say:all guard me"),
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),

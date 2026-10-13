@@ -1637,6 +1637,27 @@ namespace ClassicUO.Touch
 
         private static Item FindInPack(World world, ushort graphic, ushort hue) => Backpack(world)?.FindItem(graphic, hue);
 
+        /// <summary>
+        /// The "use:KINDS" button action (MobileActions): the first item of those kinds - names or graphics, as "useitem"
+        /// takes them ("heal", "cure,0x0F07") - in the pack, else in a hand. Null: none there, or a kind it can't read.
+        /// </summary>
+        internal static Item FindUsable(World world, string kinds)
+        {
+            if (world?.Player == null || string.IsNullOrWhiteSpace(kinds))
+            {
+                return null;
+            }
+
+            try
+            {
+                return FindUsable(world, Graphics(new[] { kinds.Trim() }, 0), 0xFFFF);
+            }
+            catch (Exception e) when (e is FormatException || e is OverflowException)
+            {
+                return null;
+            }
+        }
+
         /// <summary>The first of the graphics found in the pack (any depth), else held in a hand: a tool or a weapon.</summary>
         private static Item FindUsable(World world, ushort[] graphics, ushort hue)
         {

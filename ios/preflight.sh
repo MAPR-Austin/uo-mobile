@@ -101,6 +101,20 @@ need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort Addo
 need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGhost.AddonPieces:" "0xBF 0x7A57 reaches the placement ghost"
 need src/ClassicUO.Client/Game/Scenes/GameScene.cs "Touch.HousePlacementGhost.UpdateAddon(_world, SelectedObject.Object as GameObject);" "the furniture ghost is drawn every frame"
 need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "world.TargetManager.TargetCursorId == _addonCursor" "the furniture ghost only follows the deed's own cursor"
+# Build 52: Zombie Survival's build cursor lays lines and turns (servuo Custom/Zombie/BuildLines.cs): 0x7A5B describes the
+# cursor, 0x7A59 asks about a dragged line and 0x7A5A answers piece by piece, 0x7A58 lays it, 0x7A5C turns the piece.
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort LineLay = 0x7A58;" "line lay sub-command is 0x7A58 (servuo BuildLines.Lay)"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort LineAsk = 0x7A59;" "line question sub-command is 0x7A59 (BuildLines.Ask)"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort LineAnswer = 0x7A5A;" "line answer sub-command is 0x7A5A (BuildLines.Answer)"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort BuildInfo = 0x7A5B;" "build cursor info sub-command is 0x7A5B (BuildLines.Info)"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort BuildTurn = 0x7A5C;" "turn sub-command is 0x7A5C (BuildLines.Turn)"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGhost.BuildInfo:" "0xBF 0x7A5B reaches the placement ghost"
+need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGhost.LineAnswer:" "0xBF 0x7A5A reaches the placement ghost"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "_buildCursor == world.TargetManager.TargetCursorId" "lines and Turn only for the cursor the server described (a deed's or an old server's cursor drags the ghost)"
+need src/ClassicUO.Client/Touch/TouchInput.cs "HousePlacementGhost.FingerUp(Client.Game.UO.World, UIManager.IsWorldAt(e.Pos));" "a line is laid only when the finger lifts over the world (a pinch's off-screen release lays none)"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs "set = CreateDefault(OnZombieShard);" "a Zombie Survival character with no layouts starts on the Survival layout"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs 'public const string ZombieShardName = "Zombie Survival";' "the zombie shard is known by its server-list name"
+need src/ClassicUO.Client/Touch/ButtonEditGump.cs '("Build", "say:.build"), ("Towns", "say:.towns"), ("Vendors", "say:.vendors")' "the Build / Towns / Vendors presets ([build, [towns, [vendors)"
 
 echo "== Boats"
 # Build 49: a boat's helm (servuo BoatHelm.cs). At the helm (0x3E96 on Layer.Mount) the stick steers through

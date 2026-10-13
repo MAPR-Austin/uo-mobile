@@ -20,6 +20,7 @@ namespace ClassicUO.Touch
     /// Action ids:
     ///   attack_nearest   select nearest enemy + attack it (fast melee "target closest")
     ///   useonce[:GROUP]  use the next not-yet-used item of a kind (default: a trapped pouch)
+    ///   use:KINDS        use the first item of those kinds in the pack (or a hand): "use:heal" drinks a heal potion
     ///   dress:NAME / undress:NAME / dress_save:NAME   dress sets (Touch/Agents)
     ///   target_closest:SPEC / target_next:SPEC   the closest / next mobile by colour and kind, e.g.
     ///                    "red,human", "blue", "enemy,monster" (Touch/SmartTargeting; no SPEC: enemy)
@@ -120,6 +121,24 @@ namespace ClassicUO.Touch
                     break;
 
                 case "useonce": Agents.UseOnce(world, arg); break;
+
+                case "use": // a potion, bandage, tool... by its kind's name (Touch/ItemGroups) or graphic
+                    {
+                        Item item = MobileMacroRunner.FindUsable(world, arg);
+
+                        if (item != null)
+                        {
+                            GameActions.DoubleClick(world, item.Serial);
+                        }
+                        else
+                        {
+                            // "No heal potions in your pack." (a kind's own words; otherwise as typed)
+                            string what = ItemGroups.Named.Find(n => string.Equals(n.Name, arg, StringComparison.OrdinalIgnoreCase)).Label;
+                            GameActions.Print(world, $"No {what?.ToLowerInvariant() ?? arg} in your pack.", 0x21);
+                        }
+                    }
+
+                    break;
                 case "dress": Agents.Dress(world, arg); break;
                 case "undress": Agents.Undress(world, arg); break;
                 case "dress_save": Agents.SaveDress(world, arg); break;

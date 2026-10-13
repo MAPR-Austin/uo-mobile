@@ -29,12 +29,43 @@ namespace ClassicUO.Touch
     /// Furniture deeds work the same way (addon mode, build 48): with the deed's cursor the server sends
     /// 0x7A57 - the cursor's id and the pieces (servuo AddonPreview.cs) - and the ghost is those pieces on
     /// the floor at your level under the finger; the same question is answered for the deed.
+    /// Zombie Survival's build cursor (build 52, servuo Custom/Zombie/BuildLines.cs) comes with 0x7A5B too: what
+    /// the piece can do and how it looks laid east-west and north-south. Then a tap still puts the one ghost
+    /// where you tap (Place builds it), but a drag lays a line: from where the finger went down along the
+    /// drag's longer way, a ghost on every tile (red where the server's 0x7A5A answer says that one can't go),
+    /// and lifting the finger builds them all with one 0x7A58. Slide back to the first tile, or lift over a
+    /// window, to lay nothing. Turn (0x7A5C) swaps the piece for its next way round.
     /// </summary>
     internal static class HousePlacementGhost
     {
         public const ushort Query = 0x7A55;
         public const ushort Reply = 0x7A56;
         public const ushort AddonPieces = 0x7A57;
+        public const ushort LineLay = 0x7A58; // servuo BuildLines.Lay
+        public const ushort LineAsk = 0x7A59; // BuildLines.Ask
+        public const ushort LineAnswer = 0x7A5A; // BuildLines.Answer
+        public const ushort BuildInfo = 0x7A5B; // BuildLines.Info
+        public const ushort BuildTurn = 0x7A5C; // BuildLines.Turn
+
+        private const byte FlagLines = 1, FlagTurns = 4; // BuildLines.FlagLines / FlagTurns
+
+        // a build cursor's abilities and its piece laid east-west / north-south (0x7A5B)
+        private static uint _buildCursor;
+        private static byte _buildFlags, _lineMax;
+        private static List<(ushort Graphic, short X, short Y, short Z, ushort Hue)> _alongX, _alongY;
+
+        // the line a finger is dragging: where it went down and where it is now (the ground or floor there)
+        private static GameObject _lineStart, _lineEnd;
+        private static bool _lineStartPending; // the finger just went down: its first spot starts the line
+        private static (int SX, int SY, int SZ, int EX, int EY, int EZ) _lineKey;
+        private static ushort _lineSeq;
+        private static uint _lineSentAt;
+        private static bool _lineDirty, _lineAnswered;
+        private static byte _lineStatus;
+        private static readonly List<(short X, short Y, short Z, byte Problem)> _lineAnswer = new List<(short, short, short, byte)>();
+        private static readonly List<Multi> _linePreview = new List<Multi>();
+        private static bool _linePreviewAlongY;
+        private static int _lineShown = -1; // a cheap signature of what the line's ghost shows now
 
         // a furniture deed's cursor: its id, its pieces (graphic, x/y/z offset, hue) and their ghost in the world
         private static uint _addonCursor;
@@ -91,6 +122,329 @@ namespace ClassicUO.Touch
             _result = Unknown;
             _answered = false;
             _dirty = _anchor != null;
+            _lineAnswered = false; // a line being dragged is asked about again for this cursor
+            _lineDirty = true;
+        }
+
+        /// <summary>PacketHandlers (0xBF 0x7A5B): a build cursor's abilities, and its piece laid both ways.</summary>
+        public static void OnBuildInfo(uint cursor, byte flags, byte max, List<(ushort, short, short, short, ushort)> alongX, List<(ushort, short, short, short, ushort)> alongY)
+        {
+            _buildCursor = cursor;
+            _buildFlags = flags;
+            _lineMax = max;
+            _alongX = alongX.Count > 0 ? alongX : null;
+            _alongY = alongY.Count > 0 ? alongY : null;
+            _lineAnswered = false;
+            _lineDirty = true;
+            ClearLinePreview(); // the piece may look different now
+        }
+
+        /// <summary>PacketHandlers (0xBF 0x7A5A): what lifting the finger would build, piece by piece.</summary>
+        public static void OnLineAnswer(ushort seq, byte status, List<(short, short, short, byte)> pieces)
+        {
+            if (seq != _lineSeq)
+            {
+                return;
+            }
+
+            _lineStatus = status;
+            _lineAnswer.Clear();
+            _lineAnswer.AddRange(pieces);
+            _lineAnswered = true;
+        }
+
+        /// <summary>This cursor is a build cursor whose piece lays lines (the server said so for this very cursor).</summary>
+        private static bool LineCapable(World world) =>
+            AddonActive(world) && _buildCursor == world.TargetManager.TargetCursorId && (_buildFlags & FlagLines) != 0 && _alongX != null && _alongY != null;
+
+        /// <summary>This build cursor's piece has another way round (the Turn button).</summary>
+        public static bool TurnCapable(World world) =>
+            AddonActive(world) && _buildCursor == world.TargetManager.TargetCursorId && (_buildFlags & FlagTurns) != 0;
+
+        /// <summary>A finger is laying a line now: it went down on one tile and is over another.</summary>
+        private static bool LineActive(World world) =>
+            TouchInput.GhostFingerDown && _lineStart != null && _lineEnd != null && (_lineStart.X != _lineEnd.X || _lineStart.Y != _lineEnd.Y) && LineCapable(world);
+
+        /// <summary>TouchInput: a finger went down on the world while placing (it drags the ghost, or lays a line).</summary>
+        public static void FingerDown()
+        {
+            _lineStart = _lineEnd = null;
+            _lineStartPending = true;
+            _lineAnswered = false;
+        }
+
+        /// <summary>
+        /// TouchInput: the dragging finger lifted (<paramref name="overWorld" />: over the world, not a window). A line
+        /// is built from where it went down to where it lifted; the ghost waits on the next tile along.
+        /// </summary>
+        public static void FingerUp(World world, bool overWorld)
+        {
+            bool line = world != null && _lineStart != null && _lineEnd != null && (_lineStart.X != _lineEnd.X || _lineStart.Y != _lineEnd.Y) && LineCapable(world);
+
+            if (line)
+            {
+                if (overWorld)
+                {
+                    Lay(world);
+                }
+                else
+                {
+                    GameActions.Print(world, "No line laid (lifted off the ground).", 0x3B2);
+                }
+            }
+
+            _lineStart = _lineEnd = null;
+            _lineStartPending = false;
+            _lineAnswered = false;
+            _lineKey = default;
+            ClearLinePreview();
+        }
+
+        /// <summary>The bar's Turn: the server swaps the cursor for the piece's next way round (the ghost follows).</summary>
+        public static void Turn(World world)
+        {
+            if (!TurnCapable(world) || NetClient.Socket == null || !NetClient.Socket.IsConnected)
+            {
+                return;
+            }
+
+            var writer = new StackDataWriter(12);
+            writer.WriteUInt8(0xBF);
+            writer.WriteZero(2);
+            writer.WriteUInt16BE(BuildTurn);
+            writer.WriteUInt32BE(world.TargetManager.TargetCursorId);
+            writer.Seek(1, SeekOrigin.Begin);
+            writer.WriteUInt16BE((ushort)writer.BytesWritten);
+            NetClient.Socket.Send(writer.BufferWritten);
+            writer.Dispose();
+        }
+
+        /// <summary>The line's tiles as the server lays them (BuildLines.Tiles): along the longer way, at most the cap.</summary>
+        private static (int N, bool AlongY, int Step, int Dist) LineShape()
+        {
+            int dx = _lineEnd.X - _lineStart.X, dy = _lineEnd.Y - _lineStart.Y;
+            bool alongY = Math.Abs(dy) > Math.Abs(dx);
+            int dist = Math.Abs(alongY ? dy : dx);
+
+            return (Math.Min(dist + 1, Math.Max(1, (int)_lineMax)), alongY, Math.Sign(alongY ? dy : dx), dist);
+        }
+
+        /// <summary>The line's ghost: its piece on every tile (as the server answered: red where it can't go).</summary>
+        private static void DrawLine(World world)
+        {
+            (int n, bool alongY, int step, int dist) = LineShape();
+            int sz = TopOf(_lineStart), ez = TopOf(_lineEnd);
+            var key = (_lineStart.X, _lineStart.Y, sz, _lineEnd.X, _lineEnd.Y, ez);
+
+            if (key != _lineKey)
+            {
+                _lineKey = key;
+                _lineDirty = true;
+                _lineAnswered = false;
+            }
+
+            List<(ushort Graphic, short X, short Y, short Z, ushort Hue)> comps = alongY ? _alongY : _alongX;
+            int count = n * comps.Count;
+
+            if (_linePreview.Count != count || _linePreviewAlongY != alongY || _linePreview.Count > 0 && _linePreview[0].IsDestroyed)
+            {
+                ClearLinePreview();
+
+                for (int i = 0; i < n; i++)
+                {
+                    foreach (var c in comps)
+                    {
+                        Multi m = Multi.Create(world, c.Graphic);
+                        m.IsHousePreview = true; // see-through, and never what a finger picks
+                        _linePreview.Add(m);
+                    }
+                }
+
+                _linePreviewAlongY = alongY;
+            }
+
+            bool answered = _lineAnswered && _lineStatus == 0 && _lineAnswer.Count == n;
+            int shown = HashCode.Combine(key, answered, _lineSeq, n);
+
+            if (shown == _lineShown)
+            {
+                return;
+            }
+
+            _lineShown = shown;
+
+            for (int i = 0; i < n; i++)
+            {
+                int x = _lineStart.X + (alongY ? 0 : step * i), y = _lineStart.Y + (alongY ? step * i : 0);
+                int z;
+                bool bad = false;
+
+                if (answered && _lineAnswer[i].X == x && _lineAnswer[i].Y == y)
+                {
+                    z = _lineAnswer[i].Z;
+                    bad = _lineAnswer[i].Problem != 0;
+                }
+                else
+                {
+                    // until the server answers: the floor near the line's height there (it runs evenly end to end)
+                    int refZ = dist == 0 ? sz : sz + (ez - sz) * i / dist;
+                    GameObject floor = FloorAt(world, x, y, refZ);
+                    z = floor != null ? TopOf(floor) : refZ;
+                }
+
+                for (int j = 0; j < comps.Count; j++)
+                {
+                    var c = comps[j];
+                    Multi m = _linePreview[i * comps.Count + j];
+                    m.Hue = bad ? BadHue : c.Hue;
+                    m.SetInWorldTile((ushort)(x + c.X), (ushort)(y + c.Y), (sbyte)Math.Clamp(z + c.Z, sbyte.MinValue, sbyte.MaxValue));
+                }
+            }
+        }
+
+        private static void ClearLinePreview()
+        {
+            foreach (Multi m in _linePreview)
+            {
+                m.Destroy();
+            }
+
+            _linePreview.Clear();
+            _lineShown = -1;
+        }
+
+        /// <summary>What lifting now would build (0x7A59): the cursor, where the drag began and where it is.</summary>
+        private static void AskLine(World world)
+        {
+            _lineSeq++;
+            _lineDirty = false;
+            _lineSentAt = Time.Ticks;
+            SendLine(LineAsk, world.TargetManager.TargetCursorId, true);
+        }
+
+        /// <summary>The lift (0x7A58): build the line. The ghost then waits on the next tile along it.</summary>
+        private static void Lay(World world)
+        {
+            var (n, alongY, step, _) = LineShape();
+            int nx = _lineStart.X + (alongY ? 0 : step * n), ny = _lineStart.Y + (alongY ? step * n : 0);
+            int lastZ = _lineAnswered && _lineAnswer.Count == n ? _lineAnswer[n - 1].Z : TopOf(_lineEnd);
+
+            SendLine(LineLay, world.TargetManager.TargetCursorId, false);
+
+            GameObject next = FloorAt(world, nx, ny, lastZ);
+
+            if (next != null)
+            {
+                Moved(next);
+            }
+        }
+
+        private static void SendLine(ushort sub, uint cursor, bool withSeq)
+        {
+            if (NetClient.Socket == null || !NetClient.Socket.IsConnected || _lineStart == null || _lineEnd == null)
+            {
+                return;
+            }
+
+            var writer = new StackDataWriter(24);
+            writer.WriteUInt8(0xBF);
+            writer.WriteZero(2);
+            writer.WriteUInt16BE(sub);
+
+            if (withSeq)
+            {
+                writer.WriteUInt16BE(_lineSeq);
+            }
+
+            writer.WriteUInt32BE(cursor);
+            writer.WriteUInt16BE(_lineStart.X);
+            writer.WriteUInt16BE(_lineStart.Y);
+            writer.WriteInt16BE((short)TopOf(_lineStart));
+            writer.WriteUInt16BE(_lineEnd.X);
+            writer.WriteUInt16BE(_lineEnd.Y);
+            writer.WriteInt16BE((short)TopOf(_lineEnd));
+            writer.Seek(1, SeekOrigin.Begin);
+            writer.WriteUInt16BE((ushort)writer.BytesWritten);
+            NetClient.Socket.Send(writer.BufferWritten);
+            writer.Dispose();
+        }
+
+        /// <summary>The bar's words while a line is dragged.</summary>
+        private static string LineText(World world)
+        {
+            var (n, _, _, _) = LineShape();
+
+            if (!_lineAnswered)
+            {
+                return $"Lift to build {n} - checking...";
+            }
+
+            if (_lineStatus == 2)
+            {
+                return "This piece goes one at a time: tap a spot, then Place";
+            }
+
+            if (_lineStatus != 0 || _lineAnswer.Count != n)
+            {
+                return $"Lift to build {n}";
+            }
+
+            int good = 0;
+            var why = new Dictionary<byte, int>();
+
+            foreach (var p in _lineAnswer)
+            {
+                if (p.Problem == 0)
+                {
+                    good++;
+                }
+                else
+                {
+                    why[p.Problem] = why.TryGetValue(p.Problem, out int k) ? k + 1 : 1;
+                }
+            }
+
+            if (good == n)
+            {
+                return n >= _lineMax ? $"Lift to build all {n} (the most one line lays)" : $"Lift to build all {n}";
+            }
+
+            byte top = 0;
+            int most = 0;
+
+            foreach (var kv in why)
+            {
+                if (kv.Value > most)
+                {
+                    (top, most) = (kv.Key, kv.Value);
+                }
+            }
+
+            return good == 0 ? $"None of the {n} can go: {LineReason(top)}" : $"Lift to build {good} of {n} - {n - good} can't: {LineReason(top)}";
+        }
+
+        /// <summary>The server's reason for one piece of a line (servuo PlaceProblem; BuildLines.Short).</summary>
+        private static string LineReason(byte problem)
+        {
+            switch (problem)
+            {
+                case 1: return "something in the way";
+                case 2: return "too far";
+                case 3: return "out of sight";
+                case 4: return "on water";
+                case 5: return "on a house";
+                case 6: return "in someone's camp";
+                case 7: return "uneven ground";
+                case 8: return "out of kits";
+                case 9: return "over your piece limit";
+                default: return "can't build there";
+            }
+        }
+
+        /// <summary>The ground under a mobile, corpse or effect (they would carry the ghost off), else the thing itself.</summary>
+        private static GameObject Standable(GameObject o)
+        {
+            return o == null || o is Land || o is Static || o is Multi ? o : LandAt(o.World, o.X, o.Y) ?? o;
         }
 
         /// <summary>
@@ -102,6 +456,7 @@ namespace ClassicUO.Touch
             if (!AddonActive(world))
             {
                 ClearPreview();
+                ClearLinePreview();
 
                 // pieces only ever follow their cursor: once it is gone they are stale (a restarted server
                 // hands out the same cursor ids again)
@@ -110,11 +465,44 @@ namespace ClassicUO.Touch
                     _pieces = null;
                 }
 
+                if (world?.TargetManager == null || !world.TargetManager.IsTargeting || world.TargetManager.TargetCursorId != _buildCursor)
+                {
+                    _buildCursor = 0; // (as the pieces: stale once its cursor is gone)
+                    _alongX = _alongY = null;
+                }
+
                 return;
             }
 
-            // only a finger dragging on the world moves it (not the tap that chose a ladder's facing)
-            GameObject pick = under != null && TouchInput.GhostFingerDown ? FloorAt(world, under.X, under.Y, world.Player.Z) ?? under
+            GameObject finger = under != null && TouchInput.GhostFingerDown ? Standable(FloorAt(world, under.X, under.Y, world.Player.Z) ?? under) : null;
+            bool lines = LineCapable(world);
+
+            // a build piece that lays lines: the finger's first spot starts the line, then it follows the finger
+            if (lines && TouchInput.GhostFingerDown && finger != null)
+            {
+                if (_lineStartPending || _lineStart == null || _lineStart.IsDestroyed)
+                {
+                    _lineStart = finger;
+                    _lineStartPending = false;
+                }
+
+                _lineEnd = finger;
+            }
+
+            if (LineActive(world))
+            {
+                ClearPreview(); // the single ghost gives way to the line's
+                DrawLine(world);
+
+                return;
+            }
+
+            ClearLinePreview();
+
+            // only a finger dragging on the world moves it (not the tap that chose a ladder's facing); for a line
+            // piece, the spot the finger went down on
+            GameObject pick = lines && TouchInput.GhostFingerDown && _lineStart != null && !_lineStart.IsDestroyed ? _lineStart
+                : finger != null ? finger
                 : _anchor != null && !_anchor.IsDestroyed ? _anchor
                 : FloorAt(world, world.Player.X + 1, world.Player.Y + 2, world.Player.Z);
 
@@ -169,6 +557,13 @@ namespace ClassicUO.Touch
             ClearPreview();
             _pieces = null;
             _addonCursor = 0;
+            ClearLinePreview();
+            _buildCursor = 0;
+            _alongX = _alongY = null;
+            _lineStart = _lineEnd = null;
+            _lineStartPending = false;
+            _lineAnswered = false;
+            _lineKey = default;
         }
 
         private static void ClearPreview()
@@ -339,13 +734,27 @@ namespace ClassicUO.Touch
                 UIManager.Add(_bar = new HousePlacementBar(world));
             }
 
-            if (_anchor != null && (_dirty && Time.Ticks - _sentAt >= SendEveryMs || !_answered && Time.Ticks - _sentAt >= ResendAfterMs))
+            bool line = LineActive(world);
+
+            if (line)
+            {
+                if (_lineDirty && Time.Ticks - _lineSentAt >= SendEveryMs || !_lineAnswered && Time.Ticks - _lineSentAt >= ResendAfterMs)
+                {
+                    AskLine(world);
+                }
+            }
+            else if (_anchor != null && (_dirty && Time.Ticks - _sentAt >= SendEveryMs || !_answered && Time.Ticks - _sentAt >= ResendAfterMs))
             {
                 Ask();
             }
 
             bool addon = AddonActive(world);
-            _bar.Show(_anchor == null ? addon ? "Drag on the floor to move it" : "Drag on the ground to move the house" : Reason(_result, addon), _answered && _result == 0);
+            bool lines = LineCapable(world);
+            string text = line ? LineText(world)
+                : _anchor == null ? lines ? "Tap where it goes, or drag to lay a line" : addon ? "Drag on the floor to move it" : "Drag on the ground to move the house"
+                : Reason(_result, addon);
+
+            _bar.Show(text, line ? _lineAnswered && _lineStatus == 0 && _lineAnswer.TrueForAll(p => p.Problem == 0) : _answered && _result == 0, TurnCapable(world));
         }
 
         public static void Place(World world)
@@ -474,15 +883,17 @@ namespace ClassicUO.Touch
 
     }
 
-    /// <summary>The bar under the house ghost: what the server says about the spot, Place and Cancel.</summary>
+    /// <summary>The bar under the house ghost: what the server says about the spot, Place and Cancel (and Turn for a build piece).</summary>
     internal sealed class HousePlacementBar : Gump
     {
-        private const int ID_PLACE = 1, ID_CANCEL = 2;
+        private const int ID_PLACE = 1, ID_CANCEL = 2, ID_TURN = 3;
         private const int W = 420, H = 62;
 
         private readonly Label _status;
+        private readonly NiceButton _place, _cancel, _turn;
         private string _shown;
         private bool _shownGood;
+        private bool? _shownTurn;
 
         public HousePlacementBar(World world) : base(world, 0, 0)
         {
@@ -496,11 +907,12 @@ namespace ClassicUO.Touch
 
             Add(new AlphaBlendControl(0.8f) { Width = W, Height = H });
             Add(_status = new Label("", true, 0x0481, W - 20, 1) { X = 10, Y = 6 });
-            Add(new NiceButton(W / 2 - 150, H - 30, 130, 26, ButtonAction.Activate, "Place", hue: 0x0044) { ButtonParameter = ID_PLACE, IsSelectable = false });
-            Add(new NiceButton(W / 2 + 20, H - 30, 130, 26, ButtonAction.Activate, "Cancel", hue: 0x0021) { ButtonParameter = ID_CANCEL, IsSelectable = false });
+            Add(_place = new NiceButton(W / 2 - 150, H - 30, 130, 26, ButtonAction.Activate, "Place", hue: 0x0044) { ButtonParameter = ID_PLACE, IsSelectable = false });
+            Add(_cancel = new NiceButton(W / 2 + 20, H - 30, 130, 26, ButtonAction.Activate, "Cancel", hue: 0x0021) { ButtonParameter = ID_CANCEL, IsSelectable = false });
+            Add(_turn = new NiceButton(W / 2 - 55, H - 30, 110, 26, ButtonAction.Activate, "Turn", hue: 0x0035) { ButtonParameter = ID_TURN, IsSelectable = false, IsVisible = false });
         }
 
-        public void Show(string text, bool good)
+        public void Show(string text, bool good, bool turn = false)
         {
             Rectangle safe = TouchInput.Safe;
             X = safe.X + (safe.Width - W) / 2;
@@ -512,6 +924,15 @@ namespace ClassicUO.Touch
                 _shownGood = good;
                 _status.Text = text;
                 _status.Hue = good ? (ushort)0x0044 : (ushort)0x0481;
+            }
+
+            if (turn != _shownTurn)
+            {
+                // a piece with another way round: Place, Turn, Cancel across the bar
+                _shownTurn = turn;
+                _turn.IsVisible = turn;
+                _place.X = turn ? 12 : W / 2 - 150;
+                _cancel.X = turn ? W - 12 - 130 : W / 2 + 20;
             }
         }
 
@@ -526,6 +947,11 @@ namespace ClassicUO.Touch
 
                 case ID_CANCEL:
                     HousePlacementGhost.Cancel(World);
+
+                    break;
+
+                case ID_TURN:
+                    HousePlacementGhost.Turn(World);
 
                     break;
             }

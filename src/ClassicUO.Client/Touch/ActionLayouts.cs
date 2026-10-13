@@ -322,7 +322,7 @@ namespace ClassicUO.Touch
 
             if (set?.Layouts == null || set.Layouts.Count == 0)
             {
-                set = CreateDefault();
+                set = CreateDefault(OnZombieShard);
             }
             else if (set.Version < 2)
             {
@@ -384,13 +384,20 @@ namespace ClassicUO.Touch
             PJoystickY = 0.86f
         };
 
+        /// <summary>The Zombie Survival shard's name in the server list (servuo: its Config/Server.cfg).</summary>
+        public const string ZombieShardName = "Zombie Survival";
+
+        /// <summary>Playing on Zombie Survival: a character with no layouts yet starts with the Survival one.</summary>
+        private static bool OnZombieShard => string.Equals(Client.Game.UO.World?.ServerName, ZombieShardName, StringComparison.OrdinalIgnoreCase);
+
         /// <summary>
         /// Three starter layouts. Every layout carries the same system row (war/peace, chat, cancel
         /// target, edit, layout toggle) so the player can never lose the way back. Landscape puts the
         /// action cluster bottom-right; portrait stacks it under the world view on the right, with
-        /// the joystick on the left.
+        /// the joystick on the left. On Zombie Survival a "Survival" layout comes first (build 52): the
+        /// fight and the healing, and the shard's commands ([build, [towns, [vendors) on buttons.
         /// </summary>
-        public static ActionLayoutSet CreateDefault()
+        public static ActionLayoutSet CreateDefault(bool survival = false)
         {
             List<ActionButtonDef> SystemRow() => new List<ActionButtonDef>
             {
@@ -444,7 +451,29 @@ namespace ClassicUO.Touch
                 B("Status", "open:Status", 0.84f, 0.50f, 0.74f, 0.66f, 0.11f),
             });
 
-            return new ActionLayoutSet { Active = 0, Version = 3, Layouts = { combat, mage, utility } };
+            ActionLayoutSet set = new ActionLayoutSet { Active = 0, Version = 3, Layouts = { combat, mage, utility } };
+
+            if (survival)
+            {
+                // the Combat layout's spots: the fight under the thumb, building above it, the shard's news on the side
+                ActionLayout zombie = L("Survival");
+                zombie.Buttons.AddRange(SystemRow());
+                zombie.Buttons.AddRange(new[]
+                {
+                    B("Attack\nNearest", "attack_nearest", 0.90f, 0.80f, 0.82f, 0.90f, 0.20f),
+                    B("Bandage", "bandage_self", 0.76f, 0.88f, 0.58f, 0.94f),
+                    B("Heal\nPot", "use:heal", 0.78f, 0.70f, 0.82f, 0.77f),
+                    B("Build", "say:[build", 0.90f, 0.58f, 0.58f, 0.72f),
+                    B("Next\nTarget", "target_next", 0.64f, 0.88f, 0.58f, 0.83f),
+                    B("Towns", "say:[towns", 0.95f, 0.40f, 0.93f, 0.60f, 0.11f),
+                    B("Vendors", "say:[vendors", 0.84f, 0.44f, 0.70f, 0.62f, 0.11f),
+                    B("Arm/\nDisarm", "arm_disarm", 0.65f, 0.70f, 0.82f, 0.67f, 0.12f), // a potion wants a free hand (a spear takes both)
+                    B("Pack", "open:Backpack", 0.95f, 0.24f, 0.74f, 0.59f, 0.10f),
+                });
+                set.Layouts.Insert(0, zombie);
+            }
+
+            return set;
         }
     }
 
