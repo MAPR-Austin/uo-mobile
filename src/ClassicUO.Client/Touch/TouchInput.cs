@@ -851,7 +851,9 @@ namespace ClassicUO.Touch
 
         private static float Distance(Point a, Point b) => MathF.Sqrt((a.X - b.X) * (a.X - b.X) + (a.Y - b.Y) * (a.Y - b.Y));
 
-        public static bool OnUp(long id, Point pos)
+        /// <param name="canceled">The system took the touch (Control Center, a call, the app leaving): a finger laying a
+        /// build line lays nothing.</param>
+        public static bool OnUp(long id, Point pos, bool canceled = false)
         {
             if (!Enabled || !_fingers.TryGetValue(id, out Finger f))
             {
@@ -923,7 +925,9 @@ namespace ClassicUO.Touch
                 case Owner.Pointer:
                     if (!f.LongPressFired)
                     {
-                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, pos, _frame, id));
+                        // (a canceled finger on the world while placing lifts off-screen: a line it was laying is dropped)
+                        bool drop = canceled && f.OnWorld && HousePlacementGhost.Active(Client.Game.UO.World);
+                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, drop ? OffScreen : pos, _frame, id));
                     }
 
                     _pointerFinger = long.MinValue;
@@ -1045,7 +1049,7 @@ namespace ClassicUO.Touch
                             _ghostFinger = long.MinValue; // the ghost stays where the finger left it
                             // a line being dragged is built where it lifts - not when it lifts over a window (or a
                             // pinch took the finger: its release comes off-screen)
-                            HousePlacementGhost.FingerUp(Client.Game.UO.World, UIManager.IsWorldAt(e.Pos));
+                            HousePlacementGhost.FingerUp(Client.Game.UO.World, UIManager.IsWorldAt(e.Pos), e.Pos == OffScreen);
                         }
                         else
                         {
@@ -1070,6 +1074,10 @@ namespace ClassicUO.Touch
         private static long _ghostFinger = long.MinValue;
         /// <summary>A finger is dragging the placement ghost on the world now.</summary>
         public static bool GhostFingerDown => _ghostFinger != long.MinValue;
+
+        /// <summary>How far (UI units, across or down, whichever is more) that finger has moved from where it went down.</summary>
+        public static int GhostFingerTravel =>
+            _ghostFinger != long.MinValue && _fingers.TryGetValue(_ghostFinger, out Finger f) ? Math.Max(Math.Abs(f.Pos.X - f.Start.X), Math.Abs(f.Pos.Y - f.Start.Y)) : 0;
 
         /// <summary>
         /// A lifted finger leaves no pointer behind: once the tap has been handled, move the virtual

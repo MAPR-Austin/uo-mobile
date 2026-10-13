@@ -281,6 +281,8 @@ namespace ClassicUO.Touch
         /// them (PortraitAuto) or by hand.
         /// </summary>
         [JsonPropertyName("version")] public int Version { get; set; }
+        /// <summary>Build 52: a Zombie Survival character has been given the Survival layout (once; files from before have it false).</summary>
+        [JsonPropertyName("survival")] public bool SurvivalOffered { get; set; }
         [JsonPropertyName("layouts")] public List<ActionLayout> Layouts { get; set; } = new List<ActionLayout>();
 
         [JsonIgnore]
@@ -330,6 +332,19 @@ namespace ClassicUO.Touch
             }
 
             set.Version = Math.Max(set.Version, 3); // the pins below 3 were all made by hand
+
+            // Zombie Survival characters who saved layouts before build 52 get the Survival layout once, first in the
+            // list; the layout they were on stays the one shown (Layout reaches the new one)
+            if (OnZombieShard && !set.SurvivalOffered)
+            {
+                if (!set.Layouts.Exists(l => l.Name == "Survival"))
+                {
+                    set.Layouts.Insert(0, CreateDefault(true).Layouts[0]);
+                    set.Active = ((set.Active % (set.Layouts.Count - 1)) + (set.Layouts.Count - 1)) % (set.Layouts.Count - 1) + 1;
+                }
+
+                set.SurvivalOffered = true;
+            }
 
             return set;
         }
@@ -384,7 +399,11 @@ namespace ClassicUO.Touch
             PJoystickY = 0.86f
         };
 
-        /// <summary>The Zombie Survival shard's name in the server list (servuo: its Config/Server.cfg).</summary>
+        /// <summary>
+        /// The Zombie Survival shard's name in the server list: the name the login shard lists it under (servuo Config
+        /// UOMobile.ExtraServers on Graveyard Battles; Server.cfg's Name when logged into directly). Rename it and new
+        /// characters there no longer get the Survival layout.
+        /// </summary>
         public const string ZombieShardName = "Zombie Survival";
 
         /// <summary>Playing on Zombie Survival: a character with no layouts yet starts with the Survival one.</summary>

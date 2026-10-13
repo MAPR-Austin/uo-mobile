@@ -194,15 +194,24 @@ must be caught here.
      - Build opens the build menu; pick the palisade E-W: the ghost and a bar with Place, Turn and Cancel; Turn walks the
        ghost through north-south, corner, post and back (the menu's highlight follows); doors and spear walls turn two ways,
        stairs four, a walkway has no Turn;
-     - tap a spot: the ghost goes there and Place builds one piece, as in build 51;
+     - tap a spot: the ghost goes there and Place builds one piece, as in build 51; quick taps near a tile's edge, with a
+       little finger roll, never build anything by themselves (a line needs about half a tile of drag);
      - drag a finger across the ground: a ghost on every tile from where it went down, along the drag's longer way (mostly
        east-west: east-west palisades; mostly north-south: north-south ones), red where one can't go (a person, a wall, out
        of sight, too far), the bar reads "Lift to build 7 of 9 - 2 can't: ..."; lift: they are all built at once with one
        hammer sound, the journal says "Built 7 of 9 (2 blocked: ...)", and the cursor is back with the ghost on the next
        tile along;
      - drag back onto the first tile, or lift over the bar: nothing is built ("No line laid"); a drag longer than 24 tiles
-       shows 24 ("the most one line lays"); a second finger while dragging zooms and lays nothing;
-     - a walkway drag lays a strip of floors 20 up; with stairs a drag only moves the one ghost;
+       shows 24 ("the most one line lays"); a second finger while dragging zooms and lays nothing; pull down Control
+       Center (or take a call) in the middle of a drag: nothing is built;
+     - standing on a raised walkway, drag a palisade line along it: the walls stand on the walkway, not on the ground under
+       it; a tap on the walkway puts the one ghost on it too;
+     - a walkway drag lays a strip of floors 20 up; standing on a walkway on top of a wall (stairs up to it), a walkway drag
+       along the wall lays the rest of the wall top; with stairs a drag only moves the one ghost;
+     - a hidden player standing in the line's way: the ghost there isn't red (the answers don't give hidden players away),
+       but that piece isn't built ("1 blocked: something in the way"); the same for another player's hidden blast trap;
+     - a Zombie Survival character that already had saved buttons (build 51) finds "Survival" first in the Layout cycle,
+       still on the layout it was using;
      - Edit > a button: the presets Build, Towns, Vendors and Heal / Cure / Refresh Potion work (a potion needs a free hand:
        Arm/Disarm puts the spear away);
      - the build menu's Stop ends the cursor and the bar goes (before, the bar stayed up);
@@ -351,3 +360,4 @@ must be caught here.
 | audit | (agent, build 47) | the trade window's Accept is a check box and the shop's +/- are buttons, so under the joystick ring a tap walked instead; the target panel still drew over a shop window and took taps; the stepped-aside rectangles survived a logout; a dye landing while in the designer recolored its floor grid, and pieces placed in the designer showed undyed | every interactive control in a shop/trade window beats the joystick; the target panel steps aside too; cleared on unload; the designer's grid keeps its colours and new pieces take the house hue. Doors, the sign and addons are separate items and keep their own colour |
 | audit | (agent, build 48) | a deed's pieces were never forgotten, so after a server restart (cursor ids start over) a spell's cursor could take the furniture ghost; preview tiles destroyed by a map change stayed invisible; server: a probe addon saved mid-placement would stay in the world, and spot answers anywhere on the map could reveal hidden players | pieces dropped with their cursor and on logout; previews rebuilt; probes dropped before saves and at shutdown; answers only within 24 tiles and in a house the player co-owns |
 | audit | (agent, build 49) | speed and stop had no hysteresis, so a thumb on the light/full or dead-zone edge restarted the boat's step timer every 150 ms (stutter, a slow boat never stepping); the tiller-man pick-through used stale screen positions of far tiller men and took a double-tap on yourself on a dock; a phone check said the helm could be taken from 3 tiles (2) | fast from 0.62, slow again below 0.52, once sailing stop only below 0.15; pick-through only within 4 tiles; the self double-tap goes to the tiller man only at the helm or on a deck; wording fixed, preflight pattern tightened |
+| audit | (agent, build 52) | a tap that rolled across a tile edge laid a two-piece line (no slop before a line started); a touch the system cancels (Control Center, a call) was a lift, so it built the dragged line; the ghost's answers (line and single spot) showed where hidden players and someone's hidden blast traps stand; from a raised walkway the ghost and the line used the ground under it; a line over a mound found no surface; overlapping async build suites could leave free building off; stale line answers across a new cursor; build-51 zombie characters with saved buttons never got Survival | half a tile of travel before a line starts; FINGER_CANCELED reaches TouchInput as canceled and a canceled world finger lifts off-screen; answers count only what the asker sees (placing still fails on it); floor items are surfaces for build cursors (Place targets the item); the ground up to 25 above the line's height; a hold counter; the sequence moves on with the cursor; Survival inserted once (preflight) |

@@ -111,10 +111,14 @@ need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "public const ushort Buil
 need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGhost.BuildInfo:" "0xBF 0x7A5B reaches the placement ghost"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.HousePlacementGhost.LineAnswer:" "0xBF 0x7A5A reaches the placement ghost"
 need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "_buildCursor == world.TargetManager.TargetCursorId" "lines and Turn only for the cursor the server described (a deed's or an old server's cursor drags the ghost)"
-need src/ClassicUO.Client/Touch/TouchInput.cs "HousePlacementGhost.FingerUp(Client.Game.UO.World, UIManager.IsWorldAt(e.Pos));" "a line is laid only when the finger lifts over the world (a pinch's off-screen release lays none)"
+need src/ClassicUO.Client/Touch/TouchInput.cs "HousePlacementGhost.FingerUp(Client.Game.UO.World, UIManager.IsWorldAt(e.Pos), e.Pos == OffScreen);" "a line is laid only when the finger lifts over the world (a pinch's off-screen release lays none)"
 need src/ClassicUO.Client/Touch/ActionLayouts.cs "set = CreateDefault(OnZombieShard);" "a Zombie Survival character with no layouts starts on the Survival layout"
 need src/ClassicUO.Client/Touch/ActionLayouts.cs 'public const string ZombieShardName = "Zombie Survival";' "the zombie shard is known by its server-list name"
-need src/ClassicUO.Client/Touch/ButtonEditGump.cs '("Build", "say:.build"), ("Towns", "say:.towns"), ("Vendors", "say:.vendors")' "the Build / Towns / Vendors presets ([build, [towns, [vendors)"
+need src/ClassicUO.Client/Touch/ButtonEditGump.cs '("Build", "say:\[build"), ("Towns", "say:\[towns"), ("Vendors", "say:\[vendors")' "the Build / Towns / Vendors presets ([build, [towns, [vendors)"
+need src/ClassicUO.Client/Touch/HousePlacementGhost.cs "TouchInput.GhostFingerTravel >= LineSlop()" "a tap that rolls a little lays no line (a line starts after half a tile of travel)"
+need src/ClassicUO.Client/GameController.cs "(SDL_EventType)sdlEvent->type == SDL_EventType.SDL_EVENT_FINGER_CANCELED" "a touch the system cancels (Control Center, a call) is passed on as canceled"
+need src/ClassicUO.Client/Touch/TouchInput.cs "drop ? OffScreen : pos" "...and a canceled finger laying a line lifts off-screen: nothing is built"
+need src/ClassicUO.Client/Touch/ActionLayouts.cs "set.Layouts.Insert(0, CreateDefault(true)" "Zombie Survival characters with layouts saved before build 52 get the Survival layout once"
 
 echo "== Boats"
 # Build 49: a boat's helm (servuo BoatHelm.cs). At the helm (0x3E96 on Layer.Mount) the stick steers through

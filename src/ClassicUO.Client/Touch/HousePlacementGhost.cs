@@ -57,6 +57,7 @@ namespace ClassicUO.Touch
         // the line a finger is dragging: where it went down and where it is now (the ground or floor there)
         private static GameObject _lineStart, _lineEnd;
         private static bool _lineStartPending; // the finger just went down: its first spot starts the line
+        private static bool _lineArmed; // the finger has travelled far enough for a drag (a tap that rolls a little lays no line)
         private static (int SX, int SY, int SZ, int EX, int EY, int EZ) _lineKey;
         private static ushort _lineSeq;
         private static uint _lineSentAt;
@@ -77,6 +78,7 @@ namespace ClassicUO.Touch
         private const ushort BadHue = 0x0021;
 
         private const uint SendEveryMs = 120, ResendAfterMs = 600; // (the server answers at most every 100 ms)
+        private const uint LineResendMs = 250; // a line question the server dropped as too soon (network jitter) is asked again quickly
         private const byte Unknown = 255;
 
         private static GameObject _anchor; // what the ghost stands on: what Place targets
@@ -124,6 +126,7 @@ namespace ClassicUO.Touch
             _dirty = _anchor != null;
             _lineAnswered = false; // a line being dragged is asked about again for this cursor
             _lineDirty = true;
+            _lineSeq++; // (an answer still on its way was for the old cursor)
         }
 
         /// <summary>PacketHandlers (0xBF 0x7A5B): a build cursor's abilities, and its piece laid both ways.</summary>
@@ -136,6 +139,7 @@ namespace ClassicUO.Touch
             _alongY = alongY.Count > 0 ? alongY : null;
             _lineAnswered = false;
             _lineDirty = true;
+            _lineSeq++; // (an answer still on its way was for the old cursor)
             ClearLinePreview(); // the piece may look different now
         }
 
@@ -161,6 +165,24 @@ namespace ClassicUO.Touch
         public static bool TurnCapable(World world) =>
             AddonActive(world) && _buildCursor == world.TargetManager.TargetCursorId && (_buildFlags & FlagTurns) != 0;
 
+        /// <summary>The cursor up is a build cursor the server described (pieces may stand on a walkway's floor).</summary>
+        private static bool BuildCursor(World world) =>
+            _buildCursor != 0 && world?.TargetManager != null && world.TargetManager.IsTargeting && _buildCursor == world.TargetManager.TargetCursorId;
+
+        /// <summary>A placed walkway or other fixed floor item on the ground: a build piece's ghost can stand on it.</summary>
+        private static bool FloorItem(GameObject o) => o is Item it && it.OnGround && !it.IsMulti && IsSurface(o);
+
+        /// <summary>
+        /// How far a finger must travel before it lays a line: half a tile on screen at the current zoom, at least the tap
+        /// slop (a tap near a tile's edge with a little roll must not build two).
+        /// </summary>
+        private static int LineSlop()
+        {
+            float zoom = Client.Game.Scene is GameScene scene ? scene.Camera.Zoom : 1f;
+
+            return Math.Max(12, (int)(22f / Math.Max(0.25f, zoom)));
+        }
+
         /// <summary>A finger is laying a line now: it went down on one tile and is over another.</summary>
         private static bool LineActive(World world) =>
             TouchInput.GhostFingerDown && _lineStart != null && _lineEnd != null && (_lineStart.X != _lineEnd.X || _lineStart.Y != _lineEnd.Y) && LineCapable(world);
@@ -170,6 +192,7 @@ namespace ClassicUO.Touch
         {
             _lineStart = _lineEnd = null;
             _lineStartPending = true;
+            _lineArmed = false;
             _lineAnswered = false;
         }
 
@@ -177,7 +200,7 @@ namespace ClassicUO.Touch
         /// TouchInput: the dragging finger lifted (<paramref name="overWorld" />: over the world, not a window). A line
         /// is built from where it went down to where it lifted; the ghost waits on the next tile along.
         /// </summary>
-        public static void FingerUp(World world, bool overWorld)
+        public static void FingerUp(World world, bool overWorld, bool quiet = false)
         {
             bool line = world != null && _lineStart != null && _lineEnd != null && (_lineStart.X != _lineEnd.X || _lineStart.Y != _lineEnd.Y) && LineCapable(world);
 
@@ -187,7 +210,7 @@ namespace ClassicUO.Touch
                 {
                     Lay(world);
                 }
-                else
+                else if (!quiet) // (a pinch or the system took the finger: nothing to explain)
                 {
                     GameActions.Print(world, "No line laid (lifted off the ground).", 0x3B2);
                 }
@@ -195,6 +218,7 @@ namespace ClassicUO.Touch
 
             _lineStart = _lineEnd = null;
             _lineStartPending = false;
+            _lineArmed = false;
             _lineAnswered = false;
             _lineKey = default;
             ClearLinePreview();
@@ -288,7 +312,7 @@ namespace ClassicUO.Touch
                 {
                     // until the server answers: the floor near the line's height there (it runs evenly end to end)
                     int refZ = dist == 0 ? sz : sz + (ez - sz) * i / dist;
-                    GameObject floor = FloorAt(world, x, y, refZ);
+                    GameObject floor = FloorAt(world, x, y, refZ, true);
                     z = floor != null ? TopOf(floor) : refZ;
                 }
 
@@ -331,7 +355,7 @@ namespace ClassicUO.Touch
 
             SendLine(LineLay, world.TargetManager.TargetCursorId, false);
 
-            GameObject next = FloorAt(world, nx, ny, lastZ);
+            GameObject next = FloorAt(world, nx, ny, lastZ, true);
 
             if (next != null)
             {
@@ -442,9 +466,9 @@ namespace ClassicUO.Touch
         }
 
         /// <summary>The ground under a mobile, corpse or effect (they would carry the ghost off), else the thing itself.</summary>
-        private static GameObject Standable(GameObject o)
+        private static GameObject Standable(GameObject o, bool floorItems = false)
         {
-            return o == null || o is Land || o is Static || o is Multi ? o : LandAt(o.World, o.X, o.Y) ?? o;
+            return o == null || o is Land || o is Static || o is Multi || floorItems && FloorItem(o) ? o : LandAt(o.World, o.X, o.Y) ?? o;
         }
 
         /// <summary>
@@ -474,10 +498,12 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            GameObject finger = under != null && TouchInput.GhostFingerDown ? Standable(FloorAt(world, under.X, under.Y, world.Player.Z) ?? under) : null;
+            bool build = BuildCursor(world); // (a build piece may stand on a walkway's floor; a deed's ghost as before)
+            GameObject finger = under != null && TouchInput.GhostFingerDown ? Standable(FloorAt(world, under.X, under.Y, world.Player.Z, build) ?? under, build) : null;
             bool lines = LineCapable(world);
 
-            // a build piece that lays lines: the finger's first spot starts the line, then it follows the finger
+            // a build piece that lays lines: the finger's first spot starts the line, then - once the finger has really
+            // moved - it follows the finger
             if (lines && TouchInput.GhostFingerDown && finger != null)
             {
                 if (_lineStartPending || _lineStart == null || _lineStart.IsDestroyed)
@@ -486,7 +512,12 @@ namespace ClassicUO.Touch
                     _lineStartPending = false;
                 }
 
-                _lineEnd = finger;
+                if (!_lineArmed && TouchInput.GhostFingerTravel >= LineSlop())
+                {
+                    _lineArmed = true;
+                }
+
+                _lineEnd = _lineArmed ? finger : _lineStart;
             }
 
             if (LineActive(world))
@@ -504,7 +535,7 @@ namespace ClassicUO.Touch
             GameObject pick = lines && TouchInput.GhostFingerDown && _lineStart != null && !_lineStart.IsDestroyed ? _lineStart
                 : finger != null ? finger
                 : _anchor != null && !_anchor.IsDestroyed ? _anchor
-                : FloorAt(world, world.Player.X + 1, world.Player.Y + 2, world.Player.Z);
+                : FloorAt(world, world.Player.X + 1, world.Player.Y + 2, world.Player.Z, build);
 
             if (pick == null)
             {
@@ -582,14 +613,14 @@ namespace ClassicUO.Touch
         /// Where furniture would stand at that tile: the highest floor (or the ground) at about your level - the
         /// floor you're on, not the one above or the ground under a house.
         /// </summary>
-        private static GameObject FloorAt(World world, int x, int y, int level)
+        private static GameObject FloorAt(World world, int x, int y, int level, bool floorItems = false)
         {
             GameObject best = null;
             int bestTop = int.MinValue;
 
             for (GameObject o = world.Map.GetTile(x, y); o != null; o = o.TNext)
             {
-                bool floor = o is Land || (o is Static || o is Multi m && !m.IsHousePreview) && IsSurface(o);
+                bool floor = o is Land || (o is Static || o is Multi m && !m.IsHousePreview) && IsSurface(o) || floorItems && FloorItem(o);
 
                 if (!floor)
                 {
@@ -664,8 +695,9 @@ namespace ClassicUO.Touch
                 return;
             }
 
-            // a mobile, corpse or effect under the finger would carry the ghost off (or vanish): the ground under it
-            if (!(anchor is Land || anchor is Static || anchor is Multi))
+            // a mobile, corpse or effect under the finger would carry the ghost off (or vanish): the ground under it (a
+            // build piece may stand on a walkway's floor)
+            if (!(anchor is Land || anchor is Static || anchor is Multi || FloorItem(anchor) && BuildCursor(anchor.World)))
             {
                 anchor = LandAt(anchor.World, anchor.X, anchor.Y) ?? anchor;
             }
@@ -738,7 +770,7 @@ namespace ClassicUO.Touch
 
             if (line)
             {
-                if (_lineDirty && Time.Ticks - _lineSentAt >= SendEveryMs || !_lineAnswered && Time.Ticks - _lineSentAt >= ResendAfterMs)
+                if (_lineDirty && Time.Ticks - _lineSentAt >= SendEveryMs || !_lineAnswered && Time.Ticks - _lineSentAt >= LineResendMs)
                 {
                     AskLine(world);
                 }
@@ -752,6 +784,7 @@ namespace ClassicUO.Touch
             bool lines = LineCapable(world);
             string text = line ? LineText(world)
                 : _anchor == null ? lines ? "Tap where it goes, or drag to lay a line" : addon ? "Drag on the floor to move it" : "Drag on the ground to move the house"
+                : lines && _answered && _result == 0 ? "Clear - tap Place, or drag a line"
                 : Reason(_result, addon);
 
             _bar.Show(text, line ? _lineAnswered && _lineStatus == 0 && _lineAnswer.TrueForAll(p => p.Problem == 0) : _answered && _result == 0, TurnCapable(world));
@@ -775,6 +808,13 @@ namespace ClassicUO.Touch
             if (_answered && Cannot(_result))
             {
                 GameActions.Print(world, Reason(_result, AddonActive(world)), 0x0021);
+
+                return;
+            }
+
+            if (_anchor is Item floorItem && BuildCursor(world))
+            {
+                world.TargetManager.Target(floorItem.Serial); // a walkway's floor: the piece goes on top of it
 
                 return;
             }
@@ -846,7 +886,7 @@ namespace ClassicUO.Touch
                 return (0, land.X, land.Y, land.Z);
             }
 
-            if (o is Static || o is Multi)
+            if (o is Static || o is Multi || FloorItem(o) && BuildCursor(o.World)) // (the server reads a floor item's spot like a static's)
             {
                 return (o.Graphic, o.X, o.Y, o.Z);
             }

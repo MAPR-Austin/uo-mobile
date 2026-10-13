@@ -1115,8 +1115,9 @@ namespace ClassicUO
                     break;
 
                 case SDL_EventType.SDL_EVENT_FINGER_UP:
-                case SDL_EventType.SDL_EVENT_FINGER_CANCELED:
-                    TouchInput.OnUp((long)sdlEvent->tfinger.fingerID, TouchInput.ToUi(sdlEvent->tfinger.x, sdlEvent->tfinger.y));
+                case SDL_EventType.SDL_EVENT_FINGER_CANCELED: // UO Mobile: a canceled touch lays no build line (TouchInput.OnUp)
+                    TouchInput.OnUp((long)sdlEvent->tfinger.fingerID, TouchInput.ToUi(sdlEvent->tfinger.x, sdlEvent->tfinger.y),
+                        (SDL_EventType)sdlEvent->type == SDL_EventType.SDL_EVENT_FINGER_CANCELED);
 
                     break;
 
