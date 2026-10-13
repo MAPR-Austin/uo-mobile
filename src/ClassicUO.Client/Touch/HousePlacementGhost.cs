@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using ClassicUO.Game;
+using ClassicUO.Game.Data;
 using ClassicUO.Game.GameObjects;
 using ClassicUO.Game.Managers;
 using ClassicUO.Game.Scenes;
@@ -60,6 +61,8 @@ namespace ClassicUO.Touch
         private static bool _lineArmed; // the finger has travelled far enough for a drag (a tap that rolls a little lays no line)
         private static (int SX, int SY, int SZ, int EX, int EY, int EZ) _lineKey;
         private static ushort _lineSeq;
+        private static ushort _lineFirstSeq; // the first question about the line as it is now: its answers and later ones count
+        private static bool _lineKeyChanged = true;
         private static uint _lineSentAt;
         private static bool _lineDirty, _lineAnswered;
         private static byte _lineStatus;
@@ -78,7 +81,7 @@ namespace ClassicUO.Touch
         private const ushort BadHue = 0x0021;
 
         private const uint SendEveryMs = 120, ResendAfterMs = 600; // (the server answers at most every 100 ms)
-        private const uint LineResendMs = 250; // a line question the server dropped as too soon (network jitter) is asked again quickly
+        private const uint LineResendMs = 300; // a line question the server dropped as too soon (network jitter) is asked again quickly
         private const byte Unknown = 255;
 
         private static GameObject _anchor; // what the ghost stands on: what Place targets
@@ -126,7 +129,7 @@ namespace ClassicUO.Touch
             _dirty = _anchor != null;
             _lineAnswered = false; // a line being dragged is asked about again for this cursor
             _lineDirty = true;
-            _lineSeq++; // (an answer still on its way was for the old cursor)
+            ForgetLineAnswers(); // (an answer still on its way was for the old cursor)
         }
 
         /// <summary>PacketHandlers (0xBF 0x7A5B): a build cursor's abilities, and its piece laid both ways.</summary>
@@ -139,14 +142,23 @@ namespace ClassicUO.Touch
             _alongY = alongY.Count > 0 ? alongY : null;
             _lineAnswered = false;
             _lineDirty = true;
-            _lineSeq++; // (an answer still on its way was for the old cursor)
+            ForgetLineAnswers(); // (an answer still on its way was for the old cursor)
             ClearLinePreview(); // the piece may look different now
+        }
+
+        /// <summary>Answers to questions asked so far are about something else now (another cursor or line).</summary>
+        private static void ForgetLineAnswers()
+        {
+            _lineSeq++;
+            _lineFirstSeq = (ushort)(_lineSeq + 1);
+            _lineKeyChanged = true;
         }
 
         /// <summary>PacketHandlers (0xBF 0x7A5A): what lifting the finger would build, piece by piece.</summary>
         public static void OnLineAnswer(ushort seq, byte status, List<(short, short, short, byte)> pieces)
         {
-            if (seq != _lineSeq)
+            // any question about the line as it is now (resends on a slow link get the same answer); wrap-safe
+            if ((ushort)(seq - _lineFirstSeq) > (ushort)(_lineSeq - _lineFirstSeq))
             {
                 return;
             }
@@ -170,7 +182,7 @@ namespace ClassicUO.Touch
             _buildCursor != 0 && world?.TargetManager != null && world.TargetManager.IsTargeting && _buildCursor == world.TargetManager.TargetCursorId;
 
         /// <summary>A placed walkway or other fixed floor item on the ground: a build piece's ghost can stand on it.</summary>
-        private static bool FloorItem(GameObject o) => o is Item it && it.OnGround && !it.IsMulti && IsSurface(o);
+        private static bool FloorItem(GameObject o) => o is Item it && it.OnGround && !it.IsMulti && (it.Flags & Flags.Movable) == 0 && IsSurface(o);
 
         /// <summary>
         /// How far a finger must travel before it lays a line: half a tile on screen at the current zoom, at least the tap
@@ -265,6 +277,7 @@ namespace ClassicUO.Touch
                 _lineKey = key;
                 _lineDirty = true;
                 _lineAnswered = false;
+                ForgetLineAnswers(); // (answers about the line as it was)
             }
 
             List<(ushort Graphic, short X, short Y, short Z, ushort Hue)> comps = alongY ? _alongY : _alongX;
@@ -341,6 +354,13 @@ namespace ClassicUO.Touch
         private static void AskLine(World world)
         {
             _lineSeq++;
+
+            if (_lineKeyChanged)
+            {
+                _lineFirstSeq = _lineSeq;
+                _lineKeyChanged = false;
+            }
+
             _lineDirty = false;
             _lineSentAt = Time.Ticks;
             SendLine(LineAsk, world.TargetManager.TargetCursorId, true);
@@ -814,7 +834,11 @@ namespace ClassicUO.Touch
 
             if (_anchor is Item floorItem && BuildCursor(world))
             {
-                world.TargetManager.Target(floorItem.Serial); // a walkway's floor: the piece goes on top of it
+                // a walkway's floor: the piece goes on top of it (Last Target stays the player's, not the walkway)
+                LastTargetInfo last = world.TargetManager.LastTargetInfo;
+                (ushort g, uint serial, ushort lx, ushort ly, sbyte lz) = (last.Graphic, last.Serial, last.X, last.Y, last.Z);
+                world.TargetManager.Target(floorItem.Serial);
+                (last.Graphic, last.Serial, last.X, last.Y, last.Z) = (g, serial, lx, ly, lz);
 
                 return;
             }
