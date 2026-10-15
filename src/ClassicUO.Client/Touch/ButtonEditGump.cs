@@ -95,34 +95,34 @@ namespace ClassicUO.Touch
                 _choices.Add(($"UO Macro: {m.Name}", $"macro:{m.Name}"));
             }
 
-            Add(new AlphaBlendControl(0.85f) { Width = W, Height = H });
+            Add(new AlphaBlendControl(0.97f) { Width = W, Height = H }); // (build 54: near solid)
 
-            Add(new Label("Label", true, 0x0481, 0, 1) { X = 12, Y = 12 });
-            Add(new ResizePic(0x0BB8) { X = 70, Y = 8, Width = 170, Height = 26 });
-            Add(_label = new StbTextBox(1, 40, 160, true, FontStyle.None, 0x0481) { X = 76, Y = 12, Width = 160, Height = 20 });
+            Add(new Label("Label", true, 0x0481, 0, PlateButton.FONT) { X = 12, Y = 12 });
+            Add(new InputPlate() { X = 70, Y = 8, Width = 170, Height = 26 });
+            Add(_label = new StbTextBox(PlateButton.FONT, 40, 160, true, FontStyle.None, 0x0481) { X = 76, Y = 12, Width = 160, Height = 20 });
             _label.SetText((def?.DisplayLabel ?? "").Replace('\n', '|'));
 
-            Add(new Label("Action", true, 0x0481, 0, 1) { X = 252, Y = 12 });
-            Add(new ResizePic(0x0BB8) { X = 308, Y = 8, Width = 200, Height = 26 });
-            Add(_action = new StbTextBox(1, 80, 190, true, FontStyle.None, 0x0481) { X = 314, Y = 12, Width = 190, Height = 20 });
+            Add(new Label("Action", true, 0x0481, 0, PlateButton.FONT) { X = 252, Y = 12 });
+            Add(new InputPlate() { X = 308, Y = 8, Width = 200, Height = 26 });
+            Add(_action = new StbTextBox(PlateButton.FONT, 80, 190, true, FontStyle.None, 0x0481) { X = 314, Y = 12, Width = 190, Height = 20 });
             _action.SetText(def?.Action ?? "");
 
-            Add(new Label("Tip: use | in a label for a line break", true, 0x0386, 0, 1) { X = 12, Y = 40 });
+            Add(new Label("Tip: use | in a label for a line break", true, 0x0481, 0, PlateButton.FONT) { X = 12, Y = 40 });
 
-            Add(new NiceButton(12, H - 40, 70, 28, ButtonAction.Activate, "Smaller") { ButtonParameter = ID_SMALLER, IsSelectable = false });
-            Add(_sizeLabel = new Label("", true, 0x0481, 0, 1) { X = 90, Y = H - 34 });
-            Add(new NiceButton(130, H - 40, 70, 28, ButtonAction.Activate, "Bigger") { ButtonParameter = ID_BIGGER, IsSelectable = false });
-            Add(new NiceButton(230, H - 40, 70, 28, ButtonAction.Activate, "Delete", hue: 0x0021) { ButtonParameter = ID_DELETE, IsSelectable = false });
-            Add(new NiceButton(340, H - 40, 70, 28, ButtonAction.Activate, "Cancel") { ButtonParameter = ID_CANCEL, IsSelectable = false });
-            Add(new NiceButton(430, H - 40, 80, 28, ButtonAction.Activate, "Save", hue: 0x0044) { ButtonParameter = ID_SAVE, IsSelectable = false });
+            Add(new PlateButton(12, H - 40, 70, 28, "Smaller") { ButtonParameter = ID_SMALLER, IsSelectable = false });
+            Add(_sizeLabel = new Label("", true, 0x0481, 0, PlateButton.FONT) { X = 90, Y = H - 34 });
+            Add(new PlateButton(130, H - 40, 70, 28, "Bigger") { ButtonParameter = ID_BIGGER, IsSelectable = false });
+            Add(new PlateButton(230, H - 40, 70, 28, "Delete", hue: 0x0021) { ButtonParameter = ID_DELETE, IsSelectable = false });
+            Add(new PlateButton(340, H - 40, 70, 28, "Cancel") { ButtonParameter = ID_CANCEL, IsSelectable = false });
+            Add(new PlateButton(430, H - 40, 80, 28, "Save", hue: 0x0044) { ButtonParameter = ID_SAVE, IsSelectable = false });
 
-            Add(new NiceButton(12, H - 76, 60, 26, ButtonAction.Activate, "< Prev") { ButtonParameter = ID_PREV, IsSelectable = false });
-            Add(new NiceButton(W - 72, H - 76, 60, 26, ButtonAction.Activate, "Next >") { ButtonParameter = ID_NEXT, IsSelectable = false });
+            Add(new PlateButton(12, H - 76, 60, 26, "< Prev") { ButtonParameter = ID_PREV, IsSelectable = false });
+            Add(new PlateButton(W - 72, H - 76, 60, 26, "Next >") { ButtonParameter = ID_NEXT, IsSelectable = false });
 
             // in portrait: put the button back where the landscape layout would place it
             if (TouchInput.IsPortrait && def != null && def.PortraitPinned)
             {
-                Add(_unpin = new NiceButton(W / 2 - 70, H - 76, 140, 26, ButtonAction.Activate, "Match landscape") { ButtonParameter = ID_UNPIN, IsSelectable = false });
+                Add(_unpin = new PlateButton(W / 2 - 70, H - 76, 140, 26, "Match landscape") { ButtonParameter = ID_UNPIN, IsSelectable = false });
             }
 
             BuildPage();
@@ -161,7 +161,7 @@ namespace ClassicUO.Touch
             for (int i = 0; i < PAGE_SIZE && start + i < _choices.Count; i++)
             {
                 int col = i % 3, row = i / 3;
-                NiceButton b = new NiceButton(12 + col * 168, 64 + row * 38, 160, 32, ButtonAction.Activate, _choices[start + i].Label)
+                NiceButton b = new PlateButton(12 + col * 168, 64 + row * 38, 160, 32, _choices[start + i].Label)
                 {
                     ButtonParameter = ID_PRESET_BASE + start + i,
                     IsSelectable = false

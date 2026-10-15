@@ -410,21 +410,36 @@ namespace ClassicUO.Touch
         }
 
         private static readonly List<Rectangle> _tradeWindows = new List<Rectangle>();
+        private static readonly List<Rectangle> _windows = new List<Rectangle>(); // (build 54) every open window, trade ones too
 
-        /// <summary>Notes where shop and trade windows are open, as drawn (the HUD calls this each frame).</summary>
+        /// <summary>Notes where windows are open, as drawn - shop and trade windows apart (the HUD calls this each frame).</summary>
         public static void FindTradeWindows()
         {
             _tradeWindows.Clear();
+            _windows.Clear();
 
             foreach (Game.UI.Gumps.Gump g in UIManager.Gumps)
             {
-                if (!g.IsDisposed && g.IsVisible && (g is Game.UI.Gumps.ShopGump || g is Game.UI.Gumps.TradingGump))
+                if (!g.IsDisposed && g.IsVisible && IsWindow(g))
                 {
                     float s = GumpScale.Of(g);
-                    _tradeWindows.Add(new Rectangle(g.X, g.Y, (int)(g.Width * s), (int)(g.Height * s)));
+                    Rectangle r = new Rectangle(g.X, g.Y, (int)(g.Width * s), (int)(g.Height * s));
+                    _windows.Add(r);
+
+                    if (g is Game.UI.Gumps.ShopGump || g is Game.UI.Gumps.TradingGump)
+                    {
+                        _tradeWindows.Add(r);
+                    }
                 }
             }
         }
+
+        /// <summary>
+        /// Build 54: a window a HUD button steps aside for, and a finger on it is the window's - anything but the
+        /// HUD itself, the world's viewport and the alert banner (drawn over everything, never touched).
+        /// </summary>
+        private static bool IsWindow(Game.UI.Gumps.Gump g) =>
+            !(g is TouchHudGump || g is Game.UI.Gumps.WorldViewportGump || g is AlertBanner) && g.Width > 1 && g.Height > 1;
 
         /// <summary>Over an open shop or trade window (UI units): the target panel steps aside there too.</summary>
         public static bool OverTradeWindow(Rectangle r)
@@ -441,12 +456,13 @@ namespace ClassicUO.Touch
         }
 
         /// <summary>
-        /// A button over an open shop or trade window steps aside - not drawn, not pressed - until the
-        /// window closes: the HUD is drawn over every window, and covered the shop's Accept and Clear.
+        /// A button over an open window steps aside - not drawn, not pressed - until the window closes or moves:
+        /// the HUD is drawn over every window, and covered the shop's Accept and Clear, and (build 54) the build
+        /// menu's tabs held upright - a tap on them pressed the button over them instead.
         /// </summary>
         public static bool SteppedAside(ActionButtonDef b)
         {
-            if (_tradeWindows.Count == 0 || EditMode)
+            if (_windows.Count == 0 || EditMode)
             {
                 return false;
             }
@@ -454,7 +470,7 @@ namespace ClassicUO.Touch
             Point c = ButtonCenter(b);
             int r = ButtonRadius(b);
 
-            foreach (Rectangle w in _tradeWindows)
+            foreach (Rectangle w in _windows)
             {
                 int nx = Math.Clamp(c.X, w.Left, w.Right), ny = Math.Clamp(c.Y, w.Top, w.Bottom);
 
@@ -484,6 +500,17 @@ namespace ClassicUO.Touch
                    (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump); // Accept, Clear, +/-, the arrows, gold
         }
 
+        /// <summary>
+        /// Build 54: a window is under the finger, so the finger is that window's (a press, a drag), never the
+        /// HUD button or target panel at the same spot - whichever of them is drawn on top.
+        /// </summary>
+        public static bool WindowOverHud(Point pos)
+        {
+            Game.UI.Gumps.Gump hit = UIManager.GumpAtPhysical(pos, out _);
+
+            return hit != null && IsWindow(hit);
+        }
+
         /// <summary>While an editor window or the map is open, or a house is being placed, the HUD is hidden and every finger is a pointer.</summary>
         public static bool Suppressed => UIManager.GetGump<MacroEditorGump>() != null || UIManager.GetGump<ButtonEditGump>() != null ||
                                          UIManager.GetGump<HousePlacementBar>() != null || UIManager.GetGump<SurvivalMapGump>() != null;
@@ -504,9 +531,12 @@ namespace ClassicUO.Touch
 
             if (InGame && !Suppressed)
             {
-                int button = ButtonAt(pos);
+                // (build 54) a window under the finger takes the touch: a button or the target panel there must
+                // not fire (the build menu's tabs sat under the top row of buttons held upright)
+                bool window = !EditMode && WindowOverHud(pos);
+                int button = window ? -1 : ButtonAt(pos);
 
-                if (!EditMode && button < 0 && TouchHudGump.TargetPanel.Contains(pos))
+                if (!EditMode && !window && button < 0 && TouchHudGump.TargetPanel.Contains(pos))
                 {
                     f.Owner = Owner.Button;
                     f.Button = -3; // the target panel

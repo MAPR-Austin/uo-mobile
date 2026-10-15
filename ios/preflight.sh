@@ -137,6 +137,14 @@ need src/ClassicUO.Client/Touch/TouchInput.cs "UIManager.GetGump<HousePlacementB
 need src/ClassicUO.Client/Touch/TouchInput.cs "!(g is SurvivalMapGump)) // (the map is the screen" "the full-screen map never forces the wide portrait fit (it would keep itself wide)"
 need src/ClassicUO.Client/Touch/ButtonEditGump.cs '("Repair All", "say:\[repairall")' "the Repair All preset ([repairall)"
 need src/ClassicUO.Client/Touch/ActionLayouts.cs 'B("Repair\\nAll", "say:\[repairall"' "new Survival layouts have Repair All (and Map)"
+# Build 54: a finger on any window is the window's - never a HUD button or the target panel under it - and a button a
+# window covers steps aside (not drawn, not pressed); the editors draw steps and choices on plates in the bigger font.
+need src/ClassicUO.Client/Touch/TouchInput.cs "bool window = !EditMode && WindowOverHud(pos);" "a finger on a window never presses the HUD button under it (build 54)"
+need src/ClassicUO.Client/Touch/TouchInput.cs "!EditMode && !window && button < 0 && TouchHudGump.TargetPanel.Contains(pos)" "...nor the target panel"
+need src/ClassicUO.Client/Touch/TouchInput.cs "foreach (Rectangle w in _windows)" "a button any window covers steps aside, not just under a shop or trade window"
+need src/ClassicUO.Client/Touch/TouchInput.cs "!(g is TouchHudGump || g is Game.UI.Gumps.WorldViewportGump || g is AlertBanner)" "the HUD, the world and the alert banner are not windows a button steps aside for"
+need src/ClassicUO.Client/Touch/MacroEditorGump.cs "new PlateButton(x, y, w, h, text, id, hue);" "the macro editor's buttons on plates, bigger font"
+need src/ClassicUO.Client/Touch/ButtonEditGump.cs "new AlphaBlendControl(0.97f)" "the button editor's ground is near solid"
 none "ClassicUO's world map stays off the phone's presets (a ~120 MB image built off the main thread; the phone's map is SurvivalMapGump)" \
      '"open:WorldMap"' src/ClassicUO.Client/Touch/ButtonEditGump.cs src/ClassicUO.Client/Touch/ActionLayouts.cs
 

@@ -19,8 +19,8 @@ namespace ClassicUO.Touch
     {
         private const int W = 640;
         private const int H = 470;
-        private const int VISIBLE_LINES = 9;
-        private const int ROW_H = 30;
+        private const int VISIBLE_LINES = 8; // (build 54: taller rows in a bigger font, on plates)
+        private const int ROW_H = 34;
 
         private const int ID_PREV_MACRO = 1, ID_NEXT_MACRO = 2, ID_NEW = 3, ID_DELETE_MACRO = 4, ID_RENAME = 5;
         private const int ID_SCROLL_UP = 6, ID_SCROLL_DOWN = 7, ID_LINE_UP = 8, ID_LINE_DOWN = 9, ID_LINE_DELETE = 10, ID_LINE_APPLY = 11;
@@ -67,12 +67,12 @@ namespace ClassicUO.Touch
                 _set.Macros.Add(new MobileMacro { Name = "New Macro" });
             }
 
-            Add(new AlphaBlendControl(0.88f) { Width = W, Height = H });
+            Add(new AlphaBlendControl(0.97f) { Width = W, Height = H }); // (build 54: near solid: the world showed through)
 
             // macro switcher
             Add(Btn(8, 8, 36, 28, "<", ID_PREV_MACRO));
-            Add(new ResizePic(0x0BB8) { X = 48, Y = 8, Width = 200, Height = 28 });
-            Add(_nameBox = new StbTextBox(1, 40, 190, true, FontStyle.None, 0x0481) { X = 54, Y = 12, Width = 190, Height = 22 });
+            Add(new InputPlate() { X = 48, Y = 8, Width = 200, Height = 28 });
+            Add(_nameBox = new StbTextBox(PlateButton.FONT, 40, 190, true, FontStyle.None, 0x0481) { X = 54, Y = 12, Width = 190, Height = 22 });
             Add(Btn(252, 8, 36, 28, ">", ID_NEXT_MACRO));
             Add(Btn(294, 8, 70, 28, "Rename", ID_RENAME));
             Add(Btn(368, 8, 56, 28, "New", ID_NEW));
@@ -80,8 +80,8 @@ namespace ClassicUO.Touch
             Add(Btn(W - 104, 8, 96, 28, "On Bar", ID_ADD_TO_BAR));
 
             // line editor
-            Add(new ResizePic(0x0BB8) { X = 8, Y = H - 110, Width = 300, Height = 28 });
-            Add(_lineBox = new StbTextBox(1, 80, 290, true, FontStyle.None, 0x0481) { X = 14, Y = H - 106, Width = 290, Height = 22 });
+            Add(new InputPlate() { X = 8, Y = H - 110, Width = 300, Height = 28 });
+            Add(_lineBox = new StbTextBox(PlateButton.FONT, 80, 290, true, FontStyle.None, 0x0481) { X = 14, Y = H - 106, Width = 290, Height = 22 });
             Add(Btn(312, H - 110, 70, 28, "Set line", ID_LINE_APPLY));
 
             Add(Btn(8, H - 76, 60, 30, "Up", ID_LINE_UP));
@@ -94,7 +94,7 @@ namespace ClassicUO.Touch
             Add(Btn(102, H - 40, 90, 30, "Run", ID_RUN));
             Add(Btn(196, H - 40, 90, 30, "Close", ID_CLOSE));
 
-            Add(_status = new Label("", true, 0x0481, 300, 1) { X = 300, Y = H - 34 });
+            Add(_status = new Label("", true, 0x0481, 340, PlateButton.FONT) { X = 296, Y = H - 34 });
 
             Rebuild();
         }
@@ -123,7 +123,7 @@ namespace ClassicUO.Touch
         private MobileMacro Current => _set.Macros[Math.Clamp(_macro, 0, _set.Macros.Count - 1)];
 
         private static NiceButton Btn(int x, int y, int w, int h, string text, int id, ushort hue = 0xFFFF) =>
-            new NiceButton(x, y, w, h, ButtonAction.Activate, text, hue: hue) { ButtonParameter = id, IsSelectable = false };
+            new PlateButton(x, y, w, h, text, id, hue); // (build 54: on a plate, the bigger font)
 
         private void Rebuild()
         {
@@ -168,15 +168,11 @@ namespace ClassicUO.Touch
                 if (index < m.Lines.Count)
                 {
                     string text = new string(' ', indents[index] * 3) + $"{index + 1}. {m.Lines[index].Trim()}";
-                    AddDynamic(new NiceButton(8, y, 300, ROW_H - 2, ButtonAction.Activate, text, align: TEXT_ALIGN_TYPE.TS_LEFT, hue: index == _selected ? (ushort)0x0035 : (ushort)0xFFFF)
-                    {
-                        ButtonParameter = ID_ROW + index,
-                        IsSelectable = false
-                    });
+                    AddDynamic(new PlateButton(8, y, 302, ROW_H - 2, text, ID_ROW + index, index == _selected ? (ushort)0x0035 : (ushort)0xFFFF, TEXT_ALIGN_TYPE.TS_LEFT, index == _selected));
                 }
                 else if (index == m.Lines.Count)
                 {
-                    AddDynamic(new Label(m.Lines.Count == 0 ? "(empty: pick a step on the right)" : "(end)", true, 0x0386, 300, 1) { X = 12, Y = y + 6 });
+                    AddDynamic(new Label(m.Lines.Count == 0 ? "(empty: pick a step on the right)" : "(end)", true, 0x0481, 300, PlateButton.FONT) { X = 12, Y = y + 6 });
                 }
             }
 
@@ -207,7 +203,7 @@ namespace ClassicUO.Touch
             {
                 int y = LIST_Y + (LIST_ROWS - 1) * 28;
                 AddDynamic(Btn(PANEL_X, y, 74, 26, "< Prev", ID_PAGE_PREV));
-                AddDynamic(new Label($"{_page + 1} / {pages}", true, 0x0481, 80, 1) { X = PANEL_X + 120, Y = y + 5 });
+                AddDynamic(new Label($"{_page + 1} / {pages}", true, 0x0481, 80, PlateButton.FONT) { X = PANEL_X + 120, Y = y + 4 });
                 AddDynamic(Btn(PANEL_X + 238, y, 74, 26, "Next >", ID_PAGE_NEXT));
             }
 

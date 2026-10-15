@@ -242,6 +242,24 @@ must be caught here.
      - the map on the oldest phone in use: open it, drag about and zoom for a minute (one ~29 MB picture, ~36 MB more while
        it is drawn): no crash, no hitch when it appears;
      - a build-52 app on the same server: plays as before (no banners, the alert lines in the journal).
+   - Build 54 (taps on windows, the editors' legibility; the zombie server's build 54 menus and kits):
+     - held upright, open the build menu ([build or the Build button): the top row of buttons (Peace/War, Chat, Cancel,
+       Edit, Layout) steps aside wherever the menu covers it - not drawn, not pressed; tap the menu's Wood / Stone / More
+       tabs: the menu answers and war mode, the chat line and Cancel do not change; close the menu: the buttons are back
+       and work; the same with the More menu (its tabs) and My blueprints, and held sideways over the joystick's corner;
+     - any window (backpack, paperdoll, a shop) over a button: the button steps aside while the window covers it; drag
+       the window off it: the button is back; every button no window covers works as before (Pack, Build, Attack Nearest);
+     - drag the build menu and the backpack by a finger on them: they move (the HUD never takes the drag);
+     - the target panel under a window doesn't take a tap there; the joystick still steers under a window (only a
+       window's button or text field under it takes the tap, as before);
+     - Edit mode: buttons still drag and edit under windows;
+     - the macro editor (Macros button) and a button's editor (Edit > a button): solid dark window, steps and choices on
+       plates in the bigger font, the name and line fields dark with white text; type into both fields (the keyboard
+       comes up, the text shows), pick steps, scroll, Save, Run, Close; landscape and portrait;
+     - the server's build menus (Zombie Survival): big white and gold text on black, nothing cut off or wrapped (E-W,
+       N-S, the stairs' N E S W, Take down, the More tabs); the More menu's X is bottom right; Plans: Watchtower,
+       Bunker, Warcamp with piece counts and "Your pieces: N of 400 standing"; place each (the ghost green only where
+       all of it fits; a warcamp over a stranger's wall says why and builds nothing).
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
