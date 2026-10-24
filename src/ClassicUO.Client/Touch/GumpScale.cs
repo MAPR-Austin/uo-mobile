@@ -29,7 +29,10 @@ namespace ClassicUO.Touch
         private static bool _dirty;
         private static readonly ConditionalWeakTable<Gump, string> _keys = new ConditionalWeakTable<Gump, string>();
 
-        /// <summary>The window's scale; 1 when touch is off or the window can't be scaled.</summary>
+        /// <summary>
+        /// The window's scale; 1 when touch is off or the window can't be scaled. Not pinched: the phone's large
+        /// menus pick it (build 55, <see cref="LargeUi.AutoScale"/>; 1 for kinds they leave alone).
+        /// </summary>
         public static float Of(Gump g)
         {
             // In game only: the login screens' pointer is never mapped.
@@ -40,7 +43,7 @@ namespace ClassicUO.Touch
 
             EnsureLoaded();
 
-            return _scales.TryGetValue(Key(g), out float s) ? s : 1f;
+            return _scales.TryGetValue(Key(g), out float s) ? s : LargeUi.AutoScale(g);
         }
 
         public static void Set(Gump g, float scale)
@@ -53,9 +56,9 @@ namespace ClassicUO.Touch
             EnsureLoaded();
             scale = Math.Clamp(scale, MIN, MAX);
 
-            if (Math.Abs(scale - 1f) < 0.03f)
+            if (Math.Abs(scale - LargeUi.AutoScale(g)) < 0.03f)
             {
-                _scales.Remove(Key(g)); // snap back to exactly 1: draws in the normal pass again
+                _scales.Remove(Key(g)); // snap back to the window's own size (1, or the large menus' size): drawn as if never pinched
             }
             else
             {

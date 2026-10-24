@@ -41,6 +41,8 @@ namespace ClassicUO.Touch
         // finger can turn it into a window pinch before the game ever sees it. Taps are unaffected:
         // lifting releases the press and its release together.
         private const uint WINDOW_PRESS_HOLD_MS = 130;
+        // Build 55: a press that may stand for a server menu's button (its label, its plate) waits for the lift.
+        private const uint SNAP_HOLD_MS = 500;
 
         // Pinch: two world fingers zoom the camera. Ignored: the finger left over when a pinch ends.
         private enum Owner { Joystick, Button, Pointer, EditDrag, Pinch, Ignored }
@@ -66,6 +68,7 @@ namespace ClassicUO.Touch
             public uint HoldUntil; // Pointer on a window: its events wait until this tick (0 = not held)
             public bool PinchLeftover; // Ignored: still down after its pinch partner lifted
             public Game.UI.Gumps.Gump PinchGump; // PinchLeftover: the window that pinch was zooming (null = world)
+            public Point? Snap; // (build 55) Pointer on a server menu: a tap here means the button there (LargeUi.SnapTarget)
         }
 
         /// <summary>
@@ -249,7 +252,7 @@ namespace ClassicUO.Touch
 
             foreach (Game.UI.Gumps.Gump g in UIManager.Gumps)
             {
-                if (!g.IsDisposed && g.IsVisible && g.Width > PORTRAIT_UI_WIDTH &&
+                if (!g.IsDisposed && g.IsVisible && g.Width > PORTRAIT_UI_WIDTH && !LargeUi.Sizes(g) && // (build 55: those are fitted, not the UI widened)
                     !(g is TouchHudGump) && !(g is Game.UI.Gumps.WorldViewportGump) && !(g is SurvivalMapGump)) // (the map is the screen: it follows its size)
                 {
                     return true;
@@ -494,6 +497,11 @@ namespace ClassicUO.Touch
         {
             Control c = UIManager.ControlAtPhysical(pos);
 
+            if (LargeUi.SnapTarget(pos).HasValue)
+            {
+                return true; // (build 55) a server menu's label or plate standing for its button
+            }
+
             return (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable) &&
                    c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0 ||
                    (c is HitBox || c is Button || c is Checkbox || c is StbTextBox field && field.IsEditable) &&
@@ -644,6 +652,14 @@ namespace ClassicUO.Touch
                 if (f.OnGump != null && GumpScale.Scalable(f.OnGump))
                 {
                     f.HoldUntil = Time.Ticks + WINDOW_PRESS_HOLD_MS;
+                    f.Snap = LargeUi.SnapTarget(pos);
+
+                    if (f.Snap.HasValue)
+                    {
+                        // (build 55) held until it lifts (a tap: pressed on the button it means) or moves (a drag of the
+                        // window, from where it is) - or nearly a long press (as before: pressed where it is)
+                        f.HoldUntil = Time.Ticks + SNAP_HOLD_MS;
+                    }
                 }
                 float scale = GumpScale.Of(f.OnGump);
 
@@ -953,7 +969,14 @@ namespace ClassicUO.Touch
                     break;
 
                 case Owner.Pointer:
-                    if (!f.LongPressFired)
+                    if (!f.LongPressFired && !canceled && !f.Moved && f.Snap.HasValue && f.HoldUntil != 0 && Time.Ticks < f.HoldUntil)
+                    {
+                        // (build 55) a tap on a server menu's label or plate: the press (still held back) and its release
+                        // go to the button it stands for
+                        MovePress(id, f.Snap.Value);
+                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, f.Snap.Value, _frame, id));
+                    }
+                    else if (!f.LongPressFired)
                     {
                         // (a canceled finger on the world while placing lifts off-screen: a line it was laying is dropped)
                         bool drop = canceled && f.OnWorld && HousePlacementGhost.Active(Client.Game.UO.World);
@@ -974,6 +997,18 @@ namespace ClassicUO.Touch
         }
 
         public static bool OwnsFinger(long id) => _fingers.ContainsKey(id);
+
+        /// <summary>The finger's queued (not yet dispatched) events move to <paramref name="pos"/>.</summary>
+        private static void MovePress(long id, Point pos)
+        {
+            int n = _pointerQueue.Count;
+
+            for (int i = 0; i < n; i++)
+            {
+                PointerEvent e = _pointerQueue.Dequeue();
+                _pointerQueue.Enqueue(e.Finger == id ? new PointerEvent(e.Type, pos, e.ReadyFrame, e.Finger) : e);
+            }
+        }
 
         // ---------- per frame ----------
 
@@ -1013,6 +1048,7 @@ namespace ClassicUO.Touch
             }
 
             DrainPointerQueue();
+            LargeUi.KeepOnScreen(); // (build 55) zoomed windows stay on the screen
             DropFinishedMaps();
             ParkPointer();
             SyncKeyboard();

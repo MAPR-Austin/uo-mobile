@@ -260,6 +260,25 @@ must be caught here.
        N-S, the stairs' N E S W, Take down, the More tabs); the More menu's X is bottom right; Plans: Watchtower,
        Bunker, Warcamp with piece counts and "Your pieces: N of 400 standing"; place each (the ghost green only where
        all of it fits; a warcamp over a stranger's wall says why and builds nothing).
+   - Build 55 (large menus; the servers' phone menus need servuo's PhoneMenu.cs, but every check below except the
+     last two also runs against an old server):
+     - held sideways and upright, open the build menu, the camp menu, a survivor's duties, the leaderboard, Towns and
+       Vendors (Zombie Survival), a shop's buy list (say "vendor buy"), skills, the spellbook, status and the paperdoll:
+       each opens larger than in build 54 and wholly on the screen (nothing off an edge); text reads at arm's length;
+     - on a server menu tap a row's words (not its little arrow), a row's dark plate, and just beside a small button:
+       each presses that row's button; a tab's word changes the tab; Prev / Next turn the pages ("Page 2/3");
+     - drag a server menu by its words: it moves (no button pressed); a long press on it still closes it;
+     - pinch a server menu smaller, close it and open it again: it keeps your size; pinch it back to its first size: it
+       snaps there;
+     - a server menu with no close button (an old server's carpet or dye menu) has a red X at its top
+       right; the X closes it (the server hears it closed, as a right click);
+     - upright, the macro and button editors still widen the screen as before; a server menu wider than the screen
+       (the help menu) is shrunk to fit instead and the HUD stays as it is;
+     - Graveyard Battles: the vanity merchant's shop, the item teleporter, a carpet deed's size menu and a vanity dye
+       read and work as above; the HUD buttons a window covers still step aside (build 54);
+     - (new server) every custom menu: title and X at the top, tabs under it, one action per row, Back bottom left,
+       "Page 2/3" with Prev / Next bottom right; a build-54 app on the same server still works (smaller, the arrows take
+       the taps).
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before

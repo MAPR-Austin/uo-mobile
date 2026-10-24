@@ -7275,6 +7275,8 @@ namespace ClassicUO.Network
                 }
             }
 
+            Touch.LargeUi.Adapt(gump); // UO Mobile: a big close button on a phone menu that has none
+
             if (mustBeAdded)
             {
                 UIManager.Add(gump);

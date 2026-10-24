@@ -13,7 +13,7 @@ namespace ClassicUO.Touch
     /// bigger font - so on a phone each step, tab and choice of the macro and button editors reads as a button and
     /// stands out from the dark window behind it.
     /// </summary>
-    internal sealed class PlateButton : NiceButton
+    internal class PlateButton : NiceButton
     {
         /// <summary>The editors' text: unicode font 0, a size up from font 1 (ClassicUO's default).</summary>
         public const byte FONT = 0;
