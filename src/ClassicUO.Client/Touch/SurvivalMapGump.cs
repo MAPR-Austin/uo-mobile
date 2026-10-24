@@ -436,6 +436,9 @@ namespace ClassicUO.Touch
                 case SurvivalMarkerKind.Peddler:
                     return $"{k.Name}: {where}{(k.Fleeing ? " - running from the dead!" : "")}";
 
+                case SurvivalMarkerKind.Rescue:
+                    return k.Escort ? $"{k.Name} - lead them to a held town ({where})" : $"{k.Name} - a survivor calling for help ({where})";
+
                 default:
                     return $"{k.Name}: {(k.UnderAttack ? "UNDER ATTACK, " : "")}{(k.FireOut ? "its fire is out" : "fire lit")} ({where})";
             }
@@ -710,6 +713,12 @@ namespace ClassicUO.Touch
         private static readonly Color CampColor = new Color(255, 220, 90, 255), FriendCampColor = new Color(120, 200, 255, 255);
         private static readonly Color Ring = new Color(0, 0, 0, 220), White = new Color(255, 255, 255, 255), AlertRing = new Color(255, 40, 40, 255);
 
+        // (build 56) rescue missions' markers: red, the SOS pulsing; a red label (UO hue 0x0021)
+        private static readonly Color SosColor = new Color(255, 30, 40, 255);
+        private const ushort SosHue = 0x0021;
+        private const uint SosPulseMs = 1200;
+        private bool _sosShown; // a rescue marker is on this facet: the legend names it
+
         private static ushort TownHue(int state) => state == 2 ? (ushort)0x0044 : state == 1 ? (ushort)0x0035 : (ushort)0x0022;
 
         private static Color TownColor(int state) => state == 2 ? Held : state == 1 ? Cleared : Overrun;
@@ -761,6 +770,7 @@ namespace ClassicUO.Touch
             List<(Rectangle R, Color C, Color Edge)> areas = _areas;
             dots.Clear();
             areas.Clear();
+            _sosShown = false;
 
             for (int i = 0; i < markers.Count; i++)
             {
@@ -802,6 +812,27 @@ namespace ClassicUO.Touch
                             RenderedText t = Label(k.Fleeing ? "Peddler (fleeing)" : "Peddler", 0x002B);
                             texts.Add((t, p.X - t.Width / 2, p.Y - 8 - t.Height));
                         }
+
+                        break;
+                    }
+
+                    case SurvivalMarkerKind.Rescue:
+                    {
+                        // (build 56) a survivor's SOS: a red dot flashing white with a red ring pulsing out of it, its name
+                        // in red above it; your escort under way: the red dot in a steady red ring
+                        if (k.Escort)
+                        {
+                            dots.Add((p, SosColor, 14, false));
+                        }
+                        else
+                        {
+                            dots.Add((p, SosColor, 9 + (int)(now % SosPulseMs * 15 / SosPulseMs), false));
+                        }
+
+                        dots.Add((p, !k.Escort && blink ? White : SosColor, selected ? 9 : 7, true));
+                        RenderedText t = Label(k.Name, SosHue);
+                        texts.Add((t, p.X - t.Width / 2, p.Y - 12 - t.Height));
+                        _sosShown = true;
 
                         break;
                     }
@@ -864,6 +895,11 @@ namespace ClassicUO.Touch
                 (Held, Label("Held", 0x0481)), (Cleared, Label("Cleared", 0x0481)), (Overrun, Label("Overrun", 0x0481)),
                 (PeddlerColor, Label("Peddler", 0x0481)), (CampColor, Label("Your camp", 0x0481))
             };
+
+            if (_sosShown)
+            {
+                legend.Insert(0, (SosColor, Label("SOS", 0x0481))); // (first: the legend is cut at the right when upright)
+            }
             int legendW = 8;
 
             foreach ((Color _, RenderedText t) in legend)

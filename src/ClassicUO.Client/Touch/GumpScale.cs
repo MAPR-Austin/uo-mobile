@@ -54,7 +54,7 @@ namespace ClassicUO.Touch
             }
 
             EnsureLoaded();
-            scale = Math.Clamp(scale, MIN, MAX);
+            scale = Math.Clamp(scale, Math.Min(MIN, LargeUi.AutoScale(g)), MAX); // (build 56: a wide menu fitted below MIN can be pinched from there)
 
             if (Math.Abs(scale - LargeUi.AutoScale(g)) < 0.03f)
             {
@@ -144,7 +144,7 @@ namespace ClassicUO.Touch
             foreach (string key in new List<string>(_scales.Keys))
             {
                 float v = _scales[key];
-                _scales[key] = float.IsFinite(v) ? Math.Clamp(v, MIN, MAX) : 1f; // a hand-edited 0 would divide by zero
+                _scales[key] = float.IsFinite(v) ? Math.Clamp(v, LargeUi.MENU_MIN, MAX) : 1f; // a hand-edited 0 would divide by zero
             }
 
             _dirty = migrated; // (saved at the next save point)

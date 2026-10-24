@@ -88,8 +88,36 @@ namespace ClassicUO.Touch
         public static bool Sizes(Gump g) => On && g != null && Target(g) > 0f;
 
         /// <summary>
+        /// Build 56: the least a server menu is shrunk to fit the screen's width. <see cref="GumpScale.MIN"/> (0.6) let a
+        /// menu wider than ~780 run off an upright screen with its X; at 0.4 one up to ~1170 wide fits.
+        /// </summary>
+        public const float MENU_MIN = 0.4f;
+
+        /// <summary>
+        /// Build 56: a server menu's zoom, kept per kind of menu (its gump id) while the screen keeps its size and the
+        /// menu stays up. A paged menu is rebuilt by the server on Prev / Next, often a little taller or shorter: refitted
+        /// every page it visibly changed size. Now a page that needs less room keeps the zoom; one that needs more
+        /// shrinks it once. A menu of that kind gone for <see cref="MENU_ZOOM_FORGET_MS"/> (closed, not paged) is
+        /// fitted afresh when it opens again.
+        /// </summary>
+        private struct MenuZoom
+        {
+            public int ScreenW, ScreenH;
+            public float Scale;
+            public uint Seen;
+        }
+
+        private const uint MENU_ZOOM_FORGET_MS = 3000;
+
+        private static readonly System.Collections.Generic.Dictionary<uint, MenuZoom> _menuZoom = new System.Collections.Generic.Dictionary<uint, MenuZoom>();
+
+        /// <summary>Logout: the next login (or shard) fits its menus afresh.</summary>
+        public static void Reset() => _menuZoom.Clear();
+
+        /// <summary>
         /// The window's zoom when nothing was pinched: its kind's target, made smaller to fit the screen's width, and
-        /// its height down to <see cref="MIN_FIT_HEIGHT"/> (below that it is dragged instead). 1 when off.
+        /// its height down to <see cref="MIN_FIT_HEIGHT"/> (below that it is dragged instead). 1 when off. A server menu
+        /// keeps one zoom across its pages (<see cref="MenuZoom"/>).
         /// </summary>
         public static float AutoScale(Gump g)
         {
@@ -100,7 +128,26 @@ namespace ClassicUO.Touch
                 return 1f;
             }
 
-            return Fit(g, target);
+            float s = Fit(g, target);
+
+            if (!IsServerMenu(g) || g.IsDisposed || g.Width <= 1 || g.Height <= 1)
+            {
+                return s;
+            }
+
+            int sw = TouchInput.ScreenW, sh = TouchInput.ScreenH;
+            uint now = Time.Ticks;
+
+            if (_menuZoom.TryGetValue(g.ServerSerial, out MenuZoom z) && z.ScreenW == sw && z.ScreenH == sh && z.Scale <= s &&
+                now - z.Seen < MENU_ZOOM_FORGET_MS)
+            {
+                s = z.Scale; // (a page that would fit larger keeps the menu's size)
+            }
+
+            // first page, a turned screen, a bigger page, or a menu opened again; and "still up" (asked every frame it's drawn)
+            _menuZoom[g.ServerSerial] = new MenuZoom { ScreenW = sw, ScreenH = sh, Scale = s, Seen = now };
+
+            return s;
         }
 
         /// <summary>
@@ -113,6 +160,7 @@ namespace ClassicUO.Touch
         {
             int w = Math.Max(1, g.Width), h = Math.Max(1, g.Height);
             float sw = TouchInput.ScreenW - 2 * MARGIN, sh = TouchInput.ScreenH - 2 * MARGIN;
+            float min = IsServerMenu(g) ? MENU_MIN : GumpScale.MIN; // (build 56: a wide server menu fits upright too)
 
             if (sw <= 0 || sh <= 0)
             {
@@ -126,7 +174,7 @@ namespace ClassicUO.Touch
                 s = Math.Min(s, Math.Max(sh / h, Math.Min(MIN_FIT_HEIGHT, s)));
             }
 
-            return Math.Clamp(s, GumpScale.MIN, GumpScale.MAX);
+            return Math.Clamp(s, min, GumpScale.MAX);
         }
 
         // ------------------------------------------------------------------ keeping windows on the screen
@@ -134,11 +182,13 @@ namespace ClassicUO.Touch
         /// <summary>
         /// Every frame: a zoomed window is pulled back inside the screen by its drawn size (a menu opened at the
         /// server's spot would otherwise run off the edge once zoomed). Taller or wider than the screen: it may
-        /// sit anywhere that keeps the screen covered, so a drag scrolls it.
+        /// sit anywhere that keeps the screen covered, so a drag scrolls it. Not while a window is dragged or (build 56)
+        /// pinched: a pinch moves the window with the fingers, and clamping it each frame made it jump about under them
+        /// (the pinch's end pulls it back on screen).
         /// </summary>
         public static void KeepOnScreen()
         {
-            if (!On || UIManager.IsDragging || !(Client.Game.Scene is Game.Scenes.GameScene) || LoginLayout.Active)
+            if (!On || UIManager.IsDragging || TouchInput.PinchingWindow || !(Client.Game.Scene is Game.Scenes.GameScene) || LoginLayout.Active)
             {
                 return;
             }
@@ -250,13 +300,33 @@ namespace ClassicUO.Touch
             }
 
             Gump g = UIManager.GumpAtPhysical(physical, out Point p);
+            Point? centre = SnapLogical(g, p);
 
-            if (!IsServerMenu(g) || g.IsDisposed)
+            if (!centre.HasValue)
             {
                 return null;
             }
 
-            Control hit = UIManager.ControlAtPhysical(physical);
+            float s = GumpScale.Of(g);
+            Point c = centre.Value;
+
+            return s == 1f ? c : new Point(g.X + (int)MathF.Round((c.X - g.X) * s), g.Y + (int)MathF.Round((c.Y - g.Y) * s));
+        }
+
+        /// <summary>
+        /// <see cref="SnapTarget"/> in the menu's own (unzoomed) layout: <paramref name="p"/> is a point there, and so is
+        /// the answer. Build 56: the lift asks this with the press's own mapping, so a menu the server rebuilt (or that was
+        /// refitted) under the finger is read the way the finger's press will be.
+        /// </summary>
+        public static Point? SnapLogical(Gump g, Point p)
+        {
+            if (!On || !IsServerMenu(g) || g.IsDisposed || !g.IsVisible)
+            {
+                return null;
+            }
+
+            Control hit = null;
+            g.HitTest(p, ref hit);
 
             if (hit == null || TakesInput(hit))
             {
@@ -296,7 +366,9 @@ namespace ClassicUO.Touch
             {
                 foreach (Control t in g.Children)
                 {
-                    if (!OnPage(g, t) || !(t is Label || t is HtmlControl || t is CroppedText) || t.Height > MAX_LABEL_H || !Rect(g, t).Contains(p))
+                    // (build 56: not HTML with a link - a tap on the link opens it, it doesn't press the button beside it)
+                    if (!OnPage(g, t) || !(t is Label || t is HtmlControl html && !html.HasLinks || t is CroppedText) || t.Height > MAX_LABEL_H ||
+                        !Rect(g, t).Contains(p))
                     {
                         continue;
                     }
@@ -370,10 +442,7 @@ namespace ClassicUO.Touch
                 return null;
             }
 
-            Point centre = Rect(g, best).Center;
-            float s = GumpScale.Of(g);
-
-            return s == 1f ? centre : new Point(g.X + (int)MathF.Round((centre.X - g.X) * s), g.Y + (int)MathF.Round((centre.Y - g.Y) * s));
+            return Rect(g, best).Center;
         }
 
         private static bool OnPage(Gump g, Control c) => c.IsVisible && !c.IsDisposed && (c.Page == 0 || c.Page == g.ActivePage);
@@ -389,7 +458,7 @@ namespace ClassicUO.Touch
             for (Control x = c; x != null; x = x.Parent)
             {
                 if (x is Button || x is Checkbox || x is StbTextBox || x is ScrollBarBase || x is ScrollArea || x is HitBox ||
-                    x is HtmlControl html && html.HasScrollbar)
+                    x is HtmlControl html && (html.HasScrollbar || html.HasLinks)) // (build 56: a link is the finger's own)
                 {
                     return true;
                 }

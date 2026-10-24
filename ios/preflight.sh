@@ -126,7 +126,7 @@ need src/ClassicUO.Client/Touch/ZombieMarkers.cs "public const ushort MarkersSub
 need src/ClassicUO.Client/Touch/ZombieMarkers.cs "public const ushort AlertSub = 0x7A62;" "alert sub-command is 0x7A62 (ZombieAlerts.AlertSub)"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.ZombieMarkers.MarkersSub:" "0xBF 0x7A61 reaches the markers"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "case Touch.ZombieMarkers.AlertSub:" "0xBF 0x7A62 reaches the alert banner"
-need src/ClassicUO.Client/Touch/ZombieMarkers.cs "_helloSent = Send(world, FlagAlerts);" "the app says hello only after the shard sent markers (an old shard never gets 0x7A60)"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "_helloSent = Send(world, FlagAlerts | FlagRescue);" "the app says hello only after the shard sent markers (an old shard never gets 0x7A60)"
 need src/ClassicUO.Client/Touch/ZombieMarkers.cs "if (world == null || !world.InGame || world.Player == null" "0x7A60 only once the player exists (an in-game sub-command before that gets the client dropped)"
 need src/ClassicUO.Client/Game/Scenes/GameScene.cs "Touch.ZombieMarkers.Reset();" "markers and alerts are forgotten at logout (no other shard's markers)"
 need src/ClassicUO.Client/Touch/AlertBanner.cs "AcceptMouseInput = false; // drawn, never hit" "the alert banner never takes a touch"
@@ -156,12 +156,26 @@ need src/ClassicUO.Client/Network/PacketHandlers.cs "Touch.LargeUi.Adapt(gump); 
 need src/ClassicUO.Client/Touch/LargeUi.cs "!g.CanCloseWithRightClick || !IsServerMenu(g)" "...never a menu the server made unclosable"
 need src/ClassicUO.Client/Touch/TouchInput.cs "MovePress(id, snap.Value);" "a tap on a server menu's label or plate presses the button it stands for"
 need src/ClassicUO.Client/Touch/TouchInput.cs "!f.LongPressFired && !canceled && !f.Moved && f.Snap.HasValue" "...only a tap: a drag moves the window, a long press still right-clicks, a canceled touch presses nothing"
-need src/ClassicUO.Client/Touch/TouchInput.cs "? LargeUi.SnapTarget(f.Start)" "...asked again at the lift (the menu may have been rebuilt meanwhile); under the joystick's ring only real buttons take taps"
+need src/ClassicUO.Client/Touch/TouchInput.cs "? SnapAtLift(id, f.Start)" "...asked again at the lift (the menu may have been rebuilt meanwhile); under the joystick's ring only real buttons take taps"
 need src/ClassicUO.Client/Touch/TouchInput.cs "float zs = root != null ? GumpScale.Of(root) : 1f;" "the keyboard's text area follows a zoomed window's field"
 need src/ClassicUO.Client/Touch/GumpScale.cs "LargeUi.FitScale(g, s)" "a pinched zoom is still fitted to the screen (and build 54's server-menu zooms are dropped once)"
 need src/ClassicUO.Client/Touch/TouchInput.cs "LargeUi.KeepOnScreen();" "zoomed windows are kept on the screen every frame"
 need src/ClassicUO.Client/Touch/LargeUi.cs "if (!On || UIManager.IsDragging" "...but not while a window is being dragged"
 need src/ClassicUO.Client/Touch/TouchInput.cs "!LargeUi.Sizes(g) &&" "a fitted window never forces the wide portrait fit (it would shrink the whole UI)"
+# Build 56 (build 55's audit notes; the zombie server's rescue missions): the X LargeUi adds beats the joystick ring; a wide
+# server menu fits upright (0.4); a paged menu keeps its zoom; a press keeps its touch-down mapping through a rebuild; an HTML
+# link is never a button's label; a pinched window isn't pulled back mid-pinch; rescue markers (kind 5, asked with flag 4).
+need src/ClassicUO.Client/Touch/TouchInput.cs "c is NiceButton || c is HitBox hit && hit.HasClickHandler" "a server menu's X (a NiceButton) under the joystick ring takes the tap; a plain HitBox doesn't"
+need src/ClassicUO.Client/Touch/LargeUi.cs "float min = IsServerMenu(g) ? MENU_MIN : GumpScale.MIN;" "a server menu up to ~1170 wide fits an upright screen (its X on screen)"
+need src/ClassicUO.Client/Touch/LargeUi.cs "= new MenuZoom { ScreenW = sw, ScreenH = sh, Scale = s, Seen = now };" "a paged server menu keeps one zoom across Prev / Next"
+need src/ClassicUO.Client/Touch/TouchInput.cs "return PressLogical(m, live, pos);" "a press is mapped by its window's zoom and spot at touch-down, onto the menu that replaced it if rebuilt"
+need src/ClassicUO.Client/Touch/TouchInput.cs "UIManager.RefreshMouseOver();" "...and the scene is asked about what is under the pointer now (a rebuilt menu's press never falls to the world)"
+need src/ClassicUO.Client/Touch/LargeUi.cs "t is HtmlControl html && !html.HasLinks" "an HTML link beside a button is not its label (a tap opens the link)"
+need src/ClassicUO.Client/Touch/LargeUi.cs "UIManager.IsDragging || TouchInput.PinchingWindow" "zoomed windows are not pulled back on screen mid-pinch"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "FlagAlerts = 1, FlagSend = 2, FlagRescue = 4;" "rescue markers flag 4 (servuo RescueMissions.FlagRescueMarkers)"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "Send(world, FlagSend | FlagRescue);" "...sent with every marker request"
+need src/ClassicUO.Client/Touch/ZombieMarkers.cs "kind <= SurvivalMarkerKind.Rescue" "marker kind 5 (RescueMissions.MarkerKindRescue) is read, not skipped"
+need src/ClassicUO.Client/Touch/SurvivalMapGump.cs "case SurvivalMarkerKind.Rescue:" "...and drawn as a red SOS on the phone's map"
 
 echo "== Boats"
 # Build 49: a boat's helm (servuo BoatHelm.cs). At the helm (0x3E96 on Layer.Mount) the stick steers through

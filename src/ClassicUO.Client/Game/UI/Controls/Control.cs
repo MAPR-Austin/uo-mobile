@@ -392,6 +392,9 @@ namespace ClassicUO.Game.UI.Controls
 
         internal event EventHandler<MouseDoubleClickEventArgs> MouseDoubleClick;
 
+        /// <summary>UO Mobile (build 56): something handles a click on this control (a HitBox with a handler is a button).</summary>
+        internal bool HasClickHandler => MouseUp != null || MouseDown != null || MouseDoubleClick != null;
+
         internal event EventHandler FocusEnter, FocusLost;
 
         internal event EventHandler<KeyboardEventArgs> KeyDown, KeyUp;

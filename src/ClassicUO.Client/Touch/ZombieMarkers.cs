@@ -18,7 +18,14 @@ namespace ClassicUO.Touch
         Town = 1,
         Peddler = 2,
         Camp = 3,
-        FriendCamp = 4
+        FriendCamp = 4,
+
+        /// <summary>
+        /// Build 56 (servuo RescueMissions): a stranded survivor's signal ("SOS: ..."), or, state 0x40, your escort under
+        /// way ("Escort: ..., N min"). Sent only to an app that asks with <see cref="ZombieMarkers"/>' flag 4; an older
+        /// app gets the signals as friends' camps.
+        /// </summary>
+        Rescue = 5
     }
 
     /// <summary>One marker: where (X, Y), a town's outline (OX, OY, W, H), its state and name.</summary>
@@ -53,6 +60,9 @@ namespace ClassicUO.Touch
         public bool FireOut => (Kind == SurvivalMarkerKind.Camp || Kind == SurvivalMarkerKind.FriendCamp) && (State & 1) != 0;
 
         public bool UnderAttack => (Kind == SurvivalMarkerKind.Camp || Kind == SurvivalMarkerKind.FriendCamp) && (State & 0x40) != 0;
+
+        /// <summary>A rescue marker: your escort under way (else a survivor's SOS signal).</summary>
+        public bool Escort => Kind == SurvivalMarkerKind.Rescue && (State & 0x40) != 0;
     }
 
     /// <summary>
@@ -72,7 +82,15 @@ namespace ClassicUO.Touch
         public const ushort MarkersSub = 0x7A61; // ZombieMarkers.MarkersSub
         public const ushort AlertSub = 0x7A62; // ZombieAlerts.AlertSub
 
-        private const byte FlagAlerts = 1, FlagSend = 2;
+        // 4 (build 56): "I draw rescue markers (kind 5)" - servuo RescueMissions.FlagRescueMarkers; sent with every hello and
+        // request, so the server's answers carry kind 5 (it remembers it per connection)
+        private const byte FlagAlerts = 1, FlagSend = 2, FlagRescue = 4;
+
+        /// <summary>After the hello, one fresh request: the login push came before the server knew this app draws kind 5.</summary>
+        private const uint RescueRefreshMs = 2500;
+
+        private static uint _helloAt;
+        private static bool _rescueRefreshed;
 
         /// <summary>How often an open map asks for fresh markers (peddlers walk).</summary>
         public const uint RefreshMs = 30000;
@@ -144,7 +162,7 @@ namespace ClassicUO.Touch
                 int nameLength = p.ReadUInt8();
                 string name = nameLength > 0 ? p.ReadUnicodeBE(nameLength) : "";
 
-                if (kind >= SurvivalMarkerKind.Town && kind <= SurvivalMarkerKind.FriendCamp)
+                if (kind >= SurvivalMarkerKind.Town && kind <= SurvivalMarkerKind.Rescue)
                 {
                     list.Add(new SurvivalMarker(kind, state, facet, x, y, ox, oy, w, h, name)); // (a kind from a newer server: skipped)
                 }
@@ -158,7 +176,7 @@ namespace ClassicUO.Touch
 
             if (!_helloSent)
             {
-                _helloSent = Send(world, FlagAlerts); // the banners may come now
+                SayHello(world); // the banners may come now
             }
 
             AlertBanner.Ensure(world); // (its Update keeps an open map's markers fresh)
@@ -186,7 +204,18 @@ namespace ClassicUO.Touch
             }
 
             _lastRequest = Time.Ticks;
-            Send(world, FlagSend);
+            Send(world, FlagSend | FlagRescue);
+        }
+
+        /// <summary>"I show alert banners, and I draw rescue markers" (an old server reads only the flags it knows).</summary>
+        private static void SayHello(World world)
+        {
+            _helloSent = Send(world, FlagAlerts | FlagRescue);
+
+            if (_helloSent)
+            {
+                _helloAt = Time.Ticks;
+            }
         }
 
         private static bool MapOpen => UIManager.GetGump<SurvivalMapGump>() != null || UIManager.GetGump<WorldMapGump>() != null;
@@ -196,7 +225,14 @@ namespace ClassicUO.Touch
         {
             if (Supported && !_helloSent)
             {
-                _helloSent = Send(world, FlagAlerts); // (the first try came too early: once the player is there)
+                SayHello(world); // (the first try came too early: once the player is there)
+            }
+
+            // the login push (before the hello) had any SOS as a friend's camp: ask once more, past the server's 2 s
+            if (Supported && _helloSent && !_rescueRefreshed && Time.Ticks - _helloAt >= RescueRefreshMs)
+            {
+                _rescueRefreshed = true;
+                Request(world);
             }
 
             bool open = MapOpen;
@@ -236,6 +272,8 @@ namespace ClassicUO.Touch
             AlertSpots.Clear();
             Supported = false;
             _helloSent = false;
+            _helloAt = 0;
+            _rescueRefreshed = false;
             _lastRequest = 0;
             _mapWasOpen = false;
             Version++;

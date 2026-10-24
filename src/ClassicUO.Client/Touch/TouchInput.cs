@@ -81,7 +81,45 @@ namespace ClassicUO.Touch
             public Game.UI.Gumps.Gump Gump;
             public Point Origin, DownPhysical, DownLogical;
             public float Scale;
+            public uint ServerSerial, LocalSerial; // (build 56) a server menu rebuilt mid-press: the menu that replaced it
         }
+
+        /// <summary>
+        /// Build 56: the window a finger's mapping is for - the one it pressed, or, if the server rebuilt that menu as a new
+        /// window meanwhile (a refresh, a page), the menu that replaced it. Null: gone.
+        /// </summary>
+        private static Game.UI.Gumps.Gump Live(PointerMap m)
+        {
+            if (!m.Gump.IsDisposed)
+            {
+                return m.Gump;
+            }
+
+            if (m.ServerSerial == 0)
+            {
+                return null;
+            }
+
+            for (LinkedListNode<Game.UI.Gumps.Gump> n = UIManager.Gumps.First; n != null; n = n.Next) // (front to back)
+            {
+                Game.UI.Gumps.Gump g = n.Value;
+
+                if (!g.IsDisposed && g.ServerSerial == m.ServerSerial && g.LocalSerial == m.LocalSerial && g.GetType() == m.Gump.GetType())
+                {
+                    return g;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// Build 56: where a finger lands in its window's own layout, by the zoom and spot the window had when the finger
+        /// went down - also once the window has been refitted, pulled back on screen or rebuilt by the server since (a
+        /// press and its release must reach the same control).
+        /// </summary>
+        private static Point PressLogical(PointerMap m, Game.UI.Gumps.Gump live, Point pos) =>
+            new Point(live.X + (int)MathF.Round((pos.X - m.Origin.X) / m.Scale), live.Y + (int)MathF.Round((pos.Y - m.Origin.Y) / m.Scale));
 
         private static readonly Dictionary<long, PointerMap> _maps = new Dictionary<long, PointerMap>();
         private static readonly List<long> _mapsToDrop = new List<long>();
@@ -185,6 +223,7 @@ namespace ClassicUO.Touch
             MacroRecorder.Reset();
             SmartTargeting.Reset();
             _maps.Clear();
+            LargeUi.Reset();
             PointerGump = null;
             _physicalPointer = null;
             GumpScale.Unload();
@@ -492,15 +531,26 @@ namespace ClassicUO.Touch
         /// A server window's button, check box or text field under the finger (the house placement
         /// warning's OKAY sat under the joystick). The client's own windows - health bars, journal,
         /// paperdoll, the speech line - don't count: a walk must not turn into a click on them.
+        /// Build 56: a server window's NiceButton or clickable HitBox counts too - the X LargeUi adds to a menu
+        /// with no close button is one, and under the ring a tap on it walked (and no long press could close it).
         /// </summary>
         private static bool WindowControlAt(Point pos)
         {
             Control c = UIManager.ControlAtPhysical(pos);
 
-            return (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable) &&
-                   c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0 ||
-                   (c is HitBox || c is Button || c is Checkbox || c is StbTextBox field && field.IsEditable) &&
-                   (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump); // Accept, Clear, +/-, the arrows, gold
+            if (c == null || !c.IsEnabled)
+            {
+                return false;
+            }
+
+            if (c.RootParent is Game.UI.Gumps.ShopGump || c.RootParent is Game.UI.Gumps.TradingGump)
+            {
+                return c is HitBox || c is Button || c is Checkbox || c is StbTextBox field && field.IsEditable; // Accept, Clear, +/-, the arrows, gold
+            }
+
+            return c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0 &&
+                   (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable ||
+                    c is NiceButton || c is HitBox hit && hit.HasClickHandler); // (not a plain HitBox: it is only a highlight)
         }
 
         /// <summary>
@@ -521,6 +571,9 @@ namespace ClassicUO.Touch
         public static Point ToUi(float nx, float ny) => new Point((int)(nx * ScreenW), (int)(ny * ScreenH));
 
         // ---------- input entry points ----------
+
+        /// <summary>Build 56: two fingers are zooming a window (LargeUi.KeepOnScreen stands aside, as for a drag).</summary>
+        public static bool PinchingWindow => _pinchGump != null && _pinchA != long.MinValue;
 
         /// <summary>Returns true when the touch layer consumed the press (HUD hit, or a finger in pointer mode).</summary>
         public static bool OnDown(long id, Point pos, bool isMouse = false)
@@ -658,12 +711,13 @@ namespace ClassicUO.Touch
                 }
                 float scale = GumpScale.Of(f.OnGump);
 
-                if (scale != 1f)
+                // (build 56: a fitted server menu always, even at 1 - a rebuild may refit it while the finger is down)
+                if (scale != 1f || LargeUi.IsServerMenu(f.OnGump) && LargeUi.Sizes(f.OnGump))
                 {
                     _maps[id] = new PointerMap
                     {
                         Gump = f.OnGump, Scale = scale, Origin = new Point(f.OnGump.X, f.OnGump.Y),
-                        DownPhysical = pos, DownLogical = local
+                        DownPhysical = pos, DownLogical = local, ServerSerial = f.OnGump.ServerSerial, LocalSerial = f.OnGump.LocalSerial
                     };
                 }
             }
@@ -965,7 +1019,7 @@ namespace ClassicUO.Touch
 
                 case Owner.Pointer:
                     Point? snap = !f.LongPressFired && !canceled && !f.Moved && f.Snap.HasValue && f.HoldUntil != 0 && Time.Ticks < f.HoldUntil
-                        ? LargeUi.SnapTarget(f.Start) // (asked again: the menu may have been rebuilt or moved since the finger went down)
+                        ? SnapAtLift(id, f.Start) // (asked again: the menu may have been rebuilt or moved since the finger went down)
                         : null;
 
                     if (snap.HasValue)
@@ -996,6 +1050,32 @@ namespace ClassicUO.Touch
         }
 
         public static bool OwnsFinger(long id) => _fingers.ContainsKey(id);
+
+        /// <summary>
+        /// The lift of a held tap on a server menu: the button it stands for (LargeUi.SnapTarget), as a finger position
+        /// the finger's own mapping turns into that button's centre. Build 56: read through the press's mapping (the
+        /// window's zoom and spot at touch-down), so a menu rebuilt or refitted under the finger can't send the press
+        /// somewhere else.
+        /// </summary>
+        private static Point? SnapAtLift(long id, Point start)
+        {
+            if (!_maps.TryGetValue(id, out PointerMap m))
+            {
+                return LargeUi.SnapTarget(start);
+            }
+
+            Game.UI.Gumps.Gump live = Live(m);
+            Point? target = live != null ? LargeUi.SnapLogical(live, PressLogical(m, live, start)) : null;
+
+            if (!target.HasValue)
+            {
+                return null;
+            }
+
+            // back to a finger position, which MapPointer (PressLogical) turns into the target again
+            return new Point(m.Origin.X + (int)MathF.Round((target.Value.X - live.X) * m.Scale),
+                             m.Origin.Y + (int)MathF.Round((target.Value.Y - live.Y) * m.Scale));
+        }
 
         /// <summary>The finger's queued (not yet dispatched) events move to <paramref name="pos"/>.</summary>
         private static void MovePress(long id, Point pos)
@@ -1097,6 +1177,10 @@ namespace ClassicUO.Touch
                             HousePlacementGhost.FingerUp(Client.Game.UO.World, false); // a line it was laying is dropped
                         }
 
+                        // (build 56) what is under the pointer now, before the scene is asked: a press held back while
+                        // its window was rebuilt (or one moved to a menu's button at the lift) was read against the last
+                        // frame's window - gone, so "nothing", and the world took the click
+                        UIManager.RefreshMouseOver();
                         Client.Game.DispatchMouseDown(MouseButtonType.Left);
                         _downFinger = e.Finger;
                         _keyboardWanted = UIManager.MouseOverControl is Game.UI.Controls.StbTextBox;
@@ -1197,12 +1281,14 @@ namespace ClassicUO.Touch
                 return pos;
             }
 
-            if (!_maps.TryGetValue(finger, out PointerMap m) || m.Gump.IsDisposed)
+            Game.UI.Gumps.Gump live = _maps.TryGetValue(finger, out PointerMap m) ? Live(m) : null;
+
+            if (live == null)
             {
                 return pos;
             }
 
-            if (UIManager.IsDragging && UIManager.DraggingControl != null && UIManager.DraggingControl != m.Gump)
+            if (UIManager.IsDragging && UIManager.DraggingControl != null && UIManager.DraggingControl != live)
             {
                 // Dragging something out of the zoomed window (a split-stack menu, a spell or skill
                 // icon): from here on the finger is on the screen, not in the window.
@@ -1211,15 +1297,14 @@ namespace ClassicUO.Touch
                 return pos;
             }
 
-            PointerGump = m.Gump;
+            PointerGump = live;
 
-            if (UIManager.IsDragging && UIManager.DraggingControl == m.Gump)
+            if (UIManager.IsDragging && UIManager.DraggingControl == live)
             {
                 return m.DownLogical + (pos - m.DownPhysical);
             }
 
-            return new Point(m.Origin.X + (int)MathF.Round((pos.X - m.Origin.X) / m.Scale),
-                             m.Origin.Y + (int)MathF.Round((pos.Y - m.Origin.Y) / m.Scale));
+            return PressLogical(m, live, pos);
         }
 
         private static bool IsHeld(long finger) =>

@@ -98,6 +98,11 @@ namespace ClassicUO.Game.UI.Controls
             set => _gameText.Text = value;
         }
 
+        /// <summary>UO Mobile (build 56): the text holds a link (a tap on it opens the link, so it is never a button's label).</summary>
+        public bool HasLinks =>
+            _gameText != null && (_gameText.Links.Count > 0 ||
+                                  _gameText.Text != null && _gameText.Text.IndexOf("<a ", System.StringComparison.OrdinalIgnoreCase) >= 0);
+
         private void InternalBuild(string text, int hue)
         {
             if (!string.IsNullOrEmpty(text))

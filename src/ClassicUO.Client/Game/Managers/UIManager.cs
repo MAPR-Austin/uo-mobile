@@ -490,6 +490,12 @@ namespace ClassicUO.Game.Managers
             }
         }
 
+        /// <summary>
+        /// UO Mobile (build 56): re-read the control under the pointer now. The touch layer moves the pointer and presses
+        /// in the same update; the scene decides "world or window" from this, which was otherwise last frame's answer.
+        /// </summary>
+        internal static void RefreshMouseOver() => HandleMouseInput();
+
         private static void HandleMouseInput()
         {
             Control gump = GetMouseOverControl(Mouse.Position);

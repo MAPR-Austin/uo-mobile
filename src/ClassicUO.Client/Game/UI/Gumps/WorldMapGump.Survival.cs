@@ -64,6 +64,13 @@ namespace ClassicUO.Game.UI.Gumps
 
                         break;
 
+                    case SurvivalMarkerKind.Rescue: // (build 56) a survivor's SOS (flashing) or your escort: red
+                        color = !k.Escort && Time.Ticks / 400 % 2 == 0 ? Color.White : Color.Red;
+                        hue = 0x0021;
+                        size = 10;
+
+                        break;
+
                     default:
                         color = Color.LightSkyBlue;
                         hue = 0x0059;
