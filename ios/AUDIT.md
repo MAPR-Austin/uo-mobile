@@ -294,8 +294,12 @@ must be caught here.
      - Towns, Vendors and the leaderboard (Zombie Survival), held both ways: Prev / Next keep the menu's size from page to
        page (a page that needs more room shrinks it once; it never grows back while paging); close it, wait a few seconds,
        open it again: fitted afresh; turn the phone: refitted;
-     - tap a row's words right after Next, while the new page is arriving: the row tapped is pressed (or nothing), never the
-       world behind the menu (no step, no target, no attack);
+     - tap a row's words right after Next, while the new page is arriving: the row tapped is pressed, or nothing, or (in the
+       round-trip gap after Next, when no menu is up) a single click on what was behind it - a name, or a target if a cursor
+       was up (two quick taps there are a double-click: known, build 56 audit, finding 2: the client drops the menu on Next before the
+       new page arrives);
+     - hold a finger on a row's words while the server re-sends that menu (a list refreshing), then lift: the row's button
+       is pressed (build 56 audit, finding 1: ServUO re-sends a menu as a new gump, so the lift snaps to what's under it);
      - pinch a menu larger near a screen edge: it grows under the fingers without jumping back; lift: pulled back on screen;
      - a server menu's text with a link beside a button (none on either shard today; desktop-tested): a tap on the link
        opens it and the button isn't pressed; a plain label still presses its button (build 55);

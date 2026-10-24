@@ -1065,7 +1065,15 @@ namespace ClassicUO.Touch
             }
 
             Game.UI.Gumps.Gump live = Live(m);
-            Point? target = live != null ? LargeUi.SnapLogical(live, PressLogical(m, live, start)) : null;
+
+            if (live == null)
+            {
+                // ServUO re-sends a menu as a new gump (a new serial), so Live can't follow it: snap the lift onto
+                // whatever button is under the finger now, as build 55 did (a label tap still presses its row)
+                return LargeUi.SnapTarget(start);
+            }
+
+            Point? target = LargeUi.SnapLogical(live, PressLogical(m, live, start));
 
             if (!target.HasValue)
             {
