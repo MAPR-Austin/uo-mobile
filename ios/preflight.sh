@@ -150,13 +150,15 @@ none "ClassicUO's world map stays off the phone's presets (a ~120 MB image built
 
 # Build 55 (owner: "menus are still hard to read and navigate"): windows open at a readable zoom fitted to the screen
 # (Touch/LargeUi), server menus take taps on a row's words or plate as its button, and get an X when they have no close.
-need src/ClassicUO.Client/Touch/GumpScale.cs "out float s) ? s : LargeUi.AutoScale(g);" "a window nobody pinched opens at the large-menu zoom (build 55)"
+need src/ClassicUO.Client/Touch/GumpScale.cs ": LargeUi.AutoScale(g);" "a window nobody pinched opens at the large-menu zoom (build 55)"
 need src/ClassicUO.Client/Touch/GumpScale.cs "Math.Abs(scale - LargeUi.AutoScale(g)) < 0.03f" "...and a pinch back to that size forgets the pinch"
 need src/ClassicUO.Client/Network/PacketHandlers.cs "Touch.LargeUi.Adapt(gump); // UO Mobile:" "a server menu with no close button gets the X"
 need src/ClassicUO.Client/Touch/LargeUi.cs "!g.CanCloseWithRightClick || !IsServerMenu(g)" "...never a menu the server made unclosable"
-need src/ClassicUO.Client/Touch/TouchInput.cs "MovePress(id, f.Snap.Value);" "a tap on a server menu's label or plate presses the button it stands for"
+need src/ClassicUO.Client/Touch/TouchInput.cs "MovePress(id, snap.Value);" "a tap on a server menu's label or plate presses the button it stands for"
 need src/ClassicUO.Client/Touch/TouchInput.cs "!f.LongPressFired && !canceled && !f.Moved && f.Snap.HasValue" "...only a tap: a drag moves the window, a long press still right-clicks, a canceled touch presses nothing"
-need src/ClassicUO.Client/Touch/TouchInput.cs "LargeUi.SnapTarget(pos).HasValue" "...and under the joystick's ring a menu row takes the tap (as its button would)"
+need src/ClassicUO.Client/Touch/TouchInput.cs "? LargeUi.SnapTarget(f.Start)" "...asked again at the lift (the menu may have been rebuilt meanwhile); under the joystick's ring only real buttons take taps"
+need src/ClassicUO.Client/Touch/TouchInput.cs "float zs = root != null ? GumpScale.Of(root) : 1f;" "the keyboard's text area follows a zoomed window's field"
+need src/ClassicUO.Client/Touch/GumpScale.cs "LargeUi.FitScale(g, s)" "a pinched zoom is still fitted to the screen (and build 54's server-menu zooms are dropped once)"
 need src/ClassicUO.Client/Touch/TouchInput.cs "LargeUi.KeepOnScreen();" "zoomed windows are kept on the screen every frame"
 need src/ClassicUO.Client/Touch/LargeUi.cs "if (!On || UIManager.IsDragging" "...but not while a window is being dragged"
 need src/ClassicUO.Client/Touch/TouchInput.cs "!LargeUi.Sizes(g) &&" "a fitted window never forces the wide portrait fit (it would shrink the whole UI)"

@@ -43,7 +43,7 @@ namespace ClassicUO.Touch
 
             EnsureLoaded();
 
-            return _scales.TryGetValue(Key(g), out float s) ? s : LargeUi.AutoScale(g);
+            return _scales.TryGetValue(Key(g), out float s) ? LargeUi.FitScale(g, s) : LargeUi.AutoScale(g);
         }
 
         public static void Set(Gump g, float scale)
@@ -123,14 +123,35 @@ namespace ClassicUO.Touch
 
             _scales ??= new Dictionary<string, float>();
 
+            bool migrated = false;
+
+            if (!_scales.ContainsKey(LARGE_UI_MARK))
+            {
+                // Build 55: server menus open at the large menus' size; a zoom pinched before (relative to the old
+                // small size) is forgotten once, so nobody stays on a smaller menu than everyone else.
+                foreach (string key in new List<string>(_scales.Keys))
+                {
+                    if (key.StartsWith("server:", StringComparison.Ordinal))
+                    {
+                        _scales.Remove(key);
+                    }
+                }
+
+                _scales[LARGE_UI_MARK] = 1f;
+                migrated = true;
+            }
+
             foreach (string key in new List<string>(_scales.Keys))
             {
                 float v = _scales[key];
                 _scales[key] = float.IsFinite(v) ? Math.Clamp(v, MIN, MAX) : 1f; // a hand-edited 0 would divide by zero
             }
 
-            _dirty = false;
+            _dirty = migrated; // (saved at the next save point)
         }
+
+        /// <summary>Marks a zoom file written since build 55's large menus (never a window's key).</summary>
+        private const string LARGE_UI_MARK = "_build55";
 
         public static void Save()
         {

@@ -41,6 +41,12 @@ namespace ClassicUO.Touch
         /// <summary>How far (logical units) right of a button its label may start.</summary>
         private const int LABEL_GAP = 48;
 
+        /// <summary>
+        /// The tallest text that still counts as a button's label (two lines), and the tallest plate that counts as a
+        /// row's: a block of description beside a button, or a big panel, is not that button.
+        /// </summary>
+        private const int MAX_LABEL_H = 44, MAX_PLATE_H = 100;
+
         public static bool On => TouchInput.Enabled && !_off;
 
         private static readonly bool _off = Environment.GetEnvironmentVariable("UOM_LARGE_UI") == "0";
@@ -71,9 +77,9 @@ namespace ClassicUO.Touch
                     return 1.2f;
                 case PaperDollGump:
                     return 1.15f;
-                case OptionsGump:
-                    return 1f; // (fitted: it is taller than a sideways phone)
             }
+
+            // (not UO's options: its drop-down lists open at unzoomed spots, so upright it still widens the UI instead)
 
             return IsServerMenu(g) ? SERVER : 0f;
         }
@@ -94,12 +100,23 @@ namespace ClassicUO.Touch
                 return 1f;
             }
 
+            return Fit(g, target);
+        }
+
+        /// <summary>
+        /// A zoom someone pinched, kept within the screen the same way when this mode sizes the window (a menu
+        /// pinched to 1.3 on a sideways phone must not run off an upright one).
+        /// </summary>
+        public static float FitScale(Gump g, float pinched) => Sizes(g) ? Math.Min(pinched, Fit(g, GumpScale.MAX)) : pinched;
+
+        private static float Fit(Gump g, float target)
+        {
             int w = Math.Max(1, g.Width), h = Math.Max(1, g.Height);
             float sw = TouchInput.ScreenW - 2 * MARGIN, sh = TouchInput.ScreenH - 2 * MARGIN;
 
             if (sw <= 0 || sh <= 0)
             {
-                return 1f;
+                return Math.Clamp(target, GumpScale.MIN, GumpScale.MAX);
             }
 
             float s = Math.Min(target, sw / w);
@@ -279,7 +296,7 @@ namespace ClassicUO.Touch
             {
                 foreach (Control t in g.Children)
                 {
-                    if (!OnPage(g, t) || !(t is Label || t is HtmlControl || t is CroppedText) || !Rect(g, t).Contains(p))
+                    if (!OnPage(g, t) || !(t is Label || t is HtmlControl || t is CroppedText) || t.Height > MAX_LABEL_H || !Rect(g, t).Contains(p))
                     {
                         continue;
                     }
@@ -322,7 +339,7 @@ namespace ClassicUO.Touch
 
                     Rectangle r = Rect(g, c);
 
-                    if (r.Contains(p) && (long)r.Width * r.Height < area && (plate.IsEmpty || r.Width * r.Height < plate.Width * plate.Height))
+                    if (r.Contains(p) && (long)r.Width * r.Height < area && r.Height <= MAX_PLATE_H && (plate.IsEmpty || r.Width * r.Height < plate.Width * plate.Height))
                     {
                         plate = r;
                     }

@@ -497,11 +497,6 @@ namespace ClassicUO.Touch
         {
             Control c = UIManager.ControlAtPhysical(pos);
 
-            if (LargeUi.SnapTarget(pos).HasValue)
-            {
-                return true; // (build 55) a server menu's label or plate standing for its button
-            }
-
             return (c is Button || c is Checkbox || c is StbTextBox box && box.IsEditable) &&
                    c.RootParent is Game.UI.Gumps.Gump g && g.ServerSerial != 0 ||
                    (c is HitBox || c is Button || c is Checkbox || c is StbTextBox field && field.IsEditable) &&
@@ -969,12 +964,16 @@ namespace ClassicUO.Touch
                     break;
 
                 case Owner.Pointer:
-                    if (!f.LongPressFired && !canceled && !f.Moved && f.Snap.HasValue && f.HoldUntil != 0 && Time.Ticks < f.HoldUntil)
+                    Point? snap = !f.LongPressFired && !canceled && !f.Moved && f.Snap.HasValue && f.HoldUntil != 0 && Time.Ticks < f.HoldUntil
+                        ? LargeUi.SnapTarget(f.Start) // (asked again: the menu may have been rebuilt or moved since the finger went down)
+                        : null;
+
+                    if (snap.HasValue)
                     {
                         // (build 55) a tap on a server menu's label or plate: the press (still held back) and its release
                         // go to the button it stands for
-                        MovePress(id, f.Snap.Value);
-                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, f.Snap.Value, _frame, id));
+                        MovePress(id, snap.Value);
+                        _pointerQueue.Enqueue(new PointerEvent(PointerEventType.Up, snap.Value, _frame, id));
                     }
                     else if (!f.LongPressFired)
                     {
@@ -1319,14 +1318,19 @@ namespace ClassicUO.Touch
             }
 
             float fx = ww / (float)ScreenW, fy = wh / (float)ScreenH;
+            // (build 55) a zoomed window's field: where it is drawn, not where its unzoomed layout puts it
+            Game.UI.Gumps.Gump root = box.RootParent as Game.UI.Gumps.Gump;
+            float zs = root != null ? GumpScale.Of(root) : 1f;
+            float bx = root != null ? root.X + (box.ScreenCoordinateX - root.X) * zs : box.ScreenCoordinateX;
+            float by = root != null ? root.Y + (box.ScreenCoordinateY - root.Y) * zs : box.ScreenCoordinateY;
             var area = keepView
                 ? new SDL3.SDL.SDL_Rect { x = 0, y = 0, w = 1, h = 1 }
                 : new SDL3.SDL.SDL_Rect
                 {
-                    x = (int)(box.ScreenCoordinateX * fx),
-                    y = (int)(box.ScreenCoordinateY * fy),
-                    w = Math.Max(1, (int)(box.Width * fx)),
-                    h = Math.Max(1, (int)(box.Height * fy))
+                    x = (int)(bx * fx),
+                    y = (int)(by * fy),
+                    w = Math.Max(1, (int)(box.Width * zs * fx)),
+                    h = Math.Max(1, (int)(box.Height * zs * fy))
                 };
             SDL3.SDL.SDL_SetTextInputArea(window, ref area, 0);
         }
