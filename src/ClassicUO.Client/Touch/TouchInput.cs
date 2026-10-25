@@ -498,6 +498,23 @@ namespace ClassicUO.Touch
         }
 
         /// <summary>
+        /// Build 57 (QA-011): over an open window (UI units). The HUD's layout name ("Survival") was drawn over every
+        /// menu's X at the top; it steps aside for any window that covers it, as the buttons do.
+        /// </summary>
+        public static bool OverWindow(Rectangle r)
+        {
+            foreach (Rectangle w in _windows)
+            {
+                if (w.Intersects(r))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
         /// A button over an open window steps aside - not drawn, not pressed - until the window closes or moves:
         /// the HUD is drawn over every window, and covered the shop's Accept and Clear, and (build 54) the build
         /// menu's tabs held upright - a tap on them pressed the button over them instead.

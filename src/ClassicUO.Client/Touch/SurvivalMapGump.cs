@@ -57,7 +57,7 @@ namespace ClassicUO.Touch
         private float _dragCx, _dragCy;
         private int _selected = -1; // a marker's index, -2 you, -1 none
         private int _selectedVersion;
-        private (SurvivalMarkerKind Kind, string Name) _selectedKey; // found again after the markers are refreshed
+        private (SurvivalMarkerKind Kind, string Name, int X, int Y, bool Escort) _selectedKey; // found again after the markers are refreshed
         private string _info = "";
 
         private int _builtW, _builtH;
@@ -357,8 +357,58 @@ namespace ClassicUO.Touch
 
             _selected = best;
             _selectedVersion = ZombieMarkers.Version;
-            _selectedKey = best >= 0 ? (markers[best].Kind, markers[best].Name) : default;
+            _selectedKey = best >= 0 ? (markers[best].Kind, markers[best].Name, markers[best].X, markers[best].Y, markers[best].Escort) : default;
         }
+
+        /// <summary>
+        /// The selected marker in a refreshed list: the same kind, by name nearest its old spot - or (build 57) without the
+        /// name, the nearest within <see cref="ReselectTiles" /> of where it was. An escort's name counts down ("Escort: ...,
+        /// 4 min") and its survivor walks, so a match by name lost it every minute (build 56 audit). -1: gone.
+        /// </summary>
+        private int FindSelected()
+        {
+            List<SurvivalMarker> markers = ZombieMarkers.Markers;
+            (SurvivalMarkerKind kind, string name, int x, int y, bool escort) = _selectedKey;
+            int best = -1;
+            long bestD = long.MaxValue;
+            bool bestNamed = false;
+
+            for (int i = 0; i < markers.Count; i++)
+            {
+                SurvivalMarker k = markers[i];
+
+                if (k.Kind != kind || k.Escort != escort)
+                {
+                    continue;
+                }
+
+                bool named = k.Name == name;
+                long d = (long)(k.X - x) * (k.X - x) + (long)(k.Y - y) * (k.Y - y);
+
+                if (!named && d > ReselectTiles * ReselectTiles)
+                {
+                    continue; // (another marker of the kind, far away: not this one)
+                }
+
+                if (named && !bestNamed || named == bestNamed && d < bestD)
+                {
+                    best = i;
+                    bestD = d;
+                    bestNamed = named;
+                }
+            }
+
+            if (best >= 0)
+            {
+                SurvivalMarker k = markers[best];
+                _selectedKey = (k.Kind, k.Name, k.X, k.Y, k.Escort); // (follows it as it walks and its name changes)
+            }
+
+            return best;
+        }
+
+        /// <summary>How far a selected marker may move between two refreshes (30 s apart; an escort walks about a tile a second).</summary>
+        private const int ReselectTiles = 48;
 
         private Point ToScreen(float tx, float ty, Rectangle v, float s) =>
             new Point(v.Center.X + (int)MathF.Round((tx - _cx) * s), v.Center.Y + (int)MathF.Round((ty - _cy) * s));
@@ -404,7 +454,7 @@ namespace ClassicUO.Touch
             if (_selected >= 0 && _selectedVersion != ZombieMarkers.Version)
             {
                 // the list changed under it (a refresh): the same marker again, if it is still there
-                _selected = ZombieMarkers.Markers.FindIndex(k => k.Kind == _selectedKey.Kind && k.Name == _selectedKey.Name);
+                _selected = FindSelected();
                 _selectedVersion = ZombieMarkers.Version;
             }
 
@@ -438,6 +488,11 @@ namespace ClassicUO.Touch
 
                 case SurvivalMarkerKind.Rescue:
                     return k.Escort ? $"{k.Name} - lead them to a held town ({where})" : $"{k.Name} - a survivor calling for help ({where})";
+
+                case SurvivalMarkerKind.Dungeon:
+                    return k.DungeonState == 2 ? $"{k.Name}: dungeon - its master is laid to rest ({where})"
+                        : k.DungeonState == 1 ? $"{k.Name}: dungeon - quiet for now ({where})"
+                        : $"{k.Name}: dungeon - the dead hold it ({where})";
 
                 default:
                     return $"{k.Name}: {(k.UnderAttack ? "UNDER ATTACK, " : "")}{(k.FireOut ? "its fire is out" : "fire lit")} ({where})";
@@ -719,6 +774,14 @@ namespace ClassicUO.Touch
         private const uint SosPulseMs = 1200;
         private bool _sosShown; // a rescue marker is on this facet: the legend names it
 
+        // (build 57) dungeon doors: an arched doorway, violet stone round a dark opening (grey stone and opening when the
+        // dungeon is quiet, a green opening when its master is laid to rest); a violet label
+        private static readonly Color DoorStone = new Color(170, 95, 235, 255), DoorQuietStone = new Color(150, 140, 170, 255);
+        private static readonly Color DoorOpen = new Color(20, 6, 28, 255), DoorQuiet = new Color(80, 80, 90, 255), DoorRest = new Color(60, 200, 80, 255);
+        private const ushort DoorHue = 0x0015;
+        private bool _dungeonShown; // a dungeon door is on this facet: the legend names it
+        private readonly List<(Point P, int H, Color Stone, Color Open)> _doors = new List<(Point, int, Color, Color)>();
+
         private static ushort TownHue(int state) => state == 2 ? (ushort)0x0044 : state == 1 ? (ushort)0x0035 : (ushort)0x0022;
 
         private static Color TownColor(int state) => state == 2 ? Held : state == 1 ? Cleared : Overrun;
@@ -768,9 +831,12 @@ namespace ClassicUO.Touch
             List<SurvivalMarker> markers = ZombieMarkers.Markers;
             List<(Point P, Color C, int R, bool Ring)> dots = _dots;
             List<(Rectangle R, Color C, Color Edge)> areas = _areas;
+            List<(Point P, int H, Color Stone, Color Open)> doors = _doors;
             dots.Clear();
             areas.Clear();
+            doors.Clear();
             _sosShown = false;
+            _dungeonShown = false;
 
             for (int i = 0; i < markers.Count; i++)
             {
@@ -837,6 +903,19 @@ namespace ClassicUO.Touch
                         break;
                     }
 
+                    case SurvivalMarkerKind.Dungeon:
+                    {
+                        // (build 57) a dungeon's door: an arched doorway (H half its height), its name below it
+                        int h = selected ? 10 : 8;
+                        int st = k.DungeonState;
+                        doors.Add((p, h, st == 0 ? DoorStone : DoorQuietStone, st == 2 ? DoorRest : st == 1 ? DoorQuiet : DoorOpen));
+                        RenderedText t = Label(k.Name, DoorHue);
+                        texts.Add((t, p.X - t.Width / 2, p.Y + h + 3));
+                        _dungeonShown = true;
+
+                        break;
+                    }
+
                     default: // camps
                     {
                         bool mine = k.Kind == SurvivalMarkerKind.Camp;
@@ -890,19 +969,25 @@ namespace ClassicUO.Touch
             }
 
             // the legend (top left)
-            List<(Color C, RenderedText T)> legend = new List<(Color, RenderedText)>
+            // (Door: drawn as a dungeon's doorway, not a dot)
+            List<(Color C, RenderedText T, bool Door)> legend = new List<(Color, RenderedText, bool)>
             {
-                (Held, Label("Held", 0x0481)), (Cleared, Label("Cleared", 0x0481)), (Overrun, Label("Overrun", 0x0481)),
-                (PeddlerColor, Label("Peddler", 0x0481)), (CampColor, Label("Your camp", 0x0481))
+                (Held, Label("Held", 0x0481), false), (Cleared, Label("Cleared", 0x0481), false), (Overrun, Label("Overrun", 0x0481), false),
+                (PeddlerColor, Label("Peddler", 0x0481), false), (CampColor, Label("Your camp", 0x0481), false)
             };
+
+            if (_dungeonShown)
+            {
+                legend.Insert(0, (DoorStone, Label("Dungeon", 0x0481), true)); // (early: the legend is cut at the right when upright)
+            }
 
             if (_sosShown)
             {
-                legend.Insert(0, (SosColor, Label("SOS", 0x0481))); // (first: the legend is cut at the right when upright)
+                legend.Insert(0, (SosColor, Label("SOS", 0x0481), false)); // (first: the legend is cut at the right when upright)
             }
             int legendW = 8;
 
-            foreach ((Color _, RenderedText t) in legend)
+            foreach ((Color _, RenderedText t, bool _) in legend)
             {
                 legendW += 14 + t.Width + 10;
             }
@@ -936,6 +1021,11 @@ namespace ClassicUO.Touch
                             batcher.DrawRectangle(SolidColorTextureCache.GetTexture(edge), r.X, r.Y, r.Width, r.Height, hue, layerDepth);
                         }
 
+                        foreach ((Point p, int h, Color stone, Color open) in doors)
+                        {
+                            DrawDoor(batcher, p, h, stone, open, hue, layerDepth);
+                        }
+
                         foreach ((Point p, Color c, int r, bool ring) in dots)
                         {
                             if (ring)
@@ -954,9 +1044,17 @@ namespace ClassicUO.Touch
                             batcher.Draw(SolidColorTextureCache.GetTexture(LegendFill), legendBox, hue, layerDepth);
                             int lx = legendBox.X + 8;
 
-                            foreach ((Color c, RenderedText t) in legend)
+                            foreach ((Color c, RenderedText t, bool door) in legend)
                             {
-                                DrawCircle(batcher, new Point(lx + 5, legendBox.Y + 11), 5, c, false, hue, layerDepth);
+                                if (door)
+                                {
+                                    DrawDoor(batcher, new Point(lx + 5, legendBox.Y + 11), 7, c, DoorOpen, hue, layerDepth);
+                                }
+                                else
+                                {
+                                    DrawCircle(batcher, new Point(lx + 5, legendBox.Y + 11), 5, c, false, hue, layerDepth);
+                                }
+
                                 lx += 14 + t.Width + 10;
                             }
                         }
@@ -990,7 +1088,7 @@ namespace ClassicUO.Touch
             {
                 int lx = legendBox.X + 8;
 
-                foreach ((Color _, RenderedText t) in legend)
+                foreach ((Color _, RenderedText t, bool _) in legend)
                 {
                     if (lx + 14 + t.Width <= legendBox.Right)
                     {
@@ -1026,6 +1124,28 @@ namespace ClassicUO.Touch
             _statusText?.Destroy();
             _infoText = _statusText = null;
             base.Dispose();
+        }
+
+        // ---------- a dungeon's door ----------
+
+        /// <summary>
+        /// (Build 57) an arched doorway centred on <paramref name="c" />, <paramref name="h" /> half its height: a black edge,
+        /// the stone, and the opening inside it.
+        /// </summary>
+        private static void DrawDoor(UltimaBatcher2D batcher, Point c, int h, Color stone, Color open, Vector3 hue, float depth)
+        {
+            int hw = h * 3 / 4; // half its width
+            Arch(batcher, c, hw + 2, h + 2, Ring, hue, depth);
+            Arch(batcher, c, hw, h, stone, hue, depth);
+            Arch(batcher, new Point(c.X, c.Y + 2), Math.Max(2, hw - 3), Math.Max(3, h - 3), open, hue, depth);
+        }
+
+        /// <summary>A round-topped shape: half-width <paramref name="hw" />, half-height <paramref name="hh" />, centred on <paramref name="c" />.</summary>
+        private static void Arch(UltimaBatcher2D batcher, Point c, int hw, int hh, Color color, Vector3 hue, float depth)
+        {
+            int top = c.Y - hh, bottom = c.Y + hh;
+            DrawCircle(batcher, new Point(c.X, top + hw), hw, color, false, hue, depth);
+            batcher.Draw(SolidColorTextureCache.GetTexture(color), new Rectangle(c.X - hw, top + hw, hw * 2, Math.Max(1, bottom - top - hw)), hue, depth);
         }
 
         // ---------- circles ----------

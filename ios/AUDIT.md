@@ -308,6 +308,30 @@ must be caught here.
        legend; tap it: "SOS: ... - a survivor calling for help (N tiles <way>)"; within ~3 s of logging in it is red, not a
        blue friend's camp; take the escort: "Escort: ..., N min" as a red dot in a steady red ring; a build-55 app on the
        same server still shows signals as blue friends' camps named "SOS: ..."; Graveyard Battles: no markers, as before.
+   - Build 57 (QA-011, build 56's audit notes; the dungeon doors and the undead need the zombie server's Dungeons and
+     UndeadPlayers code):
+     - held sideways and upright, open the guide ([guide), the build menu, Towns, the leaderboard and (as one of the dead)
+       [undead: the layout's name ("Survival") is never drawn over a menu's X; close the menus: the name is back; drag a menu
+       away from it: the name is back while nothing covers it; the same in Edit ("EDITING: ...");
+     - Zombie Survival, Map: the Gravecaller's Crypt (north-west of Vesper) and the Charnel Pits (by Despise) show as violet
+       arched doorways with their names under them, and "Dungeon" (a doorway) early in the legend; tap one: "<name>: dungeon
+       - the dead hold it (N tiles <way>)"; a quiet dungeon (the pits stilled, the crypt bare) has a grey doorway and says
+       "quiet for now", the crypt with its master dead a green opening and "its master is laid to rest"; within ~3 s of logging
+       in they are doorways, not blue friends' camps named "Dungeon: ..."; a build-56 app on the same server still shows
+       them as blue camps named "Dungeon: ..."; Graveyard Battles: no markers;
+     - lead an escort (build 56's check), open Map and tap the escort's red ring: the bar names it; keep the map open past the
+       next minute ("Escort: ..., N min" counts down) and while the survivor walks: the bar still names the escort (build 56
+       lost the selection every minute);
+     - upright, open the help menu (or another server menu wider than the screen), pinch it a little larger or smaller, turn
+       sideways: it opens at its fitted sideways size, readable (build 56 kept the tiny upright pinch); a menu you had pinched
+       that small in build 56 opens at its fitted size after updating; a pinch sideways (0.6 and up) is kept as before;
+     - Zombie Survival: Layout (also while editing) goes Survival, Undead, Combat, Mage, Utility; the app never switches to
+       Undead by itself (relaunch: still on the layout you used); Undead has Attack Nearest, Leap, Climb, Spit, Feed, Burrow,
+       Siege, Corrupt, Horde Attack / Follow / Guard / Stay, Undead (the menu), Raise, Scent and Map in a 4 x 4 block on the
+       right, held sideways and upright, none on the joystick or under the top row; as one of the dead each button does what
+       its command does (Leap, Climb, Burrow, Corrupt, Siege and Spit give a cursor; Horde Attack a cursor; the rest answer
+       at once); while alive they answer "Only the dead ..."; Edit > a button: the same commands are presets;
+       Graveyard Battles characters get no Undead layout.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -455,3 +479,5 @@ must be caught here.
 | audit | (agent, build 52) | a tap that rolled across a tile edge laid a two-piece line (no slop before a line started); a touch the system cancels (Control Center, a call) was a lift, so it built the dragged line; the ghost's answers (line and single spot) showed where hidden players and someone's hidden blast traps stand; from a raised walkway the ghost and the line used the ground under it; a line over a mound found no surface; overlapping async build suites could leave free building off; stale line answers across a new cursor; build-51 zombie characters with saved buttons never got Survival | half a tile of travel before a line starts; FINGER_CANCELED reaches TouchInput as canceled and a canceled world finger lifts off-screen; answers count only what the asker sees (placing still fails on it); floor items are surfaces for build cursors (Place targets the item); the ground up to 25 above the line's height; a hold counter; the sequence moves on with the cursor; Survival inserted once (preflight) |
 | audit | (agent, build 53) | the alert banner, made at login, drew under the map (added later, nearly opaque) and under windows opened after it (the stock sort moves one Over gump per pass); a long press - a right click on the phone - closed the map; the banner could flip between two spots as its text re-wrapped; a refresh lost the map's selection; held/cleared towns rang red; server: 0x7A60 registered as in-game (a sub-command before the character drops the client), town banners chosen by parsing the broadcast's words, a stranger's wall beside a camp or a friend's pet raised the camp's alarm, the login push could be throttled | the banner is made topmost while it shows; the map never closes on a right click; the placement is kept until the screen, HUD or text changes; the selection is found again by kind and name; rings take the town's colour; server: not in-game, banners by what changed (state, hordes), only the camp's people's pieces, a pet's blow is its master's, the login push is never held back |
 | audit | (agent, build 55, fixed in 56) | the X added to a server menu (a NiceButton) under the joystick ring walked instead of closing, and a long press there couldn't close it; upright, a server menu wider than ~780 ran off the screen with its X (fit stopped at 0.6); a paged menu was refitted every page (Prev / Next changed its size); a press held back while the server rebuilt its menu was mapped by the new window (or not at all) and the scene read last frame's window under the pointer (a vanished one: the world took the click); an HTML link beside a button counted as the button's label; zoomed windows were clamped on screen mid-pinch | a server menu's NiceButton / clickable HitBox beats the ring; server menus fit down to 0.4; one zoom per menu kind while it stays up (a bigger page shrinks it once); presses keep their touch-down mapping onto the live (or replacing) menu, and the pointer's control is re-read before each touch press; HTML with links is never a label; KeepOnScreen stands aside during a pinch |
+| QA | (zombie QA round 1, QA-011; fixed in 57) | the HUD's layout name ("Survival") was drawn over the X of every menu reaching the top of the screen (guide, build, leaderboard...) | the HUD is drawn over windows; only its buttons stepped aside | the name steps aside while any window covers it (`TouchInput.OverWindow`) |
+| audit | (build 56 notes, fixed in 57) | the map's selection of an escort dropped each minute; a server menu pinched below 0.6 upright stayed that tiny sideways | the selection was found again by kind and name, and the escort's name counts down ("N min"); `FitScale` only shrinks a pinched zoom | found by kind and nearest spot (name first); a server-menu pinch below 0.6 is not kept, and build 56's are dropped on load |

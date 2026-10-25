@@ -283,6 +283,8 @@ namespace ClassicUO.Touch
         [JsonPropertyName("version")] public int Version { get; set; }
         /// <summary>Build 52: a Zombie Survival character has been given the Survival layout (once; files from before have it false).</summary>
         [JsonPropertyName("survival")] public bool SurvivalOffered { get; set; }
+        /// <summary>Build 57: a Zombie Survival character has been given the Undead layout (once; files from before have it false).</summary>
+        [JsonPropertyName("undead")] public bool UndeadOffered { get; set; }
         [JsonPropertyName("layouts")] public List<ActionLayout> Layouts { get; set; } = new List<ActionLayout>();
 
         [JsonIgnore]
@@ -346,7 +348,29 @@ namespace ClassicUO.Touch
                 set.SurvivalOffered = true;
             }
 
+            // build 57: every Zombie Survival character gets the Undead layout once, right after Survival, for when they rise
+            // as one of the dead; the layout shown stays the same (Layout, also in edit mode, reaches it - never switched to)
+            if (OnZombieShard && !set.UndeadOffered)
+            {
+                AddUndead(set);
+                set.UndeadOffered = true;
+            }
+
             return set;
+        }
+
+        /// <summary>Puts the Undead layout after Survival (or last), keeping the layout shown; nothing if there is one already.</summary>
+        private static void AddUndead(ActionLayoutSet set)
+        {
+            if (set.Layouts.Exists(l => l.Name == UndeadLayoutName))
+            {
+                return;
+            }
+
+            ActionLayout shown = set.Current;
+            int survival = set.Layouts.FindIndex(l => l.Name == "Survival");
+            set.Layouts.Insert(survival >= 0 ? survival + 1 : set.Layouts.Count, Undead());
+            set.Active = Math.Max(0, set.Layouts.IndexOf(shown));
         }
 
         /// <summary>
@@ -405,6 +429,9 @@ namespace ClassicUO.Touch
         /// characters there no longer get the Survival layout.
         /// </summary>
         public const string ZombieShardName = "Zombie Survival";
+
+        /// <summary>Build 57: the layout for a Zombie Survival player who rose as one of the dead.</summary>
+        public const string UndeadLayoutName = "Undead";
 
         /// <summary>Playing on Zombie Survival: a character with no layouts yet starts with the Survival one.</summary>
         private static bool OnZombieShard => string.Equals(Client.Game.UO.World?.ServerName, ZombieShardName, StringComparison.OrdinalIgnoreCase);
@@ -493,9 +520,52 @@ namespace ClassicUO.Touch
                     B("Map", "map", 0.73f, 0.28f, 0.62f, 0.52f, 0.11f),
                 });
                 set.Layouts.Insert(0, zombie);
+                set.Layouts.Insert(1, Undead()); // build 57 (shown only when the player picks it: Survival stays first)
+                set.UndeadOffered = true;
             }
 
             return set;
+        }
+
+        /// <summary>
+        /// Build 57: an undead player's buttons (servuo UndeadAbilities / UndeadPlayers): the system row, then the dead's
+        /// commands in a 4 x 4 block on the right where the Survival layout has its cluster - the fight and moving (Attack
+        /// Nearest, [leap, [climb, [spit), feeding and breaking ([feed, [burrow, [siege, [corrupt), the horde's orders ([horde
+        /// attack / follow / guard / stay), and the rest ([undead's menu, [raise, [scent, the map). Portrait is worked out from
+        /// landscape, as for every layout.
+        /// </summary>
+        private static ActionLayout Undead()
+        {
+            ActionLayout undead = L(UndeadLayoutName);
+            undead.Buttons.AddRange(new List<ActionButtonDef>
+            {
+                B("Layout", "layout_next", 0.95f, 0.07f, 0.90f, 0.035f, 0.10f),
+                B("Edit", "edit_layout", 0.87f, 0.07f, 0.70f, 0.035f, 0.10f),
+                B("Cancel", "cancel_target", 0.79f, 0.07f, 0.50f, 0.035f, 0.10f),
+                B("Chat", "chat", 0.71f, 0.07f, 0.30f, 0.035f, 0.10f),
+                B("War", "war_peace", 0.63f, 0.07f, 0.10f, 0.035f, 0.10f),
+            });
+            undead.Buttons.AddRange(new[]
+            {
+                B("Attack\nNearest", "attack_nearest", 0.93f, 0.85f, 0.88f, 0.92f, 0.15f),
+                B("Leap", "say:[leap", 0.84f, 0.85f, 0.70f, 0.92f, 0.12f),
+                B("Climb", "say:[climb", 0.75f, 0.85f, 0.52f, 0.92f, 0.12f),
+                B("Spit", "say:[spit", 0.66f, 0.85f, 0.34f, 0.92f, 0.12f),
+                B("Feed", "say:[feed", 0.93f, 0.68f, 0.88f, 0.84f, 0.12f),
+                B("Burrow", "say:[burrow", 0.84f, 0.68f, 0.70f, 0.84f, 0.12f),
+                B("Siege", "say:[siege", 0.75f, 0.68f, 0.52f, 0.84f, 0.12f),
+                B("Corrupt", "say:[corrupt", 0.66f, 0.68f, 0.34f, 0.84f, 0.12f),
+                B("Horde\nAttack", "say:[horde attack", 0.93f, 0.51f, 0.88f, 0.76f, 0.12f),
+                B("Horde\nFollow", "say:[horde follow", 0.84f, 0.51f, 0.70f, 0.76f, 0.12f),
+                B("Horde\nGuard", "say:[horde guard", 0.75f, 0.51f, 0.52f, 0.76f, 0.12f),
+                B("Horde\nStay", "say:[horde stay", 0.66f, 0.51f, 0.34f, 0.76f, 0.12f),
+                B("Undead", "say:[undead", 0.93f, 0.34f, 0.88f, 0.68f, 0.12f),
+                B("Raise", "say:[raise", 0.84f, 0.34f, 0.70f, 0.68f, 0.12f),
+                B("Scent", "say:[scent", 0.75f, 0.34f, 0.52f, 0.68f, 0.12f),
+                B("Map", "map", 0.66f, 0.34f, 0.34f, 0.68f, 0.12f),
+            });
+
+            return undead;
         }
     }
 

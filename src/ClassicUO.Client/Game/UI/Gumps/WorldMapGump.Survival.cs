@@ -71,6 +71,13 @@ namespace ClassicUO.Game.UI.Gumps
 
                         break;
 
+                    case SurvivalMarkerKind.Dungeon: // (build 57) a dungeon's door: violet, grey while it is quiet
+                        color = k.DungeonState == 0 ? new Color(170, 95, 235) : new Color(150, 140, 170);
+                        hue = 0x0015;
+                        size = 9;
+
+                        break;
+
                     default:
                         color = Color.LightSkyBlue;
                         hue = 0x0059;

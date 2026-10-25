@@ -25,7 +25,14 @@ namespace ClassicUO.Touch
         /// way ("Escort: ..., N min"). Sent only to an app that asks with <see cref="ZombieMarkers"/>' flag 4; an older
         /// app gets the signals as friends' camps.
         /// </summary>
-        Rescue = 5
+        Rescue = 5,
+
+        /// <summary>
+        /// Build 57 (servuo Dungeons, DungeonMarkers): a dungeon's door, named by the dungeon; state: 0 its dead stand,
+        /// 1 quiet (the crypt bare, the pits stilled), 2 laid to rest (the crypt's master dead). Sent only to an app that asks
+        /// with <see cref="ZombieMarkers"/>' flag 8; an older app gets the doors as friends' camps named "Dungeon: ...".
+        /// </summary>
+        Dungeon = 6
     }
 
     /// <summary>One marker: where (X, Y), a town's outline (OX, OY, W, H), its state and name.</summary>
@@ -63,6 +70,9 @@ namespace ClassicUO.Touch
 
         /// <summary>A rescue marker: your escort under way (else a survivor's SOS signal).</summary>
         public bool Escort => Kind == SurvivalMarkerKind.Rescue && (State & 0x40) != 0;
+
+        /// <summary>A dungeon's door: 0 its dead stand, 1 quiet, 2 laid to rest (servuo Dungeon.MarkerState).</summary>
+        public int DungeonState => Kind == SurvivalMarkerKind.Dungeon ? State : 0;
     }
 
     /// <summary>
@@ -82,11 +92,15 @@ namespace ClassicUO.Touch
         public const ushort MarkersSub = 0x7A61; // ZombieMarkers.MarkersSub
         public const ushort AlertSub = 0x7A62; // ZombieAlerts.AlertSub
 
-        // 4 (build 56): "I draw rescue markers (kind 5)" - servuo RescueMissions.FlagRescueMarkers; sent with every hello and
-        // request, so the server's answers carry kind 5 (it remembers it per connection)
-        private const byte FlagAlerts = 1, FlagSend = 2, FlagRescue = 4;
+        // 4 (build 56): "I draw rescue markers (kind 5)" - servuo RescueMissions.FlagRescueMarkers; 8 (build 57): "I draw dungeon
+        // doors (kind 6)" - servuo DungeonMarkers.FlagDungeonMarkers. Sent with every hello and request, so the server's
+        // answers carry kinds 5 and 6 (it remembers them per connection)
+        private const byte FlagAlerts = 1, FlagSend = 2, FlagRescue = 4, FlagDungeon = 8;
 
-        /// <summary>After the hello, one fresh request: the login push came before the server knew this app draws kind 5.</summary>
+        /// <summary>The kinds this app draws, said with every hello and request.</summary>
+        private const byte FlagKinds = FlagRescue | FlagDungeon;
+
+        /// <summary>After the hello, one fresh request: the login push came before the server knew this app draws kinds 5 and 6.</summary>
         private const uint RescueRefreshMs = 2500;
 
         private static uint _helloAt;
@@ -162,7 +176,7 @@ namespace ClassicUO.Touch
                 int nameLength = p.ReadUInt8();
                 string name = nameLength > 0 ? p.ReadUnicodeBE(nameLength) : "";
 
-                if (kind >= SurvivalMarkerKind.Town && kind <= SurvivalMarkerKind.Rescue)
+                if (kind >= SurvivalMarkerKind.Town && kind <= SurvivalMarkerKind.Dungeon)
                 {
                     list.Add(new SurvivalMarker(kind, state, facet, x, y, ox, oy, w, h, name)); // (a kind from a newer server: skipped)
                 }
@@ -204,13 +218,13 @@ namespace ClassicUO.Touch
             }
 
             _lastRequest = Time.Ticks;
-            Send(world, FlagSend | FlagRescue);
+            Send(world, FlagSend | FlagKinds);
         }
 
-        /// <summary>"I show alert banners, and I draw rescue markers" (an old server reads only the flags it knows).</summary>
+        /// <summary>"I show alert banners, and I draw rescue markers and dungeon doors" (an old server reads only the flags it knows).</summary>
         private static void SayHello(World world)
         {
-            _helloSent = Send(world, FlagAlerts | FlagRescue);
+            _helloSent = Send(world, FlagAlerts | FlagKinds);
 
             if (_helloSent)
             {
@@ -228,7 +242,7 @@ namespace ClassicUO.Touch
                 SayHello(world); // (the first try came too early: once the player is there)
             }
 
-            // the login push (before the hello) had any SOS as a friend's camp: ask once more, past the server's 2 s
+            // the login push (before the hello) had any SOS or dungeon door as a friend's camp: ask once more, past the server's 2 s
             if (Supported && _helloSent && !_rescueRefreshed && Time.Ticks - _helloAt >= RescueRefreshMs)
             {
                 _rescueRefreshed = true;

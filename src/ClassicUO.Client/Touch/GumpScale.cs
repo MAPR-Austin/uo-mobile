@@ -56,9 +56,12 @@ namespace ClassicUO.Touch
             EnsureLoaded();
             scale = Math.Clamp(scale, Math.Min(MIN, LargeUi.AutoScale(g)), MAX); // (build 56: a wide menu fitted below MIN can be pinched from there)
 
-            if (Math.Abs(scale - LargeUi.AutoScale(g)) < 0.03f)
+            if (Math.Abs(scale - LargeUi.AutoScale(g)) < 0.03f || scale < MIN && LargeUi.IsServerMenu(g))
             {
-                _scales.Remove(Key(g)); // snap back to the window's own size (1, or the large menus' size): drawn as if never pinched
+                // snap back to the window's own size (1, or the large menus' size): drawn as if never pinched. Build 57: a
+                // server menu pinched below MIN (only a wide one fitted below it upright can be) isn't kept either - sideways
+                // that tiny zoom stayed (FitScale only shrinks), so the menu opened unreadably small (build 56 audit)
+                _scales.Remove(Key(g));
             }
             else
             {
@@ -123,6 +126,7 @@ namespace ClassicUO.Touch
 
             _scales ??= new Dictionary<string, float>();
 
+            _dirty = false;
             bool migrated = false;
 
             if (!_scales.ContainsKey(LARGE_UI_MARK))
@@ -144,10 +148,19 @@ namespace ClassicUO.Touch
             foreach (string key in new List<string>(_scales.Keys))
             {
                 float v = _scales[key];
+
+                if (key.StartsWith("server:", StringComparison.Ordinal) && float.IsFinite(v) && v < MIN)
+                {
+                    _scales.Remove(key); // build 57: a server menu's zoom below MIN kept by build 56 (see Set): fitted afresh
+                    _dirty = true;
+
+                    continue;
+                }
+
                 _scales[key] = float.IsFinite(v) ? Math.Clamp(v, LargeUi.MENU_MIN, MAX) : 1f; // a hand-edited 0 would divide by zero
             }
 
-            _dirty = migrated; // (saved at the next save point)
+            _dirty |= migrated; // (saved at the next save point)
         }
 
         /// <summary>Marks a zoom file written since build 55's large menus (never a window's key).</summary>

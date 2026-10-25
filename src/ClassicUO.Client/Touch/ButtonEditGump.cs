@@ -59,6 +59,11 @@ namespace ClassicUO.Touch
             ("Vendor Buy", "say:vendor buy"), ("Vendor Sell", "say:vendor sell"), ("Guards", "say:guards"),
             ("Build", "say:[build"), ("Towns", "say:[towns"), ("Vendors", "say:[vendors"), ("Repair All", "say:[repairall"), // Zombie Survival's commands
             ("Map", "map"),
+            ("Leap", "say:[leap"), ("Climb", "say:[climb"), ("Burrow", "say:[burrow"), // (build 57) an undead player's commands
+            ("Feed", "say:[feed"), ("Raise", "say:[raise"), ("Corrupt", "say:[corrupt"),
+            ("Siege", "say:[siege"), ("Scent", "say:[scent"), ("Spit", "say:[spit"),
+            ("Horde Attack", "say:[horde attack"), ("Horde Follow", "say:[horde follow"), ("Horde Guard", "say:[horde guard"),
+            ("Horde Stay", "say:[horde stay"), ("Undead Menu", "say:[undead"),
             ("All Kill", "say:all kill"), ("All Follow", "say:all follow me"), ("All Guard", "say:all guard me"),
             ("Backpack", "open:Backpack"), ("Paperdoll", "open:Paperdoll"), ("Skills", "open:Skills"),
             ("Journal", "open:Journal"), ("Status", "open:Status"), ("Spellbook", "open:MageSpellbook"),

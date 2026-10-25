@@ -173,6 +173,13 @@ namespace ClassicUO.Touch
             {
                 _labels[i].IsVisible = !TouchInput.SteppedAside(layout.Buttons[i]);
             }
+
+            // build 57 (QA-011): the layout's name was drawn over the X of every menu that reached the top of the screen
+            // (the HUD is drawn over windows): it steps aside while a window covers it, edit mode too
+            if (_layoutName != null && !_layoutName.IsDisposed)
+            {
+                _layoutName.IsVisible = !TouchInput.OverWindow(new Rectangle(_layoutName.X - 2, _layoutName.Y - 2, _layoutName.Width + 4, _layoutName.Height + 4));
+            }
         }
 
         private void Rebuild()
