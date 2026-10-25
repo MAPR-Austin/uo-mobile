@@ -385,9 +385,11 @@ namespace ClassicUO.Touch
                 bool named = k.Name == name;
                 long d = (long)(k.X - x) * (k.X - x) + (long)(k.Y - y) * (k.Y - y);
 
-                if (!named && d > ReselectTiles * ReselectTiles)
+                if (!named && (!escort || d > ReselectTiles * ReselectTiles))
                 {
-                    continue; // (another marker of the kind, far away: not this one)
+                    // only an escort renames itself ("N min"); any other marker without its name is a different one,
+                    // so the selection clears as before (build 57 audit)
+                    continue;
                 }
 
                 if (named && !bestNamed || named == bestNamed && d < bestD)
