@@ -190,6 +190,22 @@ need src/ClassicUO.Client/Touch/ActionLayouts.cs "set.Active = Math.Max(0, set.L
 need src/ClassicUO.Client/Touch/ActionLayouts.cs 'B("Horde\\nFollow", "say:\[horde follow"' "the Undead layout has the horde's orders"
 need src/ClassicUO.Client/Touch/ButtonEditGump.cs '("Leap", "say:\[leap"), ("Climb", "say:\[climb")' "the undead presets ([leap, [climb, ... [undead)"
 
+# Build 58 (owner: menus illegible zoomed - the UI drawn at the screen's pixels, text at its final size, the clean UO font)
+need src/ClassicUO.Client/Touch/PhoneText.cs "public static bool UiAtPixels => TouchInput.Enabled" "the pixel-scale UI is touch builds only (desktop unchanged)"
+need src/ClassicUO.Client/GameController.cs "uiAtPixels ? Matrix.CreateScale(DpiScale, DpiScale, 1f)" "the phone's UI is drawn at the screen's pixels (not stretched ~2.5x with linear filtering)"
+need src/ClassicUO.Client/GameController.cs "_uoSpriteBatch.BaseTransform = Matrix.Identity;" "...and that scale is cleared for the world and after the UI"
+need src/ClassicUO.Renderer/RenderTargets.cs "uiAtDevicePixels ? gameWindowOnScreen" "...into a backbuffer-sized UI target, copied 1:1"
+need src/ClassicUO.Renderer/Batcher2D.cs "_transformMatrix = transform_matrix \* BaseTransform;" "...applied after every batch's own transform (zoomed windows, scissors)"
+need src/ClassicUO.Renderer/Batcher2D.cs "SetSampler(SamplerState.LinearClamp);" "SpriteFont text (the map's labels) stays smooth at that scale"
+need src/ClassicUO.Client/Game/GameObjects/RenderedText.cs "atlas.TryGetScaledEntry(" "text is drawn from glyphs rasterised at their screen scale, 1:1 on whole pixels"
+need src/ClassicUO.Renderer/FontGlyphAtlas.cs "_frameSpent \* 1000 > FRAME_BUDGET_MS" "...made within a per-frame budget (a menu at a new zoom never stalls a frame)"
+need src/ClassicUO.Renderer/FontGlyphAtlas.cs "if (_scaledResetPending)" "...and the scaled cache is dropped only at a frame's start (never while batched)"
+need src/ClassicUO.Client/Touch/PhoneText.cs "!_noCrisp && !TouchInput.PinchingWindow" "...not during a window pinch (a new scale every frame)"
+need src/ClassicUO.Client/Client.cs "Touch.PhoneText.ApplyFonts(FileManager.Fonts);" "UO's blackletter Unicode font 0 is shown in the clean font 3 on phones"
+need src/ClassicUO.Assets/FontsLoader.cs "|| _unicodeFontAddress\[replacement\] == null" "...only if both fonts exist (otherwise unchanged)"
+need src/ClassicUO.Client/Touch/PhoneText.cs "CLEAN_TIGHTEN = 2;" "...letter spacing tightened so menus laid out for font 0 still fit"
+need src/ClassicUO.Client/Game/Managers/JournalManager.cs "else if (!entry.IsUnicode && Touch.PhoneText.Fonts)" "journal lines sent in ASCII fonts are shown in the clean font"
+
 echo "== Boats"
 # Build 49: a boat's helm (servuo BoatHelm.cs). At the helm (0x3E96 on Layer.Mount) the stick steers through
 # 0xBF 0x33; a held course is resent flagged 0x80 on the copy of the direction, and the server's watchdog stops

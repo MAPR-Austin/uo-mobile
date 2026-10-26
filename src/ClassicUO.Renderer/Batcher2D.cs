@@ -87,6 +87,16 @@ namespace ClassicUO.Renderer
 
         private Matrix TransformMatrix => _transformMatrix;
 
+        /// <summary>
+        /// UO Mobile (build 58): applied after every Begin's own transform while it is set. The phone draws its UI
+        /// straight at the screen's pixels with this as the UI-units-to-pixels scale, so the UI is no longer drawn
+        /// small and then stretched (with linear filtering) onto the screen. Identity otherwise.
+        /// </summary>
+        public Matrix BaseTransform { get; set; } = Matrix.Identity;
+
+        /// <summary>The transform the current batch draws with (Begin's matrix, then <see cref="BaseTransform"/>).</summary>
+        public ref readonly Matrix CurrentTransform => ref _transformMatrix;
+
 
         private DepthStencilState Stencil { get; } = new DepthStencilState
         {
@@ -135,6 +145,26 @@ namespace ClassicUO.Renderer
             {
                 return;
             }
+
+            // UO Mobile (build 58): a SpriteFont is anti-aliased art made for 1:1. Scaled (the phone draws its UI at the
+            // screen's pixels, ~2.5x) it is sampled linearly, as it was when the whole UI was stretched onto the screen.
+            float k = _transformMatrix.M11;
+
+            if (k > 1.01f || k < 0.99f)
+            {
+                SamplerState previous = _sampler;
+                SetSampler(SamplerState.LinearClamp);
+                DrawStringCore(spriteFont, text, position, color, layerDepth);
+                SetSampler(previous);
+
+                return;
+            }
+
+            DrawStringCore(spriteFont, text, position, color, layerDepth);
+        }
+
+        private void DrawStringCore(SpriteFont spriteFont, ReadOnlySpan<char> text, Vector2 position, Vector3 color, float layerDepth)
+        {
 
             EnsureSize();
 
@@ -909,7 +939,7 @@ namespace ClassicUO.Renderer
             FlushesDone = 0;
 
             _customEffect = customEffect;
-            _transformMatrix = transform_matrix;
+            _transformMatrix = transform_matrix * BaseTransform;
         }
 
         public void End()

@@ -74,6 +74,7 @@ namespace ClassicUO.Assets
         private FontCharacterDataUnicode[,] _fontDataUNICODE;
         private readonly UOFile[] _unicodeFontAddress = new UOFile[20];
         private readonly long[] _unicodeFontSize = new long[20];
+        private readonly sbyte[] _unicodeTighten = new sbyte[20];
         private readonly VisitedUrlCache _visitedUrls = new VisitedUrlCache(1024);
         private readonly int[] _offsetCharTable = { 2, 0, 2, 2, 0, 0, 2, 2, 0, 0 };
         private readonly int[] _offsetSymbolTable = { 1, 0, 1, 1, -1, 0, 1, 1, 0, 0 };
@@ -264,6 +265,11 @@ namespace ClassicUO.Assets
             {
                 cc.Data = new byte[(((cc.Width - 1) / 8) + 1) * cc.Height];
                 file.Read(cc.Data);
+
+                if (_unicodeTighten[font] > 0)
+                {
+                    TrimBlankColumns(ref cc, _unicodeTighten[font]); // (UO Mobile: see AliasUnicodeFont)
+                }
                 //Span<byte> scanline = stackalloc byte[((cc.Width - 1) / 8) + 1];
                 //file.Read(scanline);
 
@@ -292,6 +298,89 @@ namespace ClassicUO.Assets
                 //    }
                 //}
             }
+        }
+
+        /// <summary>
+        /// UO Mobile (build 58): Unicode font <paramref name="font"/> is read from <paramref name="replacement"/>'s file from now
+        /// on (layout and drawing alike, so text measured with it fits as drawn). False, and nothing changed, if either is
+        /// missing. <paramref name="tighten"/> takes up to that many empty pixel columns off each glyph, so a wider
+        /// replacement keeps the original's widths. Call before any text is laid out.
+        /// </summary>
+        public bool AliasUnicodeFont(byte font, byte replacement, sbyte tighten = 0)
+        {
+            if (font >= 20 || replacement >= 20 || _unicodeFontAddress[font] == null || _unicodeFontAddress[replacement] == null || _fontDataUNICODE == null)
+            {
+                return false;
+            }
+
+            _unicodeFontAddress[font] = _unicodeFontAddress[replacement];
+            _unicodeTighten[font] = Math.Max((sbyte)0, tighten);
+
+            for (int i = 0, n = _fontDataUNICODE.GetLength(1); i < n; i++)
+            {
+                _fontDataUNICODE[font, i] = default; // (anything read from the old file)
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Drops up to <paramref name="most"/> empty pixel columns from a glyph, first on its right, then on its left (its
+        /// advance is OffsetX + Width + 1, so each column dropped narrows the letter spacing by a pixel). Never the last column.
+        /// </summary>
+        private static void TrimBlankColumns(ref FontCharacterDataUnicode cc, int most)
+        {
+            int w = cc.Width, h = cc.Height, stride = ((w - 1) >> 3) + 1;
+            byte[] data = cc.Data;
+
+            bool Blank(int x)
+            {
+                for (int y = 0; y < h; y++)
+                {
+                    if ((data[y * stride + (x >> 3)] & (1 << (7 - (x & 7)))) != 0)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+
+            int left = 0, right = 0;
+
+            while (right < most && w - right > 1 && Blank(w - 1 - right))
+            {
+                right++;
+            }
+
+            while (left + right < most && w - right - left > 1 && Blank(left))
+            {
+                left++;
+            }
+
+            if (left + right == 0)
+            {
+                return;
+            }
+
+            int nw = w - left - right, nstride = ((nw - 1) >> 3) + 1;
+            byte[] nd = new byte[nstride * h];
+
+            for (int y = 0; y < h; y++)
+            {
+                for (int x = 0; x < nw; x++)
+                {
+                    int sx = x + left;
+
+                    if ((data[y * stride + (sx >> 3)] & (1 << (7 - (sx & 7)))) != 0)
+                    {
+                        nd[y * nstride + (x >> 3)] |= (byte)(1 << (7 - (x & 7)));
+                    }
+                }
+            }
+
+            cc.Width = (sbyte)nw;
+            cc.Data = nd;
         }
 
         public bool UnicodeFontExists(byte font)

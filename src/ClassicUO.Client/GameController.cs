@@ -758,11 +758,15 @@ namespace ClassicUO
                 return;
             }
 
+            bool uiAtPixels = Touch.PhoneText.UiAtPixels;
+            _uoSpriteBatch.BaseTransform = Matrix.Identity; // (the world is drawn in its own units)
+
             _renderTargets.EnsureSizes(
                 GraphicsDevice,
                 new Rectangle(0, 0, GraphicManager.PreferredBackBufferWidth, GraphicManager.PreferredBackBufferHeight),
                 Scene.Camera.Bounds,
-                DpiScale
+                DpiScale,
+                uiAtPixels
             );
 
             Profiler.EndFrame();
@@ -787,6 +791,11 @@ namespace ClassicUO
 
             _uoSpriteBatch.GraphicsDevice.SetRenderTarget(_renderTargets.UiRenderTarget);
             GraphicsDevice.Clear(Color.Transparent);
+
+            // UO Mobile (build 58): the phone's UI is drawn at the screen's pixels (UI units scaled by DpiScale), not
+            // stretched there afterwards; text is then drawn at its final size (Touch/PhoneText)
+            _uoSpriteBatch.BaseTransform = uiAtPixels ? Matrix.CreateScale(DpiScale, DpiScale, 1f) : Matrix.Identity;
+            Touch.PhoneText.BeginFrame();
 
             if ((UO.World?.InGame ?? false) && SelectedObject.Object is TextObject t)
             {
@@ -816,6 +825,7 @@ namespace ClassicUO
             UO.GameCursor?.Draw(_uoSpriteBatch);
             _uoSpriteBatch.End();
 
+            _uoSpriteBatch.BaseTransform = Matrix.Identity;
             _uoSpriteBatch.GraphicsDevice.SetRenderTarget(null);
 
             _renderTargets.Draw(_uoSpriteBatch);

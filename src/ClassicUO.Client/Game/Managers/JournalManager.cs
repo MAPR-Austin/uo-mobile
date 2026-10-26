@@ -48,6 +48,13 @@ namespace ClassicUO.Game.Managers
                 entry.Font = 0;
                 entry.IsUnicode = true;
             }
+            else if (!entry.IsUnicode && Touch.PhoneText.Fonts)
+            {
+                // UO Mobile (build 58): every ASCII font is ornate and illegible on a phone: the journal shows such
+                // lines in the Unicode font, which the phone draws in UO's clean bold font (Touch/PhoneText)
+                entry.Font = 0;
+                entry.IsUnicode = true;
+            }
 
             Entries.AddToBack(entry);
             EntryAdded.Raise(entry);

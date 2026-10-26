@@ -332,6 +332,24 @@ must be caught here.
        its command does (Leap, Climb, Burrow, Corrupt, Siege and Spit give a cursor; Horde Attack a cursor; the rest answer
        at once); while alive they answer "Only the dead ..."; Edit > a button: the same commands are presets;
        Graveyard Battles characters get no Undead layout.
+   - Build 58 (readable text; client only, works on either server):
+     - held sideways and upright, open the build menu, a survivor's Logic tab, the leaderboard, the guide ([guide), Towns, the
+       journal, skills, status and the paperdoll: server menus' row text is UO's plain bold font, not the blackletter script;
+       letters are sharp with even strokes at arm's length (no blur, no letters a pixel fatter than their neighbours); nothing
+       in a menu wraps onto a second line or runs past its plate that didn't in build 57 (desktop check: every menu of
+       `[PhoneMenus` on the test shard - none wraps more, ten wrap less);
+     - the journal: system lines and speech read in the same plain font (they were ornate ASCII);
+     - pinch a server menu larger and smaller: the text stays readable while pinching (it may be slightly uneven until the
+       fingers lift) and is sharp again within a few frames after; rotate with a menu open: sharp in the new orientation;
+     - open a long menu for the first time (the guide, a Towns page): no hitch (glyphs are made within 4 ms a frame; a menu at
+       a new zoom may turn sharp over two or three frames);
+     - the HUD's labels, the login, server and character screens, the Map's labels and legend: as sharp or sharper than build
+       57; art (gump frames, the paperdoll, item pictures) is drawn once from its source at the screen's pixels: crisp, not
+       soft;
+     - play ten minutes with menus, journal and map: the frame rate is as before (the UI target is now the screen's size, ~12
+       MB more on a 3x phone; up to 24 MB of glyph textures).
+     Desktop: each part can be turned off to compare (`UOM_HIRES_UI=0`, `UOM_CRISP_TEXT=0`, `UOM_PHONE_FONTS=0`); the desktop
+     at 150% display scaling (`window 2556 1179`: DpiScale 2.456, an iPhone 15 sideways) shows the phone's pixel scale.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
    change against every category below. It also re-checks the whole startup, login and world
    path for any category the diff touches. Its findings are fixed or consciously accepted before
@@ -365,7 +383,10 @@ must be caught here.
   The UI scale must give 480 units on the short side in game, and contain 640x480 on the login
   screens and while a window wider than 480 is open in portrait. HUD positions must stay inside
   `SDL_GetWindowSafeArea` in both orientations, and windows must be pulled back on screen after
-  a rotation. Info.plist and the `SDL_ORIENTATIONS` hint must list the same orientations.
+  a rotation. Info.plist and the `SDL_ORIENTATIONS` hint must list the same orientations. Since build 58 the touch UI is drawn
+  at the screen's pixels (the batcher's `BaseTransform` = DpiScale): UI code must draw through the batcher in UI
+  units and never assume the UI target or viewport is UI-sized; text is rasterised at its final scale
+  (`FontGlyphAtlas.TryGetScaledEntry`), so a new text path should go through `RenderedText`.
 - **Saved data from older builds**: a new field in a saved file (layouts, macros, profile)
   needs a migration for files written before it existed. Missing is not the same as default:
   build-31 layouts have no portrait positions.
@@ -481,3 +502,4 @@ must be caught here.
 | audit | (agent, build 55, fixed in 56) | the X added to a server menu (a NiceButton) under the joystick ring walked instead of closing, and a long press there couldn't close it; upright, a server menu wider than ~780 ran off the screen with its X (fit stopped at 0.6); a paged menu was refitted every page (Prev / Next changed its size); a press held back while the server rebuilt its menu was mapped by the new window (or not at all) and the scene read last frame's window under the pointer (a vanished one: the world took the click); an HTML link beside a button counted as the button's label; zoomed windows were clamped on screen mid-pinch | a server menu's NiceButton / clickable HitBox beats the ring; server menus fit down to 0.4; one zoom per menu kind while it stays up (a bigger page shrinks it once); presses keep their touch-down mapping onto the live (or replacing) menu, and the pointer's control is re-read before each touch press; HTML with links is never a label; KeepOnScreen stands aside during a pinch |
 | QA | (zombie QA round 1, QA-011; fixed in 57) | the HUD's layout name ("Survival") was drawn over the X of every menu reaching the top of the screen (guide, build, leaderboard...) ; the HUD is drawn over windows and only its buttons stepped aside | the name steps aside while any window covers it (`TouchInput.OverWindow`) |
 | audit | (build 56 notes, fixed in 57) | the map's selection of an escort dropped each minute; a server menu pinched below 0.6 upright stayed that tiny sideways ; the selection was found again by kind and name, and the escort's name counts down ("N min"); `FitScale` only shrinks a pinched zoom | found by kind and name, or for an escort only by its nearest spot; a server-menu pinch below 0.6 is not kept, and build 56's are dropped on load |
+| owner | (build 57 on the phone, fixed in 58) | zoomed menus "almost illegible": the UI was drawn at UI units (480 on the short side) into a small target and stretched ~2.5x to the screen with linear filtering, after a zoomed window's own nearest-neighbour 1.3x (every third font column doubled); and the server menus' `<BIG>` text and the journal use UO's blackletter Unicode font 0 and ornate ASCII fonts | the touch UI is drawn at the screen's pixels (batcher `BaseTransform`, backbuffer-sized UI target copied 1:1); text not at 1:1 is drawn from glyphs box-filtered at their exact screen scale and placed on whole pixels (4 ms a frame budget, cache dropped only at a frame's start, off while pinching); Unicode font 0 is read from UO's clean font 3 with two blank glyph columns trimmed (fits font 0's widths); ASCII journal lines in the Unicode font |

@@ -21,6 +21,7 @@ namespace ClassicUO.Renderer
 
         private Texture2D _background;
         private SamplerState _defaultSamplerState;
+        private bool _uiAtDevicePixels;
 
         public RenderTarget2D UiRenderTarget { get => _uiRenderTarget; }
         public RenderTarget2D LightRenderTarget { get => _lightRenderTarget; }
@@ -32,10 +33,17 @@ namespace ClassicUO.Renderer
             _lightsHue = lightsHue;
         }
 
-        public void EnsureSizes(GraphicsDevice graphicsDevice, Rectangle gameWindowOnScreen, Rectangle gameWorldSceneAfterDPI, float dpiScale)
+        /// <summary>
+        /// UO Mobile (build 58): <paramref name="uiAtDevicePixels"/> makes the UI target the backbuffer's size; the UI is then
+        /// drawn into it already scaled to pixels (see UltimaBatcher2D.BaseTransform) and copied 1:1. Before, the UI was drawn
+        /// at UI units (480 on a phone's short side) and stretched ~2.5x with linear filtering: every glyph went through two
+        /// resamplings (a zoomed window's nearest-neighbour scale, then the blur) and the UO fonts smeared.
+        /// </summary>
+        public void EnsureSizes(GraphicsDevice graphicsDevice, Rectangle gameWindowOnScreen, Rectangle gameWorldSceneAfterDPI, float dpiScale, bool uiAtDevicePixels = false)
         {
             _gameWindowOnScreen = gameWindowOnScreen;
-            _gameWindowAfterDPI = ScaleRectangle(gameWindowOnScreen, dpiScale);
+            _gameWindowAfterDPI = uiAtDevicePixels ? gameWindowOnScreen : ScaleRectangle(gameWindowOnScreen, dpiScale);
+            _uiAtDevicePixels = uiAtDevicePixels;
             _gameWorldSceneOnScreen = ScaleRectangle(gameWorldSceneAfterDPI, 1/dpiScale);
             _gameWorldSceneAfterDPI = gameWorldSceneAfterDPI;
 
@@ -135,6 +143,11 @@ namespace ClassicUO.Renderer
             batcher.SetBlendState(null);
 
             // Draw UI at original window size (render target is DPI-scaled but destination is not)
+            if (_uiAtDevicePixels)
+            {
+                batcher.SetSampler(SamplerState.PointClamp); // (1:1: already at the screen's pixels)
+            }
+
             batcher.Draw(
                 UiRenderTarget,
                 _gameWindowOnScreen,

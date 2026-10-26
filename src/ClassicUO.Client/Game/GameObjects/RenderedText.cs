@@ -548,6 +548,15 @@ namespace ClassicUO.Game
             bool isItalic = (FontStyle & FontStyle.Italic) != 0;
             bool isUnderline = (FontStyle & FontStyle.Underline) != 0;
 
+            // UO Mobile (build 58, Touch/PhoneText): text shown at anything but 1:1 screen pixels is drawn from glyphs
+            // rasterised at that exact scale, each placed on a whole screen pixel and drawn 1:1
+            ref readonly Matrix tm = ref batcher.CurrentTransform;
+            float screenScale = tm.M11 * scale;
+            bool crisp = Touch.PhoneText.Crisp && tm.M11 > 0f && tm.M12 == 0f && tm.M21 == 0f && MathF.Abs(tm.M11 - tm.M22) < 0.0001f &&
+                         MathF.Abs(screenScale - 1f) > 0.02f;
+            int scaleSteps = crisp ? Math.Clamp((int)MathF.Round(screenScale * FontGlyphAtlas.SCALE_STEPS), 8, 320) : 0;
+            float toUnits = crisp ? 1f / tm.M11 : 0f;
+
             int lineOffsY = 0;
             MultilinesFontInfo ptr = _info;
             int textWidth = Width;
@@ -660,6 +669,31 @@ namespace ClassicUO.Game
                             && localY + entry.GlyphHeight > clipOffsetY
                             && localY < clipOffsetY + clipHeight)
                         {
+                            if (crisp && atlas.TryGetScaledEntry(charFont, si, IsUnicode, charBorder, charSolid, charItalic, charColor, scaleSteps, out GlyphAtlasEntry se))
+                            {
+                                if (se.IsValid)
+                                {
+                                    float px = MathF.Round((destX + (localX - clipOffsetX) * scale) * tm.M11 + tm.M41);
+                                    float py = MathF.Round((destY + (localY - clipOffsetY) * scale) * tm.M22 + tm.M42);
+
+                                    batcher.Draw(
+                                        se.Texture,
+                                        new Vector2((px - tm.M41) * toUnits, (py - tm.M42) * toUnits),
+                                        se.UV,
+                                        charHueVector,
+                                        0f,
+                                        Vector2.Zero,
+                                        new Vector2(toUnits, toUnits),
+                                        SpriteEffects.None,
+                                        depth
+                                    );
+                                }
+
+                                w += entry.AdvanceWidth;
+
+                                continue;
+                            }
+
                             int drawX = destX + (int)(localX * scale) - (int)(clipOffsetX * scale);
                             int drawY = destY + (int)(localY * scale) - (int)(clipOffsetY * scale);
                             int drawW = (int)(entry.GlyphWidth * scale);
