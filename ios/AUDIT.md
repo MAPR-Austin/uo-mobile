@@ -346,8 +346,10 @@ must be caught here.
      - the HUD's labels, the login, server and character screens, the Map's labels and legend: as sharp or sharper than build
        57; art (gump frames, the paperdoll, item pictures) is drawn once from its source at the screen's pixels: crisp, not
        soft;
-     - play ten minutes with menus, journal and map: the frame rate is as before (the UI target is now the screen's size, ~12
-       MB more on a 3x phone; up to 24 MB of glyph textures).
+     - play ten minutes with menus, journal and map: the frame rate is as before (the UI target is now the screen's size, with
+       its depth-stencil about +24-30 MB on a 3x Pro Max; up to 28 MB of glyph textures - build 58 audit); no text
+       flickering between sharp and soft (the log's ScaledResets should stay at 0-1); `<BIG>` text full of 1s (clocks,
+       counts) still fits (font 3 is wider for '1').
      Desktop: each part can be turned off to compare (`UOM_HIRES_UI=0`, `UOM_CRISP_TEXT=0`, `UOM_PHONE_FONTS=0`); the desktop
      at 150% display scaling (`window 2556 1179`: DpiScale 2.456, an iPhone 15 sideways) shows the phone's pixel scale.
 4. **Agent audit**: an agent reads this file plus `git diff tf-<last>..HEAD` and reviews the
